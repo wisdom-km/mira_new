@@ -5,7 +5,6 @@
 运行时总览图请打开可缩放查看器（滚轮缩放、拖拽平移、点击节点打开源码）：
 
 - [打开可缩放架构图](https://wisdom-km.github.io/mira_new/architecture.html)
-- [备用入口](https://raw.githack.com/wisdom-km/mira_new/main/docs/architecture.html)
 - 图源：[`architecture.mmd`](architecture.mmd)
 
 蓝色为应用层，琥珀色为创作域，绿色为资产与场景，玫瑰色为平台与渲染，靛蓝为导出与服务。

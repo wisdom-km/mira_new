@@ -10,7 +10,7 @@ Windows 用户可直接从 [Releases](https://github.com/wisdom-km/mira_new/rele
 
 GitHub README 里的 Mermaid 是静态图，不能滚轮缩放。运行时总览请打开交互视图：
 
-**[打开可缩放架构图](https://wisdom-km.github.io/mira_new/architecture.html)** · [备用入口](https://raw.githack.com/wisdom-km/mira_new/main/docs/architecture.html)
+**[打开可缩放架构图](https://wisdom-km.github.io/mira_new/architecture.html)**
 
 滚轮缩放 · 拖拽平移 · 点击节点打开对应源码。本地也可直接打开 [`docs/architecture.html`](docs/architecture.html)。
 
