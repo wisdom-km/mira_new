@@ -1,3 +1,4 @@
 #pragma once
-// Phase 0 placeholder. AI service interfaces start in Phase 9.
-namespace DirectorDesk::AI {}
+
+#include "DirectorDesk/AI/IImageGenService.h"
+#include "DirectorDesk/AI/IVideoGenService.h"

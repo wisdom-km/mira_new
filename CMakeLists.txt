@@ -89,10 +89,9 @@ add_subdirectory(src/UI)
 add_subdirectory(src/Link)
 add_subdirectory(src/Storyboard)
 add_subdirectory(src/Export)
+add_subdirectory(src/AI)
 add_subdirectory(backends)
 add_subdirectory(src/App)
-
-dd_add_interface_module(ai)
 
 target_link_libraries(dd_app
     PUBLIC

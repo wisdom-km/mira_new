@@ -264,17 +264,17 @@
 
 ### Tasks
 
-- [ ] 定义 `IImageGenService`、`IVideoGenService`
-- [ ] 定义请求、结果、进度、取消和错误类型
-- [ ] 明确输入参考图与镜头元数据的传递方式
-- [ ] 添加 Null/Mock 实现用于测试
-- [ ] 不添加供应商 SDK、密钥 UI 或真实网络调用
+- [x] 定义 `IImageGenService`、`IVideoGenService`
+- [x] 定义请求、结果、进度、取消和错误类型
+- [x] 明确输入参考图与镜头元数据的传递方式
+- [x] 添加 Null/Mock 实现用于测试
+- [x] 不添加供应商 SDK、密钥 UI 或真实网络调用
 
 ### 验收标准
 
-- [ ] 接口不依赖具体 AI 服务商
-- [ ] Mock 实现可验证异步结果和错误流
-- [ ] 不扩大 P0 用户界面或引入未定义功能
+- [x] 接口不依赖具体 AI 服务商
+- [x] Mock 实现可验证异步结果和错误流
+- [x] 不扩大 P0 用户界面或引入未定义功能
 
 完成 tag：`phase-9-ai-interfaces`
 

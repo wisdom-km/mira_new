@@ -14,6 +14,7 @@ enum class ErrorCode {
     Internal,
     ParseFailure,
     Unsupported,
+    Cancelled,
 };
 
 struct Error {

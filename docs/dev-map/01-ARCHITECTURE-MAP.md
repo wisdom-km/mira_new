@@ -74,7 +74,7 @@ Core ──▶ （无内部依赖）
 | Link | 镜头 ↔ 相机关联 |
 | Storyboard | 从 App 提供的不可变快照生成 Scene/Shot 图、确定性自动布局、卡片状态和可重建缩略图缓存调度 |
 | Export | 单镜头离屏渲染、透明 PNG、分辨率选择；数据驱动的完整分镜总览 PNG 输出 |
-| AI | IImageGenService / IVideoGenService 纯接口，P0 无实现 |
+| AI | IImageGenService / IVideoGenService；Null/Mock 仅供测试，P0 无供应商实现 |
 | UI | 全部 ImGui 面板（IPanel），含分镜画布交互视图；只发 Command、只读 State |
 | App | 唯一主循环与生命周期管理者、Command 分发、工程文件读写编排、跨模块快照组装与选择同步 |
 
@@ -151,6 +151,13 @@ public:
 - 分镜画布同步与交互：`modules/storyboard-canvas.md`
 - 资产清单 JSON schema：`modules/asset-manifest.md`
 - 工程文件 `.ddproj`：`modules/project-file.md`
+
+### 8. AI 接口边界
+
+- 图像/视频生成只通过 `IImageGenService` / `IVideoGenService`；请求携带镜头元数据与本地参考图（导出 PNG 路径或可选 RGBA 快照）
+- 参考图路径禁止 `://` 远程地址；服务实现不得依赖具体供应商类型
+- P0 只提供 Null（明确不可用）和 Mock（主线程 `Pump` 推进任务）；禁止供应商 SDK、密钥 UI 和真实网络调用
+- 任务状态经 `Submit` / `Progress` / `Cancel` / `TakeResult` 表达；未来供应商适配器由 App 用结果队列收回，不得把业务状态交给后台线程
 
 ## 五、日志规范
 

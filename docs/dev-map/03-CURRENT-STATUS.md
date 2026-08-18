@@ -4,23 +4,22 @@
 
 ## 当前快照
 
-- **当前 Phase**：Phase 8 已完成，准备进入 Phase 9
-- **当前状态**：官方在线资产库已接通 `wisdom-km/obj-3d-models`；Wisdom 已在 Windows 上确认 Online 链路
+- **当前 Phase**：Phase 9 已完成，准备进入 Phase 10
+- **当前状态**：AI 接口骨架已合入；Wisdom 授权提交。下一步是体验打磨与发布准备
 - **最后更新**：2026-08-19
 - **更新者**：Cursor AI
 - **当前分支**：`main`
-- **最近完成 tag**：`phase-8-online-assets`（本提交）
-- **下一个允许执行的工作**：Phase 9：AI 接口骨架。不得接入具体服务商、密钥 UI 或真实网络调用
+- **最近完成 tag**：`phase-9-ai-interfaces`（本提交）
+- **下一个允许执行的工作**：Phase 10：体验打磨、发布准备与文档。不得接入真实 AI 服务商
 
 ## 已完成
 
-- [x] Phase 0–6：骨架到工程文件/镜头关联
-- [x] Phase 7：分镜画布与正式导出；tag `phase-7-core-loop`（`a76c9b8`）
-- [x] Phase 8：官方在线资产库；tag `phase-8-online-assets`
+- [x] Phase 0–8：骨架到官方在线资产库
+- [x] Phase 9：AI 接口骨架；tag `phase-9-ai-interfaces`
 
 ## 进行中
 
-无。下一步是 Phase 9。
+无。下一步是 Phase 10。
 
 ## 阻塞项
 
@@ -57,6 +56,7 @@
 | 镜头 3D 缩略图 | Phase 7 由 App 主线程离屏渲染 |
 | 官方在线源 | 编译期固定唯一地址；无自定义源、无上传 |
 | 官方地址 | 仓库 https://github.com/wisdom-km/obj-3d-models ；清单 `https://raw.githubusercontent.com/wisdom-km/obj-3d-models/main/manifest.json` ；资源基地址 `https://raw.githubusercontent.com/wisdom-km/obj-3d-models/main/` ；批准者 Wisdom |
+| AI 接口 | 供应商无关；参考图只接受本地路径或 RGBA；P0 无密钥 UI、无真实调用 |
 
 ## 已知风险
 
@@ -71,40 +71,36 @@
 
 ## 本次验证
 
-- Wisdom 在 Windows 上确认资源库「在线」页可浏览官方清单
 - Windows MSVC 19.44 + Ninja Debug 构建成功
-- `DirectorDeskTests` 全部通过：95 cases / 512 assertions
-- 未开始 Phase 9
+- `DirectorDeskTests` 全部通过：103 cases / 554 assertions
+- 未开始 Phase 10
 
 ## 下一步清单
 
-1. 定义 `IImageGenService` / `IVideoGenService` 及请求、结果、进度、取消、错误类型
-2. 用 Null/Mock 验证异步结果和错误流
-3. 不扩大 P0 UI，不接入供应商 SDK
+1. 统一空状态、错误提示和快捷键
+2. 完善对外文档、许可证与示例工程
+3. Windows 回归；macOS 依赖 CI
+4. 形成 P0 发布检查清单
 
 ## 工作日志
 
+### 2026-08-19：Phase 9 AI 接口骨架
+
+- 定义图像/视频生成请求、进度、取消和结果。
+- Null 明确拒绝；Mock 用 `Pump` 验证成功、失败、取消。
+- 参考图只接受本地路径；镜头 ID/标题/文本随请求传递。
+- 未增加 UI、供应商 SDK 或网络调用。
+
 ### 2026-08-19：Phase 8 官方资产库
 
-- 增加 `IHttpClient`、curl 后端、picosha2。
-- 实现清单解析、相对路径/主机校验、原子缓存、SHA-256 与大小校验。
-- 资源库用「本地 / 在线」页签展示官方资产；无第三方源入口。
-- 官方仓库：https://github.com/wisdom-km/obj-3d-models
-- 已发布 `manifest.json` 与 CC0 起步立方体 `basic-cube@1.0.0`。
+- 官方仓库 `wisdom-km/obj-3d-models`；资源库「本地 / 在线」页签。
+- 已提交 `fe9ca08` 并推送 tag `phase-8-online-assets`。
 
 ### 2026-08-19：Phase 7 分镜画布与正式导出
 
 - 确定性 LTR 布局、防抖缩略图、1080p/2K 与分镜总览 PNG。
 - 已提交 `a76c9b8` 并推送 tag `phase-7-core-loop`。
 
-### 2026-08-19：Phase 6 工程文件与镜头关联
+### 2026-08-19：Phase 6–0
 
-- `.ddproj` 版本 1、镜头关联、脏工程提示。已打 `phase-6-project-link`（`929725d`）。
-
-### 2026-08-19：Phase 5 本地资源库
-
-- `Asset::Library` 与 sidecar/占位预览。已打 `phase-5-local-assets`（`f78f190`）。
-
-### 2026-08-19：Phase 4–0
-
-- 预设机位、剧本、模型导入、渲染骨架与开发地图。
+- 工程文件、本地资源库、预设机位、剧本、模型导入与开发地图。

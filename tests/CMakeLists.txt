@@ -19,6 +19,7 @@ add_executable(DirectorDeskTests
     App/ProjectFileTests.cpp
     Storyboard/LayoutTests.cpp
     Export/ShotExportTests.cpp
+    AI/ServiceTests.cpp
 )
 
 target_include_directories(DirectorDeskTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -36,6 +37,7 @@ target_link_libraries(DirectorDeskTests
         dd_app
         dd_storyboard
         dd_export
+        dd_ai
         Catch2::Catch2WithMain
 )
 
