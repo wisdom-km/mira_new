@@ -4,13 +4,13 @@
 
 ## 当前快照
 
-- **当前 Phase**：Phase 0（实现完成，等待用户授权提交/tag）
-- **当前状态**：Windows 本地构建、测试和应用启动已通过；macOS 待 CI 验证
+- **当前 Phase**：Phase 1（Windows 本地验收已通过）
+- **当前状态**：bgfx Direct3D 11 可交互查看测试立方体；轨道相机、ImGui 视口组合、离屏透明 PNG 回读已通过；macOS 待 CI 验证
 - **最后更新**：2026-08-19
 - **更新者**：Cursor AI
 - **当前分支**：`main`
-- **最近完成 tag**：无
-- **下一个允许执行的工作**：用户确认后提交 Phase 0；打 `phase-0-skeleton` tag 前不得开始 Phase 1
+- **最近完成 tag**：`phase-0-skeleton`（`38586c0`）
+- **下一个允许执行的工作**：用户明确要求后再打 `phase-1-render-camera`。打 tag 前不得开始 Phase 2
 
 ## 已完成
 
@@ -18,18 +18,24 @@
 - [x] Phase 0 强制目录、CMake、CMake Presets、vcpkg manifest
 - [x] `Core::Log`、`Result`/`Error`、最小 Command 队列
 - [x] Platform UTF-8 路径、用户数据目录、GLFW 窗口封装
-- [x] Dear ImGui docking 空工作区（临时 OpenGL3 后端）
 - [x] Catch2 单元测试（含中文路径）
 - [x] Windows / macOS GitHub Actions CI
 - [x] MIT LICENSE、README、CONTRIBUTING、clang-format/tidy
+- [x] 定义 `IRenderer`、渲染描述、错误返回
+- [x] bgfx 后端初始化、重置、帧循环、销毁
+- [x] CMake 调用 shaderc，为 dx11/metal/glsl/spirv 编译 shader（不提交二进制）
+- [x] 测试立方体、基础顶点色与灯光
+- [x] 轨道相机：旋转、平移、缩放、宽高比
+- [x] ImGui docking 视口与 bgfx 输出组合（已从临时 OpenGL3 换成 bgfx）
+- [x] 离屏 framebuffer、RGBA 回读、透明 PNG 技术切片
 
 ## 进行中
 
-无。
+无。Phase 1 功能在 Windows 上已验收。
 
 ## 阻塞项
 
-无。macOS 实机未在本机验证，依赖 CI。
+无。macOS 实机未在本机验证，依赖 CI。离屏导出当前需要创建窗口（bgfx 绑定 HWND），无窗口 CI 只跑单元测试。
 
 ## 已确认决策
 
@@ -42,7 +48,8 @@
 | C++ 标准 | C++17 |
 | 构建与依赖 | CMake + vcpkg manifest |
 | 渲染/UI/窗口 | bgfx / Dear ImGui docking / GLFW |
-| Phase 0 ImGui 后端 | 临时 GLFW + OpenGL3；Phase 1 替换为 bgfx |
+| ImGui 后端 | GLFW + bgfx（Phase 0 临时 OpenGL3 已替换） |
+| 窗口图形 API | `GLFW_NO_API`，由 bgfx 创建交换链 |
 | 模型加载 | cgltf（GLB）+ tinyobjloader（OBJ），通过 `IModelLoader` 扩展 |
 | 网络与 JSON | libcurl + nlohmann-json |
 | 完整性校验 | picosha2（SHA-256） |
@@ -57,8 +64,8 @@
 
 | 风险 | 应对 | 验证阶段 |
 |------|------|----------|
-| bgfx shader 跨平台编译复杂 | CMake 自动调用 shaderc，禁止手工产物 | Phase 1 |
-| 透明离屏渲染/回读可能因后端差异失败 | 在正式 Export 前完成技术切片 | Phase 1 |
+| bgfx shader 跨平台编译复杂 | CMake 自动调用 shaderc，禁止手工产物 | Phase 1 已在 Windows 验证 |
+| 透明离屏渲染/回读可能因后端差异失败 | 在正式 Export 前完成技术切片 | Phase 1 Windows 已通过；macOS 待 CI |
 | Windows 中文路径与编码 | Platform 统一 UTF-8 边界并加入测试 | Phase 0 已测 / Phase 2/3 |
 | GLB 特性范围失控 | P0 限基础静态网格/材质，不做骨骼动画 | Phase 2 |
 | GitHub 在部分网络环境不可用 | 缓存最后有效清单；镜像源仅列后续 | Phase 8 |
@@ -68,16 +75,25 @@
 ## 本次验证
 
 - Windows MSVC 19.44 + Ninja Debug 配置与构建成功
-- `ctest`：`DirectorDeskTests` 通过（7 cases / 23 assertions）
-- 启动 `DirectorDesk.exe`：创建 1280×720 窗口，ImGui docking 后端初始化，日志写入 `%APPDATA%\DirectorDesk\logs`
+- `ctest`：`DirectorDeskTests` 通过（含 OrbitCamera、PngWriter、中文路径）
+- 启动 `DirectorDesk.exe`：bgfx renderer=`Direct3D 11`，左侧 Workspace + 右侧 Viewport 停靠，视口中可见测试立方体
+- 轨道提示与视口拖拽/滚轮已接入 Command
+- `--export-test-png` 与菜单/按钮均可写出 `%APPDATA%\DirectorDesk\exports\phase1-offscreen.png`，日志 `opaque=true transparent=true`
 
 ## 下一步清单
 
-1. 用户确认后提交 Phase 0 代码（如需同步远程，再 push）
-2. 用户明确要求后再打 `phase-0-skeleton`
-3. 之后才能开始 Phase 1：bgfx 最小渲染、轨道相机、离屏 PNG 回读
+1. 用户明确要求后再打 `phase-1-render-camera`
+2. 之后才能开始 Phase 2：可扩展模型加载（GLB/OBJ）与本地导入
 
 ## 工作日志
+
+### 2026-08-19：Phase 1 渲染、相机与离屏 PNG
+
+- 引入 bgfx、glm、stb；ImGui 去掉 OpenGL3/glad，改为 `InitForOther` + bgfx 提交。
+- GLFW 窗口改为 `GLFW_NO_API`，用原生 HWND/NSWindow 初始化 bgfx。
+- 实现 `IRenderer` / `BgfxRenderer`、测试立方体、shaderc、轨道相机、视口纹理。
+- 实现离屏透明 PNG 回读；UI 只发 `ExportTestPngCommand`。
+- 默认停靠：Workspace 左栏、Viewport 中央。未实现模型加载、剧本或分镜画布。
 
 ### 2026-08-19：Phase 0 骨架实现
 

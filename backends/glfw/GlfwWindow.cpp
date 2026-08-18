@@ -2,8 +2,14 @@
 
 #include "DirectorDesk/Core/Log.h"
 
-#include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#ifdef _WIN32
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
+#elif defined(__APPLE__)
+#define GLFW_EXPOSE_NATIVE_COCOA
+#include <GLFW/glfw3native.h>
+#endif
 
 namespace DirectorDesk::Platform {
 namespace {
@@ -19,9 +25,7 @@ Core::Result<void> RetainGlfw() {
         glfwSetErrorCallback(GlfwErrorCallback);
         if (glfwInit() == GLFW_FALSE) {
             return Core::Result<void>::Fail(Core::Error::Make(
-                Core::ErrorCode::Internal,
-                "glfwInit failed",
-                "无法初始化窗口系统"));
+                Core::ErrorCode::Internal, "glfwInit failed", "无法初始化窗口系统"));
         }
     }
     ++g_glfwUsers;
@@ -49,9 +53,7 @@ Window::~Window() {
 Core::Result<void> Window::Create(const WindowDesc& desc) {
     if (m_handle != nullptr) {
         return Core::Result<void>::Fail(Core::Error::Make(
-            Core::ErrorCode::AlreadyInitialized,
-            "Window::Create called twice",
-            "窗口已经创建"));
+            Core::ErrorCode::AlreadyInitialized, "Window::Create called twice", "窗口已经创建"));
     }
 
     auto glfw = RetainGlfw();
@@ -59,42 +61,20 @@ Core::Result<void> Window::Create(const WindowDesc& desc) {
         return glfw;
     }
 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-#ifdef __APPLE__
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
-#endif
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
 
-    GLFWwindow* window = glfwCreateWindow(
-        static_cast<int>(desc.width),
-        static_cast<int>(desc.height),
-        desc.title.c_str(),
-        nullptr,
-        nullptr);
+    GLFWwindow* window =
+        glfwCreateWindow(static_cast<int>(desc.width), static_cast<int>(desc.height),
+                         desc.title.c_str(), nullptr, nullptr);
     if (window == nullptr) {
         ReleaseGlfw();
         return Core::Result<void>::Fail(Core::Error::Make(
-            Core::ErrorCode::Internal,
-            "glfwCreateWindow returned null",
-            "无法创建窗口"));
-    }
-
-    glfwMakeContextCurrent(window);
-    glfwSwapInterval(1);
-
-    if (gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)) == 0) {
-        glfwDestroyWindow(window);
-        ReleaseGlfw();
-        return Core::Result<void>::Fail(Core::Error::Make(
-            Core::ErrorCode::Internal,
-            "gladLoadGLLoader failed",
-            "无法初始化图形接口"));
+            Core::ErrorCode::Internal, "glfwCreateWindow returned null", "无法创建窗口"));
     }
 
     m_handle = window;
-    DD_LOG_INFO("Window created {}x{}", desc.width, desc.height);
+    DD_LOG_INFO("Window created {}x{} (no graphics API)", desc.width, desc.height);
     return Core::Result<void>::Ok();
 }
 
@@ -112,9 +92,7 @@ void Window::PollEvents() {
 }
 
 void Window::SwapBuffers() {
-    if (m_handle != nullptr) {
-        glfwSwapBuffers(static_cast<GLFWwindow*>(m_handle));
-    }
+    // bgfx presents; GLFW has no graphics context in Phase 1.
 }
 
 bool Window::ShouldClose() const {
@@ -145,6 +123,20 @@ FramebufferSize Window::GetFramebufferSize() const {
 
 void* Window::NativeHandle() const {
     return m_handle;
+}
+
+void* Window::NativeOsHandle() const {
+    if (m_handle == nullptr) {
+        return nullptr;
+    }
+    auto* window = static_cast<GLFWwindow*>(m_handle);
+#ifdef _WIN32
+    return glfwGetWin32Window(window);
+#elif defined(__APPLE__)
+    return glfwGetCocoaWindow(window);
+#else
+    return nullptr;
+#endif
 }
 
 } // namespace DirectorDesk::Platform

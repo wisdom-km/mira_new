@@ -33,8 +33,9 @@ public:
     void RequestClose();
     [[nodiscard]] FramebufferSize GetFramebufferSize() const;
 
-    // Opaque native window pointer. Phase 0 is GLFWwindow*; Phase 1 passes it to bgfx.
+    // GLFW window pointer. Phase 1 bgfx uses NativeOsHandle() instead.
     [[nodiscard]] void* NativeHandle() const;
+    [[nodiscard]] void* NativeOsHandle() const;
 
 private:
     void* m_handle = nullptr;

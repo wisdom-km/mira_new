@@ -11,15 +11,19 @@
     },
     "fmt",
     "glfw3",
+    "glm",
+    "stb",
     {
       "name": "imgui",
       "features": [
         "docking-experimental",
-        "glfw-binding",
-        "opengl3-binding"
+        "glfw-binding"
       ]
     },
-    "glad",
+    {
+      "name": "bgfx",
+      "features": ["tools"]
+    },
     {
       "name": "catch2"
     }

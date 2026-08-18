@@ -2,6 +2,9 @@
 
 #include "DirectorDesk/Core/Result.h"
 
+#include <cstdint>
+#include <string>
+
 namespace DirectorDesk::Platform {
 class Window;
 }
@@ -15,13 +18,22 @@ public:
     ImGuiGlfwBackend& operator=(const ImGuiGlfwBackend&) = delete;
     ~ImGuiGlfwBackend();
 
-    Core::Result<void> Init(Platform::Window& window);
+    Core::Result<void> Init(Platform::Window& window, const std::string& shaderDirectory,
+                            std::uint8_t viewId);
     void Shutdown();
-    void BeginFrame(unsigned framebufferWidth, unsigned framebufferHeight);
-    void EndFrame();
+    void BeginFrame();
+    void Submit(std::uint32_t framebufferWidth, std::uint32_t framebufferHeight);
 
 private:
+    Core::Result<void> CreateResources();
+    void DestroyResources();
+
     bool m_initialized = false;
+    std::string m_shaderDirectory;
+    std::uint8_t m_viewId = 255;
+    std::uint16_t m_program = 0xFFFFu;
+    std::uint16_t m_textureSampler = 0xFFFFu;
+    std::uint16_t m_fontTexture = 0xFFFFu;
 };
 
 } // namespace DirectorDesk::Backends

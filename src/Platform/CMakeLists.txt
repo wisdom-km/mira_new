@@ -15,8 +15,6 @@ target_link_libraries(dd_platform
         dd_core
     PRIVATE
         glfw
-        glad::glad
-        OpenGL::GL
 )
 
 target_compile_definitions(dd_platform PRIVATE GLFW_INCLUDE_NONE)

@@ -4,12 +4,16 @@ add_executable(DirectorDeskTests
     Core/ResultTests.cpp
     Core/LogTests.cpp
     Platform/PathTests.cpp
+    Camera/OrbitCameraTests.cpp
+    Renderer/PngWriterTests.cpp
 )
 
 target_link_libraries(DirectorDeskTests
     PRIVATE
         dd_core
         dd_platform
+        dd_camera
+        dd_renderer
         Catch2::Catch2WithMain
 )
 

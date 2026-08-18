@@ -2,7 +2,10 @@
 
 #include "DirectorDesk/Core/Result.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
+#include <vector>
 
 namespace DirectorDesk::Platform {
 
@@ -19,6 +22,10 @@ public:
     static Core::Result<std::string> TemporaryDirectory();
 
     static std::string FileName(const std::string& utf8Path);
+    static Core::Result<std::string> ExecutableDirectory();
+    static Core::Result<std::vector<std::uint8_t>> ReadBinaryFile(const std::string& utf8Path);
+    static Core::Result<void> WriteBinaryFile(const std::string& utf8Path, const std::uint8_t* data,
+                                              std::size_t size);
 };
 
 } // namespace DirectorDesk::Platform

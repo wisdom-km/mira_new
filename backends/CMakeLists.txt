@@ -14,11 +14,32 @@ target_link_libraries(dd_backend_imgui
     PRIVATE
         imgui::imgui
         glfw
-        glad::glad
-        OpenGL::GL
+        bgfx::bgfx
+        glm::glm
 )
 
 target_compile_definitions(dd_backend_imgui PRIVATE GLFW_INCLUDE_NONE)
-
 target_compile_features(dd_backend_imgui PUBLIC cxx_std_17)
 dd_set_strict_warnings(dd_backend_imgui)
+
+add_library(dd_backend_bgfx
+    bgfx/BgfxRenderer.cpp
+)
+add_library(DirectorDesk::backend_bgfx ALIAS dd_backend_bgfx)
+
+target_include_directories(dd_backend_bgfx
+    PUBLIC
+        "${PROJECT_SOURCE_DIR}/backends/bgfx"
+)
+
+target_link_libraries(dd_backend_bgfx
+    PUBLIC
+        dd_renderer
+    PRIVATE
+        dd_platform
+        bgfx::bgfx
+        glm::glm
+)
+
+target_compile_features(dd_backend_bgfx PUBLIC cxx_std_17)
+dd_set_strict_warnings(dd_backend_bgfx)

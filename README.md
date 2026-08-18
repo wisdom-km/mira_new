@@ -2,7 +2,7 @@
 
 3D 导演台：用剧本、资源库和预设机位，帮助非 3D 专业用户制作可控的 AI 视频分镜。
 
-当前进度：**Phase 0 工程骨架**。权威需求与架构见 [`docs/dev-map/`](docs/dev-map/)。
+当前进度：**Phase 1（bgfx 最小渲染 + 轨道相机）进行中**。权威需求与架构见 [`docs/dev-map/`](docs/dev-map/)。
 
 ## 要求
 
@@ -22,6 +22,8 @@ cmake --preset windows-debug
 cmake --build --preset windows-debug
 ctest --preset windows-debug --output-on-failure
 .\build\windows-debug\DirectorDesk.exe
+# 可选：导出一张透明测试 PNG 后退出
+.\build\windows-debug\DirectorDesk.exe --export-test-png
 ```
 
 没有 Ninja 时：
@@ -45,15 +47,14 @@ ctest --preset macos-debug --output-on-failure
 
 首次配置会由 vcpkg 编译 spdlog、GLFW、Dear ImGui（docking）和 Catch2，需要联网。
 
-## Phase 0 包含什么
+## Phase 1 包含什么
 
-- 模块化 CMake 骨架与单向依赖
-- `Core::Log`：控制台 + 用户数据目录中的按日滚动文件
-- UTF-8 路径与用户数据目录（含中文路径测试）
-- GLFW 窗口 + Dear ImGui docking 空工作区
-- Windows / macOS CI
+- bgfx 渲染测试立方体、基础灯光
+- 轨道相机（视口内拖拽/滚轮）
+- ImGui docking 与 3D 视口组合
+- 离屏透明 PNG 技术验证（File / 按钮 / `--export-test-png`）
 
-Phase 0 的 ImGui 使用临时 OpenGL3 后端，将在 Phase 1 替换为 bgfx。
+shader 由 CMake 调用 shaderc 编译，不要提交生成的二进制。
 
 ## 开发约定
 
