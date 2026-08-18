@@ -2,6 +2,7 @@
 
 #include "DirectorDesk/Asset/LoaderRegistry.h"
 #include "DirectorDesk/Asset/ModelLoadResult.h"
+#include "DirectorDesk/Camera/CameraManager.h"
 #include "DirectorDesk/Camera/OrbitCamera.h"
 #include "DirectorDesk/Core/Command.h"
 #include "DirectorDesk/Core/CommandQueue.h"
@@ -90,9 +91,20 @@ Renderer::GpuModelDesc ToGpuModel(const Asset::ModelData& model) {
     return desc;
 }
 
-Renderer::RenderSceneView BuildSceneView(const Scene::Document& scene) {
+Camera::SubjectFrame SubjectFromScene(const Scene::Document& scene) {
+    if (const Scene::Node* node = scene.Selected()) {
+        return Camera::MakeSubject(node->transform.position, node->transform.scale);
+    }
+    return Camera::FallbackSubject();
+}
+
+Renderer::RenderSceneView BuildSceneView(const Scene::Document& scene,
+                                         const Camera::LightState& light, bool showGroundGrid) {
     Renderer::RenderSceneView view;
     view.showTestMesh = scene.IsEmpty();
+    view.showGroundGrid = showGroundGrid;
+    view.light.direction = light.direction;
+    view.light.color = light.color;
     for (const Scene::Node& node : scene.Nodes()) {
         Renderer::RenderMeshInstance instance;
         instance.modelId = node.gpuModelId;
@@ -275,7 +287,7 @@ int Application::Run(int argc, char** argv) {
         return 1;
     }
 
-    DD_LOG_INFO("DirectorDesk starting (Phase 3 script)");
+    DD_LOG_INFO("DirectorDesk starting (Phase 4 camera presets)");
 
     auto exeDir = Platform::Paths::ExecutableDirectory();
     if (!exeDir.IsOk()) {
@@ -317,13 +329,15 @@ int Application::Run(int argc, char** argv) {
         return 1;
     }
 
-    Camera::OrbitCamera camera;
+    Camera::CameraManager cameras;
     Scene::Document scene;
     Script::Document script;
     Asset::LoaderRegistry registry = Asset::CreateDefaultRegistry();
     if (options.exportAndQuit && options.importPath.empty()) {
         std::string status;
-        const bool ok = HandleExportTestPng(*renderer, camera, BuildSceneView(scene), status);
+        const bool ok = HandleExportTestPng(
+            *renderer, cameras.Selected()->orbit,
+            BuildSceneView(scene, cameras.CurrentLight(), false), status);
         renderer->Shutdown();
         window.Destroy();
         DD_LOG_INFO("DirectorDesk exiting");
@@ -353,6 +367,7 @@ int Application::Run(int argc, char** argv) {
     std::vector<UI::NodeView> nodeViews;
     std::vector<UI::ScriptSceneView> scriptScenes;
     std::vector<UI::ScriptDiagnosticView> scriptDiagnostics;
+    std::vector<UI::CameraItemView> cameraViews;
     std::string status;
     bool importInProgress = false;
 
@@ -382,11 +397,17 @@ int Application::Run(int argc, char** argv) {
                     } else if constexpr (std::is_same_v<T, Core::ViewportResizeCommand>) {
                         renderer->SetViewportSize(typed.width, typed.height);
                     } else if constexpr (std::is_same_v<T, Core::OrbitDeltaCommand>) {
-                        camera.Rotate(typed.rotateYaw, typed.rotatePitch);
-                        camera.Pan(typed.panX, typed.panY);
-                        camera.Zoom(typed.zoom);
+                        if (Camera::CameraRig* rig = cameras.Selected()) {
+                            rig->orbit.Rotate(typed.rotateYaw, typed.rotatePitch);
+                            rig->orbit.Pan(typed.panX, typed.panY);
+                            rig->orbit.Zoom(typed.zoom);
+                        }
                     } else if constexpr (std::is_same_v<T, Core::ExportTestPngCommand>) {
-                        HandleExportTestPng(*renderer, camera, BuildSceneView(scene), status);
+                        if (const Camera::CameraRig* rig = cameras.Selected()) {
+                            HandleExportTestPng(
+                                *renderer, rig->orbit,
+                                BuildSceneView(scene, cameras.CurrentLight(), false), status);
+                        }
                     } else if constexpr (std::is_same_v<T, Core::ImportModelCommand>) {
                         auto path = Platform::FileDialog::OpenModelFile();
                         if (!path.IsOk()) {
@@ -433,6 +454,31 @@ int Application::Run(int argc, char** argv) {
                         status = "Added shot";
                     } else if constexpr (std::is_same_v<T, Core::SelectShotCommand>) {
                         script.SelectShot(typed.shotId);
+                    } else if constexpr (std::is_same_v<T, Core::ApplyCameraPresetCommand>) {
+                        Camera::CameraPresetKind kind = Camera::CameraPresetKind::Front;
+                        if (Camera::TryParseCameraPreset(typed.presetId, kind)) {
+                            cameras.ApplyPreset(kind, SubjectFromScene(scene));
+                            status = std::string("Applied camera preset ") + typed.presetId;
+                        } else {
+                            status = "Unknown camera preset";
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::AddCameraCommand>) {
+                        cameras.Add();
+                        status = "Added " + cameras.Selected()->name;
+                    } else if constexpr (std::is_same_v<T, Core::RemoveCameraCommand>) {
+                        if (!cameras.Remove(typed.cameraId)) {
+                            status = "Cannot remove the last camera";
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::RenameCameraCommand>) {
+                        cameras.Rename(typed.cameraId, typed.name);
+                    } else if constexpr (std::is_same_v<T, Core::SelectCameraCommand>) {
+                        cameras.Select(typed.cameraId);
+                    } else if constexpr (std::is_same_v<T, Core::SetLightPresetCommand>) {
+                        Camera::LightPresetKind kind = Camera::LightPresetKind::Neutral;
+                        if (Camera::TryParseLightPreset(typed.presetId, kind)) {
+                            cameras.SetLightPreset(kind);
+                            status = std::string("Light preset ") + typed.presetId;
+                        }
                     }
                 },
                 command);
@@ -505,12 +551,24 @@ int Application::Run(int argc, char** argv) {
         viewState.scriptScenes = &scriptScenes;
         viewState.scriptDiagnostics = &scriptDiagnostics;
 
+        cameraViews.clear();
+        for (const Camera::CameraRig& rig : cameras.Cameras()) {
+            UI::CameraItemView item;
+            item.id = rig.id;
+            item.name = rig.name;
+            item.selected = rig.id == cameras.SelectedId();
+            cameraViews.push_back(std::move(item));
+        }
+        viewState.cameras = &cameraViews;
+        viewState.lightPresetId = Camera::LightPresetId(cameras.LightPreset());
+
         const float aspect = renderer->ViewportHeight() == 0
                                  ? 1.0f
                                  : static_cast<float>(renderer->ViewportWidth()) /
                                        static_cast<float>(renderer->ViewportHeight());
         renderer->BeginFrame(size.width, size.height);
-        renderer->RenderScene(BuildSceneView(scene), camera.BuildView(aspect),
+        renderer->RenderScene(BuildSceneView(scene, cameras.CurrentLight(), true),
+                              cameras.Selected()->orbit.BuildView(aspect),
                               Renderer::RenderTargetDesc{});
         imgui.BeginFrame();
         workspace.Draw(viewState, commands);

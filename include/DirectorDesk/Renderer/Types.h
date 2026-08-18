@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <glm/mat4x4.hpp>
+#include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
 namespace DirectorDesk::Renderer {
@@ -53,8 +54,15 @@ struct RenderMeshInstance {
     bool visible = true;
 };
 
+struct RenderLight {
+    glm::vec3 direction{0.35f, 0.80f, 0.45f};
+    glm::vec3 color{1.0f, 0.98f, 0.94f};
+};
+
 struct RenderSceneView {
     bool showTestMesh = true;
+    bool showGroundGrid = false;
+    RenderLight light;
     std::vector<RenderMeshInstance> instances;
 };
 

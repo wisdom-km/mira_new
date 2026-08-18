@@ -36,6 +36,12 @@ struct ScriptDiagnosticView {
     const char* message = "";
 };
 
+struct CameraItemView {
+    std::string id;
+    std::string name;
+    bool selected = false;
+};
+
 struct AppViewState {
     const char* appName = "DirectorDesk";
     unsigned windowWidth = 0;
@@ -56,6 +62,8 @@ struct AppViewState {
     std::uint64_t scriptExternalRevision = 0;
     const std::vector<ScriptSceneView>* scriptScenes = nullptr;
     const std::vector<ScriptDiagnosticView>* scriptDiagnostics = nullptr;
+    const std::vector<CameraItemView>* cameras = nullptr;
+    const char* lightPresetId = "neutral";
 };
 
 class IPanel {

@@ -60,10 +60,34 @@ struct SelectShotCommand {
     std::string shotId;
 };
 
-using Command = std::variant<QuitCommand, ViewportResizeCommand, OrbitDeltaCommand,
-                             ExportTestPngCommand, ImportModelCommand, ImportModelFromPathCommand,
-                             SelectNodeCommand, SetNodeTransformCommand, LoadScriptCommand,
-                             LoadScriptFromPathCommand, SaveScriptCommand, SetScriptTextCommand,
-                             InsertSceneCommand, InsertShotCommand, SelectShotCommand>;
+struct ApplyCameraPresetCommand {
+    std::string presetId;
+};
+
+struct AddCameraCommand {};
+
+struct RemoveCameraCommand {
+    std::string cameraId;
+};
+
+struct RenameCameraCommand {
+    std::string cameraId;
+    std::string name;
+};
+
+struct SelectCameraCommand {
+    std::string cameraId;
+};
+
+struct SetLightPresetCommand {
+    std::string presetId;
+};
+
+using Command = std::variant<
+    QuitCommand, ViewportResizeCommand, OrbitDeltaCommand, ExportTestPngCommand, ImportModelCommand,
+    ImportModelFromPathCommand, SelectNodeCommand, SetNodeTransformCommand, LoadScriptCommand,
+    LoadScriptFromPathCommand, SaveScriptCommand, SetScriptTextCommand, InsertSceneCommand,
+    InsertShotCommand, SelectShotCommand, ApplyCameraPresetCommand, AddCameraCommand,
+    RemoveCameraCommand, RenameCameraCommand, SelectCameraCommand, SetLightPresetCommand>;
 
 } // namespace DirectorDesk::Core

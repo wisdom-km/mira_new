@@ -1,5 +1,6 @@
 #pragma once
 
+#include "DirectorDesk/Camera/Presets.h"
 #include "DirectorDesk/Renderer/Types.h"
 
 #include <glm/vec3.hpp>
@@ -31,6 +32,16 @@ public:
         m_target = target;
     }
     void SetDistance(float distance);
+    void SetYawDegrees(float yawDegrees) {
+        m_yawDegrees = yawDegrees;
+    }
+    void SetPitchDegrees(float pitchDegrees);
+    void SetFovYDegrees(float fovYDegrees);
+    void ApplyPose(const CameraPose& pose);
+
+    [[nodiscard]] float FovYDegrees() const {
+        return m_fovYDegrees;
+    }
 
 private:
     glm::vec3 m_target{0.0f, 0.5f, 0.0f};

@@ -5,6 +5,8 @@ add_executable(DirectorDeskTests
     Core/LogTests.cpp
     Platform/PathTests.cpp
     Camera/OrbitCameraTests.cpp
+    Camera/PresetTests.cpp
+    Camera/CameraManagerTests.cpp
     Renderer/PngWriterTests.cpp
     Asset/ModelLoaderTests.cpp
     Scene/TransformTests.cpp

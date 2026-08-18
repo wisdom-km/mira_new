@@ -1,5 +1,7 @@
 add_library(dd_camera
     OrbitCamera.cpp
+    Presets.cpp
+    CameraManager.cpp
 )
 add_library(DirectorDesk::camera ALIAS dd_camera)
 

@@ -3,6 +3,7 @@
 #include "DirectorDesk/Core/Command.h"
 
 #include <cstdint>
+#include <cstring>
 #include <imgui.h>
 #include <imgui_internal.h>
 
@@ -160,6 +161,75 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                 }
             }
         }
+    }
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("Cameras");
+    if (ImGui::Button("Add Camera")) {
+        commands.Push(Core::AddCameraCommand{});
+    }
+    if (state.cameras != nullptr) {
+        for (const CameraItemView& camera : *state.cameras) {
+            const std::string label = camera.name + "##" + camera.id;
+            if (ImGui::Selectable(label.c_str(), camera.selected)) {
+                commands.Push(Core::SelectCameraCommand{camera.id});
+            }
+            if (camera.selected) {
+                if (m_cameraNameId != camera.id) {
+                    m_cameraName = camera.name;
+                    m_cameraNameId = camera.id;
+                }
+                char nameBuffer[128];
+                const std::size_t copy = m_cameraName.size() < sizeof(nameBuffer) - 1
+                                             ? m_cameraName.size()
+                                             : sizeof(nameBuffer) - 1;
+                std::memcpy(nameBuffer, m_cameraName.data(), copy);
+                nameBuffer[copy] = '\0';
+                if (ImGui::InputText("Name", nameBuffer, sizeof(nameBuffer))) {
+                    m_cameraName = nameBuffer;
+                    commands.Push(Core::RenameCameraCommand{camera.id, m_cameraName});
+                }
+                if (ImGui::Button("Remove Camera")) {
+                    commands.Push(Core::RemoveCameraCommand{camera.id});
+                }
+            }
+        }
+    }
+
+    ImGui::TextUnformatted("Presets");
+    if (ImGui::Button("Front")) {
+        commands.Push(Core::ApplyCameraPresetCommand{"front"});
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Side")) {
+        commands.Push(Core::ApplyCameraPresetCommand{"side"});
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Over Shoulder")) {
+        commands.Push(Core::ApplyCameraPresetCommand{"over-shoulder"});
+    }
+    if (ImGui::Button("Top")) {
+        commands.Push(Core::ApplyCameraPresetCommand{"top"});
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Close-up")) {
+        commands.Push(Core::ApplyCameraPresetCommand{"close-up"});
+    }
+
+    ImGui::TextUnformatted("Light");
+    if (ImGui::RadioButton("Neutral", state.lightPresetId != nullptr &&
+                                          std::strcmp(state.lightPresetId, "neutral") == 0)) {
+        commands.Push(Core::SetLightPresetCommand{"neutral"});
+    }
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Warm", state.lightPresetId != nullptr &&
+                                       std::strcmp(state.lightPresetId, "warm") == 0)) {
+        commands.Push(Core::SetLightPresetCommand{"warm"});
+    }
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Cool", state.lightPresetId != nullptr &&
+                                       std::strcmp(state.lightPresetId, "cool") == 0)) {
+        commands.Push(Core::SetLightPresetCommand{"cool"});
     }
 
     if (state.statusText != nullptr && state.statusText[0] != '\0') {
