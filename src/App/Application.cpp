@@ -1,39 +1,104 @@
 #include "DirectorDesk/App/Application.h"
 
+#include "DirectorDesk/Asset/LoaderRegistry.h"
+#include "DirectorDesk/Asset/ModelLoadResult.h"
 #include "DirectorDesk/Camera/OrbitCamera.h"
 #include "DirectorDesk/Core/Command.h"
 #include "DirectorDesk/Core/CommandQueue.h"
 #include "DirectorDesk/Core/Log.h"
+#include "DirectorDesk/Core/ResultQueue.h"
+#include "DirectorDesk/Platform/FileDialog.h"
 #include "DirectorDesk/Platform/Paths.h"
 #include "DirectorDesk/Platform/Startup.h"
 #include "DirectorDesk/Platform/Window.h"
+#include "DirectorDesk/Platform/Worker.h"
 #include "DirectorDesk/Renderer/IRenderer.h"
 #include "DirectorDesk/Renderer/PngWriter.h"
+#include "DirectorDesk/Scene/Document.h"
 #include "DirectorDesk/UI/WorkspacePanel.h"
 
 #include "CreateBgfxRenderer.h"
 #include "ImGuiGlfwBackend.h"
 
 #include <cstring>
+#include <glm/vec3.hpp>
 #include <string>
 #include <type_traits>
 #include <variant>
+#include <vector>
 
 namespace DirectorDesk::App {
 namespace {
 
-bool WantsExportAndQuit(int argc, char** argv) {
+struct LaunchOptions {
+    bool exportAndQuit = false;
+    std::string importPath;
+};
+
+LaunchOptions ParseOptions(int argc, char** argv) {
+    LaunchOptions options;
     for (int i = 1; i < argc; ++i) {
-        if (argv != nullptr && argv[i] != nullptr &&
-            std::strcmp(argv[i], "--export-test-png") == 0) {
-            return true;
+        if (argv == nullptr || argv[i] == nullptr) {
+            continue;
+        }
+        if (std::strcmp(argv[i], "--export-test-png") == 0) {
+            options.exportAndQuit = true;
+        } else if (std::strcmp(argv[i], "--import") == 0 && i + 1 < argc &&
+                   argv[i + 1] != nullptr) {
+            options.importPath = argv[++i];
         }
     }
-    return false;
+    return options;
+}
+
+Renderer::GpuModelDesc ToGpuModel(const Asset::ModelData& model) {
+    Renderer::GpuModelDesc desc;
+    desc.primitives.reserve(model.primitives.size());
+    for (const Asset::Primitive& primitive : model.primitives) {
+        Renderer::GpuPrimitive gpu;
+        gpu.indices = primitive.indices;
+        gpu.localTransform = primitive.localTransform;
+        if (primitive.materialIndex < model.materials.size()) {
+            const Asset::Material& material = model.materials[primitive.materialIndex];
+            gpu.baseColor = material.baseColor;
+            gpu.textureWidth = material.textureWidth;
+            gpu.textureHeight = material.textureHeight;
+            gpu.rgba = material.rgba;
+        }
+        gpu.vertices.reserve(primitive.vertices.size());
+        for (const Asset::Vertex& vertex : primitive.vertices) {
+            Renderer::GpuVertex gpuVertex;
+            gpuVertex.x = vertex.position.x;
+            gpuVertex.y = vertex.position.y;
+            gpuVertex.z = vertex.position.z;
+            gpuVertex.nx = vertex.normal.x;
+            gpuVertex.ny = vertex.normal.y;
+            gpuVertex.nz = vertex.normal.z;
+            gpuVertex.u = vertex.uv.x;
+            gpuVertex.v = vertex.uv.y;
+            gpuVertex.abgr = vertex.abgr;
+            gpu.vertices.push_back(gpuVertex);
+        }
+        desc.primitives.push_back(std::move(gpu));
+    }
+    return desc;
+}
+
+Renderer::RenderSceneView BuildSceneView(const Scene::Document& scene) {
+    Renderer::RenderSceneView view;
+    view.showTestMesh = scene.IsEmpty();
+    for (const Scene::Node& node : scene.Nodes()) {
+        Renderer::RenderMeshInstance instance;
+        instance.modelId = node.gpuModelId;
+        instance.world = node.transform.ToMatrix();
+        instance.visible = node.visible;
+        view.instances.push_back(instance);
+    }
+    return view;
 }
 
 bool HandleExportTestPng(Renderer::IRenderer& renderer, const Camera::OrbitCamera& camera,
-                         std::string& status) {
+                         const Renderer::RenderSceneView& sceneView, std::string& status) {
     Renderer::RenderTargetDesc target;
     target.kind = Renderer::RenderTargetKind::Offscreen;
     target.width = 1280;
@@ -42,7 +107,7 @@ bool HandleExportTestPng(Renderer::IRenderer& renderer, const Camera::OrbitCamer
 
     const float aspect = static_cast<float>(target.width) / static_cast<float>(target.height);
     renderer.BeginFrame(target.width, target.height);
-    renderer.RenderScene(Renderer::RenderSceneView{}, camera.BuildView(aspect), target);
+    renderer.RenderScene(sceneView, camera.BuildView(aspect), target);
     auto pixels = renderer.ReadbackTarget(target);
     if (!pixels.IsOk()) {
         status = pixels.GetError().userMessage;
@@ -79,40 +144,100 @@ bool HandleExportTestPng(Renderer::IRenderer& renderer, const Camera::OrbitCamer
     return alphaOk;
 }
 
+void SubmitImport(Platform::Worker& worker, const Asset::LoaderRegistry& registry,
+                  Core::ResultQueue<Asset::ModelLoadResult>& results, const std::string& path,
+                  bool& importInProgress, std::string& status) {
+    if (path.empty() || importInProgress) {
+        if (importInProgress) {
+            status = "A model is already loading";
+        }
+        return;
+    }
+    importInProgress = true;
+    status = "Loading model...";
+    worker.Submit([&registry, &results, path]() {
+        Asset::ModelLoadResult result;
+        result.sourcePath = path;
+        auto loaded = registry.Load(path);
+        result.ok = loaded.IsOk();
+        if (loaded.IsOk()) {
+            result.model = std::move(loaded.Value());
+        } else {
+            result.error = loaded.GetError();
+        }
+        results.Push(std::move(result));
+    });
+}
+
+void ApplyLoadedModel(Asset::ModelLoadResult result, Scene::Document& scene,
+                      Renderer::IRenderer& renderer, std::string& status) {
+    if (!result.ok) {
+        status = result.error.userMessage;
+        DD_LOG_ERROR("{}", result.error.technicalMessage);
+        return;
+    }
+
+    auto uploaded = renderer.CreateModel(ToGpuModel(result.model));
+    if (!uploaded.IsOk()) {
+        status = uploaded.GetError().userMessage;
+        DD_LOG_ERROR("{}", uploaded.GetError().technicalMessage);
+        return;
+    }
+
+    Scene::Node node;
+    node.id = scene.NextNodeId();
+    node.name = result.model.name.empty() ? Platform::Paths::FileName(result.sourcePath)
+                                          : result.model.name;
+    node.gpuModelId = uploaded.Value();
+    scene.Add(std::move(node));
+    status = result.model.warnings.empty() ? "Imported " + scene.Selected()->name
+                                           : result.model.warnings.front();
+    DD_LOG_INFO("Imported model {} as {}", result.sourcePath, scene.Selected()->name);
+}
+
 } // namespace
 
 int Application::Run(int argc, char** argv) {
     Platform::InitializeProcess();
-    const bool exportAndQuit = WantsExportAndQuit(argc, argv);
+    const LaunchOptions options = ParseOptions(argc, argv);
 
     auto logDir = Platform::Paths::LogDirectory();
     if (!logDir.IsOk()) {
+        Platform::ShutdownProcess();
         return 1;
     }
     const auto created = Platform::Paths::CreateDirectories(logDir.Value());
     if (!created.IsOk()) {
+        Platform::ShutdownProcess();
         return 1;
     }
     auto logInit = Core::Log::Init(logDir.Value());
     if (!logInit.IsOk()) {
+        Platform::ShutdownProcess();
         return 1;
     }
 
-    DD_LOG_INFO("DirectorDesk starting (Phase 1 render/camera)");
+    DD_LOG_INFO("DirectorDesk starting (Phase 2 model import)");
 
     auto exeDir = Platform::Paths::ExecutableDirectory();
     if (!exeDir.IsOk()) {
         DD_LOG_ERROR("{}", exeDir.GetError().technicalMessage);
         Core::Log::Shutdown();
+        Platform::ShutdownProcess();
         return 1;
     }
     const std::string shaderDirectory = Platform::Paths::Join(exeDir.Value(), "shaders");
+    const std::string exampleObj =
+        Platform::Paths::Join(Platform::Paths::Join(exeDir.Value(), "examples/models"), "cube.obj");
+    const std::string exampleGlb =
+        Platform::Paths::Join(Platform::Paths::Join(exeDir.Value(), "examples/models"), "cube.glb");
 
     Platform::Window window;
     auto windowResult = window.Create(Platform::WindowDesc{});
     if (!windowResult.IsOk()) {
         DD_LOG_ERROR("{}", windowResult.GetError().technicalMessage);
         Core::Log::Shutdown();
+        Platform::ShutdownProcess();
         return 1;
     }
 
@@ -128,17 +253,21 @@ int Application::Run(int argc, char** argv) {
         DD_LOG_ERROR("{}", rendererInit.GetError().technicalMessage);
         window.Destroy();
         Core::Log::Shutdown();
+        Platform::ShutdownProcess();
         return 1;
     }
 
     Camera::OrbitCamera camera;
-    if (exportAndQuit) {
+    Scene::Document scene;
+    Asset::LoaderRegistry registry = Asset::CreateDefaultRegistry();
+    if (options.exportAndQuit && options.importPath.empty()) {
         std::string status;
-        const bool ok = HandleExportTestPng(*renderer, camera, status);
+        const bool ok = HandleExportTestPng(*renderer, camera, BuildSceneView(scene), status);
         renderer->Shutdown();
         window.Destroy();
         DD_LOG_INFO("DirectorDesk exiting");
         Core::Log::Shutdown();
+        Platform::ShutdownProcess();
         return ok ? 0 : 1;
     }
 
@@ -149,16 +278,32 @@ int Application::Run(int argc, char** argv) {
         renderer->Shutdown();
         window.Destroy();
         Core::Log::Shutdown();
+        Platform::ShutdownProcess();
         return 1;
     }
 
+    Platform::Worker worker;
+    worker.Start();
+    Core::ResultQueue<Asset::ModelLoadResult> loadResults;
     UI::WorkspacePanel workspace;
     Core::CommandQueue commands;
     UI::AppViewState viewState;
+    std::vector<UI::NodeView> nodeViews;
     std::string status;
+    bool importInProgress = false;
+
+    if (!options.importPath.empty()) {
+        SubmitImport(worker, registry, loadResults, options.importPath, importInProgress, status);
+    }
 
     while (!window.ShouldClose()) {
         window.PollEvents();
+
+        Asset::ModelLoadResult loaded;
+        while (loadResults.TryPop(loaded)) {
+            importInProgress = false;
+            ApplyLoadedModel(std::move(loaded), scene, *renderer, status);
+        }
 
         Core::Command command;
         while (commands.TryPop(command)) {
@@ -174,10 +319,53 @@ int Application::Run(int argc, char** argv) {
                         camera.Pan(typed.panX, typed.panY);
                         camera.Zoom(typed.zoom);
                     } else if constexpr (std::is_same_v<T, Core::ExportTestPngCommand>) {
-                        HandleExportTestPng(*renderer, camera, status);
+                        HandleExportTestPng(*renderer, camera, BuildSceneView(scene), status);
+                    } else if constexpr (std::is_same_v<T, Core::ImportModelCommand>) {
+                        auto path = Platform::FileDialog::OpenModelFile();
+                        if (!path.IsOk()) {
+                            status = path.GetError().userMessage;
+                            DD_LOG_ERROR("{}", path.GetError().technicalMessage);
+                        } else if (!path.Value().empty()) {
+                            SubmitImport(worker, registry, loadResults, path.Value(),
+                                         importInProgress, status);
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::ImportModelFromPathCommand>) {
+                        SubmitImport(worker, registry, loadResults, typed.utf8Path,
+                                     importInProgress, status);
+                    } else if constexpr (std::is_same_v<T, Core::SelectNodeCommand>) {
+                        scene.SetSelectedId(typed.nodeId);
+                    } else if constexpr (std::is_same_v<T, Core::SetNodeTransformCommand>) {
+                        if (Scene::Node* node = scene.Find(typed.nodeId)) {
+                            node->transform.position =
+                                glm::vec3(typed.position[0], typed.position[1], typed.position[2]);
+                            node->transform.SetEulerDegrees(glm::vec3(typed.eulerDegrees[0],
+                                                                      typed.eulerDegrees[1],
+                                                                      typed.eulerDegrees[2]));
+                            node->transform.scale =
+                                glm::vec3(typed.scale[0], typed.scale[1], typed.scale[2]);
+                        }
                     }
                 },
                 command);
+        }
+
+        nodeViews.clear();
+        for (const Scene::Node& node : scene.Nodes()) {
+            UI::NodeView item;
+            item.id = node.id;
+            item.name = node.name;
+            item.position[0] = node.transform.position.x;
+            item.position[1] = node.transform.position.y;
+            item.position[2] = node.transform.position.z;
+            const glm::vec3 euler = node.transform.EulerDegrees();
+            item.eulerDegrees[0] = euler.x;
+            item.eulerDegrees[1] = euler.y;
+            item.eulerDegrees[2] = euler.z;
+            item.scale[0] = node.transform.scale.x;
+            item.scale[1] = node.transform.scale.y;
+            item.scale[2] = node.transform.scale.z;
+            item.selected = node.id == scene.SelectedId();
+            nodeViews.push_back(std::move(item));
         }
 
         const auto size = window.GetFramebufferSize();
@@ -187,13 +375,17 @@ int Application::Run(int argc, char** argv) {
         viewState.viewportTextureWidth = renderer->ViewportWidth();
         viewState.viewportTextureHeight = renderer->ViewportHeight();
         viewState.statusText = status.c_str();
+        viewState.importInProgress = importInProgress;
+        viewState.nodes = &nodeViews;
+        viewState.exampleObjPath = Platform::Paths::Exists(exampleObj) ? exampleObj.c_str() : "";
+        viewState.exampleGlbPath = Platform::Paths::Exists(exampleGlb) ? exampleGlb.c_str() : "";
 
         const float aspect = renderer->ViewportHeight() == 0
                                  ? 1.0f
                                  : static_cast<float>(renderer->ViewportWidth()) /
                                        static_cast<float>(renderer->ViewportHeight());
         renderer->BeginFrame(size.width, size.height);
-        renderer->RenderScene(Renderer::RenderSceneView{}, camera.BuildView(aspect),
+        renderer->RenderScene(BuildSceneView(scene), camera.BuildView(aspect),
                               Renderer::RenderTargetDesc{});
         imgui.BeginFrame();
         workspace.Draw(viewState, commands);
@@ -201,11 +393,13 @@ int Application::Run(int argc, char** argv) {
         renderer->EndFrame();
     }
 
+    worker.Shutdown();
     imgui.Shutdown();
     renderer->Shutdown();
     window.Destroy();
     DD_LOG_INFO("DirectorDesk exiting");
     Core::Log::Shutdown();
+    Platform::ShutdownProcess();
     return 0;
 }
 

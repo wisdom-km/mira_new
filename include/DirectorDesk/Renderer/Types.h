@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <glm/mat4x4.hpp>
+#include <glm/vec4.hpp>
 
 namespace DirectorDesk::Renderer {
 
@@ -20,8 +21,41 @@ struct CameraView {
     glm::mat4 projection{1.0f};
 };
 
+struct GpuVertex {
+    float x = 0.0f;
+    float y = 0.0f;
+    float z = 0.0f;
+    float nx = 0.0f;
+    float ny = 1.0f;
+    float nz = 0.0f;
+    float u = 0.0f;
+    float v = 0.0f;
+    std::uint32_t abgr = 0xffffffffu;
+};
+
+struct GpuPrimitive {
+    std::vector<GpuVertex> vertices;
+    std::vector<std::uint32_t> indices;
+    glm::vec4 baseColor{1.0f, 1.0f, 1.0f, 1.0f};
+    std::uint32_t textureWidth = 0;
+    std::uint32_t textureHeight = 0;
+    std::vector<std::uint8_t> rgba;
+    glm::mat4 localTransform{1.0f};
+};
+
+struct GpuModelDesc {
+    std::vector<GpuPrimitive> primitives;
+};
+
+struct RenderMeshInstance {
+    std::uint32_t modelId = 0;
+    glm::mat4 world{1.0f};
+    bool visible = true;
+};
+
 struct RenderSceneView {
     bool showTestMesh = true;
+    std::vector<RenderMeshInstance> instances;
 };
 
 enum class RenderTargetKind {

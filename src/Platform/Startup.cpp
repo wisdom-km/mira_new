@@ -7,6 +7,7 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#include <Objbase.h>
 #include <Windows.h>
 #endif
 
@@ -16,6 +17,13 @@ void InitializeProcess() {
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
+    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+#endif
+}
+
+void ShutdownProcess() {
+#ifdef _WIN32
+    CoUninitialize();
 #endif
 }
 

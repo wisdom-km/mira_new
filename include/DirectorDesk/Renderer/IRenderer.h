@@ -17,6 +17,8 @@ public:
     virtual void RenderScene(const RenderSceneView& scene, const CameraView& view,
                              const RenderTargetDesc& target) = 0;
     virtual Core::Result<PixelBuffer> ReadbackTarget(const RenderTargetDesc& target) = 0;
+    virtual Core::Result<std::uint32_t> CreateModel(const GpuModelDesc& desc) = 0;
+    virtual void DestroyModel(std::uint32_t modelId) = 0;
     virtual void EndFrame() = 0;
 
     virtual void SetViewportSize(std::uint32_t width, std::uint32_t height) = 0;

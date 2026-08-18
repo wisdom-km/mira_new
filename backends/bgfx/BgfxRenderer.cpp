@@ -9,6 +9,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace DirectorDesk::Backends {
@@ -21,7 +22,17 @@ constexpr bgfx::ViewId kBlitView = 2;
 struct MeshVertex {
     float x, y, z;
     float nx, ny, nz;
+    float u, v;
     std::uint32_t abgr;
+};
+
+struct UploadedPrimitive {
+    bgfx::VertexBufferHandle vertexBuffer = BGFX_INVALID_HANDLE;
+    bgfx::IndexBufferHandle indexBuffer = BGFX_INVALID_HANDLE;
+    bgfx::TextureHandle texture = BGFX_INVALID_HANDLE;
+    bool ownsTexture = false;
+    glm::vec4 baseColor{1.0f, 1.0f, 1.0f, 1.0f};
+    glm::mat4 localTransform{1.0f};
 };
 
 void DestroyHandle(bgfx::ProgramHandle& handle) {
@@ -180,7 +191,7 @@ public:
 
     void RenderScene(const Renderer::RenderSceneView& scene, const Renderer::CameraView& view,
                      const Renderer::RenderTargetDesc& target) override {
-        if (!m_initialized || !scene.showTestMesh) {
+        if (!m_initialized) {
             return;
         }
 
@@ -205,17 +216,43 @@ public:
         bgfx::setViewTransform(viewId, glm::value_ptr(view.view), glm::value_ptr(view.projection));
         bgfx::touch(viewId);
 
-        const float identity[16] = {1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
-                                    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
         const float lightDir[4] = {0.35f, 0.80f, 0.45f, 0.0f};
         const float lightColor[4] = {1.0f, 0.98f, 0.94f, 1.0f};
-        bgfx::setTransform(identity);
         bgfx::setUniform(m_lightDir, lightDir);
         bgfx::setUniform(m_lightColor, lightColor);
-        bgfx::setVertexBuffer(0, m_vertexBuffer);
-        bgfx::setIndexBuffer(m_indexBuffer);
-        bgfx::setState(BGFX_STATE_DEFAULT);
-        bgfx::submit(viewId, m_program);
+
+        if (scene.showTestMesh) {
+            const float identity[16] = {1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+                                        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
+            const float white[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+            bgfx::setTransform(identity);
+            bgfx::setUniform(m_baseColor, white);
+            bgfx::setTexture(0, m_sampler, m_whiteTexture);
+            bgfx::setVertexBuffer(0, m_vertexBuffer);
+            bgfx::setIndexBuffer(m_indexBuffer);
+            bgfx::setState(BGFX_STATE_DEFAULT);
+            bgfx::submit(viewId, m_program);
+        }
+
+        for (const Renderer::RenderMeshInstance& instance : scene.instances) {
+            if (!instance.visible) {
+                continue;
+            }
+            const auto found = m_models.find(instance.modelId);
+            if (found == m_models.end()) {
+                continue;
+            }
+            for (const UploadedPrimitive& primitive : found->second) {
+                const glm::mat4 world = instance.world * primitive.localTransform;
+                bgfx::setTransform(glm::value_ptr(world));
+                bgfx::setUniform(m_baseColor, glm::value_ptr(primitive.baseColor));
+                bgfx::setTexture(0, m_sampler, primitive.texture);
+                bgfx::setVertexBuffer(0, primitive.vertexBuffer);
+                bgfx::setIndexBuffer(primitive.indexBuffer);
+                bgfx::setState(BGFX_STATE_DEFAULT);
+                bgfx::submit(viewId, m_program);
+            }
+        }
     }
 
     Core::Result<Renderer::PixelBuffer>
@@ -260,6 +297,78 @@ public:
         return Core::Result<Renderer::PixelBuffer>::Ok(std::move(buffer));
     }
 
+    Core::Result<std::uint32_t> CreateModel(const Renderer::GpuModelDesc& desc) override {
+        if (!m_initialized) {
+            return Core::Result<std::uint32_t>::Fail(
+                Core::Error::Make(Core::ErrorCode::NotInitialized, "Renderer is not initialized",
+                                  "渲染器尚未初始化"));
+        }
+        if (desc.primitives.empty()) {
+            return Core::Result<std::uint32_t>::Fail(
+                Core::Error::Make(Core::ErrorCode::InvalidArgument,
+                                  "GpuModelDesc has no primitives", "模型没有网格"));
+        }
+
+        std::vector<UploadedPrimitive> uploaded;
+        uploaded.reserve(desc.primitives.size());
+        for (const Renderer::GpuPrimitive& primitive : desc.primitives) {
+            if (primitive.vertices.empty() || primitive.indices.empty()) {
+                continue;
+            }
+            UploadedPrimitive gpu;
+            gpu.baseColor = primitive.baseColor;
+            gpu.localTransform = primitive.localTransform;
+            gpu.vertexBuffer = bgfx::createVertexBuffer(
+                bgfx::copy(primitive.vertices.data(),
+                           static_cast<std::uint32_t>(primitive.vertices.size() *
+                                                      sizeof(Renderer::GpuVertex))),
+                m_layout);
+            gpu.indexBuffer = bgfx::createIndexBuffer(
+                bgfx::copy(
+                    primitive.indices.data(),
+                    static_cast<std::uint32_t>(primitive.indices.size() * sizeof(std::uint32_t))),
+                BGFX_BUFFER_INDEX32);
+            if (primitive.textureWidth > 0 && primitive.textureHeight > 0 &&
+                primitive.rgba.size() == static_cast<std::size_t>(primitive.textureWidth) *
+                                             primitive.textureHeight * 4u) {
+                gpu.texture = bgfx::createTexture2D(
+                    static_cast<std::uint16_t>(primitive.textureWidth),
+                    static_cast<std::uint16_t>(primitive.textureHeight), false, 1,
+                    bgfx::TextureFormat::RGBA8, 0,
+                    bgfx::copy(primitive.rgba.data(),
+                               static_cast<std::uint32_t>(primitive.rgba.size())));
+                gpu.ownsTexture = true;
+            } else {
+                gpu.texture = m_whiteTexture;
+            }
+            uploaded.push_back(gpu);
+        }
+        if (uploaded.empty()) {
+            return Core::Result<std::uint32_t>::Fail(
+                Core::Error::Make(Core::ErrorCode::InvalidArgument,
+                                  "GpuModelDesc primitives were empty", "模型没有有效网格"));
+        }
+
+        const std::uint32_t id = m_nextModelId++;
+        m_models.emplace(id, std::move(uploaded));
+        return Core::Result<std::uint32_t>::Ok(id);
+    }
+
+    void DestroyModel(std::uint32_t modelId) override {
+        const auto found = m_models.find(modelId);
+        if (found == m_models.end()) {
+            return;
+        }
+        for (UploadedPrimitive& primitive : found->second) {
+            DestroyHandle(primitive.vertexBuffer);
+            DestroyHandle(primitive.indexBuffer);
+            if (primitive.ownsTexture) {
+                DestroyHandle(primitive.texture);
+            }
+        }
+        m_models.erase(found);
+    }
+
     void EndFrame() override {
         if (m_initialized) {
             bgfx::frame();
@@ -294,6 +403,7 @@ private:
         m_layout.begin()
             .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
             .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
             .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
             .end();
 
@@ -315,6 +425,11 @@ private:
         m_program = bgfx::createProgram(vs, fs, true);
         m_lightDir = bgfx::createUniform("u_lightDir", bgfx::UniformType::Vec4);
         m_lightColor = bgfx::createUniform("u_lightColor", bgfx::UniformType::Vec4);
+        m_baseColor = bgfx::createUniform("u_baseColor", bgfx::UniformType::Vec4);
+        m_sampler = bgfx::createUniform("s_tex", bgfx::UniformType::Sampler);
+        const std::uint32_t white = 0xffffffffu;
+        m_whiteTexture = bgfx::createTexture2D(1, 1, false, 1, bgfx::TextureFormat::RGBA8, 0,
+                                               bgfx::copy(&white, sizeof(white)));
         SetViewportSize(1280, 720);
         return Core::Result<void>::Ok();
     }
@@ -326,18 +441,18 @@ private:
         constexpr std::uint32_t kWhite = 0xffe8e4dc;
 
         const MeshVertex vertices[] = {
-            {-1, -1, 1, 0, 0, 1, kRed},    {1, -1, 1, 0, 0, 1, kRed},
-            {1, 1, 1, 0, 0, 1, kRed},      {-1, 1, 1, 0, 0, 1, kRed},
-            {1, -1, -1, 0, 0, -1, kGreen}, {-1, -1, -1, 0, 0, -1, kGreen},
-            {-1, 1, -1, 0, 0, -1, kGreen}, {1, 1, -1, 0, 0, -1, kGreen},
-            {-1, -1, -1, -1, 0, 0, kBlue}, {-1, -1, 1, -1, 0, 0, kBlue},
-            {-1, 1, 1, -1, 0, 0, kBlue},   {-1, 1, -1, -1, 0, 0, kBlue},
-            {1, -1, 1, 1, 0, 0, kWhite},   {1, -1, -1, 1, 0, 0, kWhite},
-            {1, 1, -1, 1, 0, 0, kWhite},   {1, 1, 1, 1, 0, 0, kWhite},
-            {-1, 1, 1, 0, 1, 0, kRed},     {1, 1, 1, 0, 1, 0, kGreen},
-            {1, 1, -1, 0, 1, 0, kBlue},    {-1, 1, -1, 0, 1, 0, kWhite},
-            {-1, -1, -1, 0, -1, 0, kRed},  {1, -1, -1, 0, -1, 0, kGreen},
-            {1, -1, 1, 0, -1, 0, kBlue},   {-1, -1, 1, 0, -1, 0, kWhite},
+            {-1, -1, 1, 0, 0, 1, 0, 0, kRed},    {1, -1, 1, 0, 0, 1, 1, 0, kRed},
+            {1, 1, 1, 0, 0, 1, 1, 1, kRed},      {-1, 1, 1, 0, 0, 1, 0, 1, kRed},
+            {1, -1, -1, 0, 0, -1, 0, 0, kGreen}, {-1, -1, -1, 0, 0, -1, 1, 0, kGreen},
+            {-1, 1, -1, 0, 0, -1, 1, 1, kGreen}, {1, 1, -1, 0, 0, -1, 0, 1, kGreen},
+            {-1, -1, -1, -1, 0, 0, 0, 0, kBlue}, {-1, -1, 1, -1, 0, 0, 1, 0, kBlue},
+            {-1, 1, 1, -1, 0, 0, 1, 1, kBlue},   {-1, 1, -1, -1, 0, 0, 0, 1, kBlue},
+            {1, -1, 1, 1, 0, 0, 0, 0, kWhite},   {1, -1, -1, 1, 0, 0, 1, 0, kWhite},
+            {1, 1, -1, 1, 0, 0, 1, 1, kWhite},   {1, 1, 1, 1, 0, 0, 0, 1, kWhite},
+            {-1, 1, 1, 0, 1, 0, 0, 0, kRed},     {1, 1, 1, 0, 1, 0, 1, 0, kGreen},
+            {1, 1, -1, 0, 1, 0, 1, 1, kBlue},    {-1, 1, -1, 0, 1, 0, 0, 1, kWhite},
+            {-1, -1, -1, 0, -1, 0, 0, 0, kRed},  {1, -1, -1, 0, -1, 0, 1, 0, kGreen},
+            {1, -1, 1, 0, -1, 0, 1, 1, kBlue},   {-1, -1, 1, 0, -1, 0, 0, 1, kWhite},
         };
         const std::uint16_t indices[] = {0,  1,  2,  0,  2,  3,  4,  5,  6,  4,  6,  7,
                                          8,  9,  10, 8,  10, 11, 12, 13, 14, 12, 14, 15,
@@ -407,9 +522,20 @@ private:
     }
 
     void DestroyGpuResources() {
+        std::vector<std::uint32_t> ids;
+        ids.reserve(m_models.size());
+        for (const auto& entry : m_models) {
+            ids.push_back(entry.first);
+        }
+        for (std::uint32_t id : ids) {
+            DestroyModel(id);
+        }
         DestroyHandle(m_program);
         DestroyHandle(m_lightDir);
         DestroyHandle(m_lightColor);
+        DestroyHandle(m_baseColor);
+        DestroyHandle(m_sampler);
+        DestroyHandle(m_whiteTexture);
         DestroyHandle(m_vertexBuffer);
         DestroyHandle(m_indexBuffer);
         DestroyHandle(m_viewport.frameBuffer);
@@ -421,6 +547,7 @@ private:
         m_offscreen = {};
         m_readbackWidth = 0;
         m_readbackHeight = 0;
+        m_nextModelId = 1;
     }
 
     bool m_initialized = false;
@@ -433,11 +560,16 @@ private:
     bgfx::ProgramHandle m_program = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle m_lightDir = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle m_lightColor = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle m_baseColor = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle m_sampler = BGFX_INVALID_HANDLE;
+    bgfx::TextureHandle m_whiteTexture = BGFX_INVALID_HANDLE;
     FramebufferResources m_viewport;
     FramebufferResources m_offscreen;
     bgfx::TextureHandle m_readbackTexture = BGFX_INVALID_HANDLE;
     std::uint32_t m_readbackWidth = 0;
     std::uint32_t m_readbackHeight = 0;
+    std::uint32_t m_nextModelId = 1;
+    std::unordered_map<std::uint32_t, std::vector<UploadedPrimitive>> m_models;
 };
 
 } // namespace

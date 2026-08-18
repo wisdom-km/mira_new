@@ -1,3 +1,3 @@
 #pragma once
-// Phase 0 placeholder. Scene graph implementation starts in Phase 2.
+// Scene nodes and Transform live in this module from Phase 2.
 namespace DirectorDesk::Scene {}

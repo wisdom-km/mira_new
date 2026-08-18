@@ -1,0 +1,5 @@
+newmtl CubeBlue
+Kd 0.25 0.55 0.95
+Ks 0.1 0.1 0.1
+d 1.0
+illum 1

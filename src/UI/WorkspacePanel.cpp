@@ -45,6 +45,9 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
 
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu("File")) {
+            if (ImGui::MenuItem("Import Model...")) {
+                commands.Push(Core::ImportModelCommand{});
+            }
             if (ImGui::MenuItem("Export Test PNG")) {
                 commands.Push(Core::ExportTestPngCommand{});
             }
@@ -96,9 +99,60 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
     ImGui::Text("Viewport: %u x %u", state.viewportTextureWidth, state.viewportTextureHeight);
     ImGui::Separator();
     ImGui::TextUnformatted("Left drag: orbit  Right drag: pan  Wheel: zoom");
+    if (ImGui::Button("Import Model...")) {
+        commands.Push(Core::ImportModelCommand{});
+    }
+    ImGui::SameLine();
     if (ImGui::Button("Export Test PNG")) {
         commands.Push(Core::ExportTestPngCommand{});
     }
+    if (state.exampleObjPath != nullptr && state.exampleObjPath[0] != '\0') {
+        if (ImGui::Button("Import Example OBJ")) {
+            commands.Push(Core::ImportModelFromPathCommand{state.exampleObjPath});
+        }
+    }
+    if (state.exampleGlbPath != nullptr && state.exampleGlbPath[0] != '\0') {
+        if (ImGui::Button("Import Example GLB")) {
+            commands.Push(Core::ImportModelFromPathCommand{state.exampleGlbPath});
+        }
+    }
+    if (state.importInProgress) {
+        ImGui::TextUnformatted("Loading model...");
+    }
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("Scene");
+    if (state.nodes != nullptr) {
+        for (const NodeView& node : *state.nodes) {
+            if (ImGui::Selectable(node.name.c_str(), node.selected)) {
+                commands.Push(Core::SelectNodeCommand{node.id});
+            }
+            if (node.selected) {
+                float position[3] = {node.position[0], node.position[1], node.position[2]};
+                float euler[3] = {node.eulerDegrees[0], node.eulerDegrees[1], node.eulerDegrees[2]};
+                float scale[3] = {node.scale[0], node.scale[1], node.scale[2]};
+                bool changed = false;
+                changed = ImGui::DragFloat3("Position", position, 0.01f) || changed;
+                changed = ImGui::DragFloat3("Rotation", euler, 0.5f) || changed;
+                changed = ImGui::DragFloat3("Scale", scale, 0.01f) || changed;
+                if (changed) {
+                    Core::SetNodeTransformCommand transform;
+                    transform.nodeId = node.id;
+                    transform.position[0] = position[0];
+                    transform.position[1] = position[1];
+                    transform.position[2] = position[2];
+                    transform.eulerDegrees[0] = euler[0];
+                    transform.eulerDegrees[1] = euler[1];
+                    transform.eulerDegrees[2] = euler[2];
+                    transform.scale[0] = scale[0];
+                    transform.scale[1] = scale[1];
+                    transform.scale[2] = scale[2];
+                    commands.Push(transform);
+                }
+            }
+        }
+    }
+
     if (state.statusText != nullptr && state.statusText[0] != '\0') {
         ImGui::Separator();
         ImGui::TextUnformatted(state.statusText);

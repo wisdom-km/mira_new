@@ -143,6 +143,39 @@ std::string Paths::FileName(const std::string& utf8Path) {
     return FromPath(ToPath(utf8Path).filename());
 }
 
+std::string Paths::Stem(const std::string& utf8Path) {
+    return FromPath(ToPath(utf8Path).stem());
+}
+
+std::string Paths::Parent(const std::string& utf8Path) {
+    const std::string parent = FromPath(ToPath(utf8Path).parent_path());
+    return parent.empty() ? std::string(".") : parent;
+}
+
+std::string Paths::ExtensionLower(const std::string& utf8Path) {
+    std::string extension = FromPath(ToPath(utf8Path).extension());
+    for (char& ch : extension) {
+        if (ch >= 'A' && ch <= 'Z') {
+            ch = static_cast<char>(ch - 'A' + 'a');
+        }
+    }
+    return extension;
+}
+
+Core::Result<std::string> Paths::ReadTextFile(const std::string& utf8Path) {
+    auto bytes = ReadBinaryFile(utf8Path);
+    if (!bytes.IsOk()) {
+        return Core::Result<std::string>::Fail(bytes.GetError());
+    }
+    std::string text(bytes.Value().begin(), bytes.Value().end());
+    if (text.size() >= 3 && static_cast<unsigned char>(text[0]) == 0xef &&
+        static_cast<unsigned char>(text[1]) == 0xbb &&
+        static_cast<unsigned char>(text[2]) == 0xbf) {
+        text.erase(0, 3);
+    }
+    return Core::Result<std::string>::Ok(std::move(text));
+}
+
 Core::Result<std::string> Paths::ExecutableDirectory() {
 #ifdef _WIN32
     wchar_t buffer[MAX_PATH];

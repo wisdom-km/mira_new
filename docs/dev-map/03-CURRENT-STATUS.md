@@ -4,38 +4,33 @@
 
 ## 当前快照
 
-- **当前 Phase**：Phase 1（Windows 本地验收已通过）
-- **当前状态**：bgfx Direct3D 11 可交互查看测试立方体；轨道相机、ImGui 视口组合、离屏透明 PNG 回读已通过；macOS 待 CI 验证
+- **当前 Phase**：Phase 2（Windows 本地验收已通过）
+- **当前状态**：可导入 GLB/OBJ，后台解析，视口显示并可用数值编辑 Transform；macOS 待 CI 验证
 - **最后更新**：2026-08-19
 - **更新者**：Cursor AI
 - **当前分支**：`main`
-- **最近完成 tag**：`phase-0-skeleton`（`38586c0`）
-- **下一个允许执行的工作**：用户明确要求后再打 `phase-1-render-camera`。打 tag 前不得开始 Phase 2
+- **最近完成 tag**：`phase-1-render-camera`（`460911a`）
+- **下一个允许执行的工作**：用户明确要求后再打 `phase-2-model-import`。打 tag 前不得开始 Phase 3
 
 ## 已完成
 
-- [x] 创建 `docs/dev-map/` 核心开发地图
-- [x] Phase 0 强制目录、CMake、CMake Presets、vcpkg manifest
-- [x] `Core::Log`、`Result`/`Error`、最小 Command 队列
-- [x] Platform UTF-8 路径、用户数据目录、GLFW 窗口封装
-- [x] Catch2 单元测试（含中文路径）
-- [x] Windows / macOS GitHub Actions CI
-- [x] MIT LICENSE、README、CONTRIBUTING、clang-format/tidy
-- [x] 定义 `IRenderer`、渲染描述、错误返回
-- [x] bgfx 后端初始化、重置、帧循环、销毁
-- [x] CMake 调用 shaderc，为 dx11/metal/glsl/spirv 编译 shader（不提交二进制）
-- [x] 测试立方体、基础顶点色与灯光
-- [x] 轨道相机：旋转、平移、缩放、宽高比
-- [x] ImGui docking 视口与 bgfx 输出组合（已从临时 OpenGL3 换成 bgfx）
-- [x] 离屏 framebuffer、RGBA 回读、透明 PNG 技术切片
+- [x] Phase 0 骨架、日志、GLFW、ImGui docking、CI
+- [x] Phase 1 bgfx、轨道相机、离屏透明 PNG
+- [x] `IModelLoader`、`LoaderRegistry`、`ModelData`
+- [x] GLB 加载（cgltf）：网格、索引、节点变换、基础色与嵌入纹理
+- [x] OBJ 加载（tinyobjloader）：网格、法线、UV、MTL 基础材质
+- [x] 缺少法线时生成；损坏/不支持文件返回错误且不崩溃
+- [x] Scene Node 与 Transform（位置/旋转/缩放）
+- [x] 原生文件对话框、导入 Command、后台 Worker + 主线程结果队列
+- [x] UI 选择节点与数值 Transform 编辑
 
 ## 进行中
 
-无。Phase 1 功能在 Windows 上已验收。
+无。Phase 2 功能在 Windows 上已验收。
 
 ## 阻塞项
 
-无。macOS 实机未在本机验证，依赖 CI。离屏导出当前需要创建窗口（bgfx 绑定 HWND），无窗口 CI 只跑单元测试。
+无。macOS 实机未在本机验证，依赖 CI。文件对话框在 macOS 使用 `NSOpenPanel`，本机未跑。
 
 ## 已确认决策
 
@@ -48,7 +43,7 @@
 | C++ 标准 | C++17 |
 | 构建与依赖 | CMake + vcpkg manifest |
 | 渲染/UI/窗口 | bgfx / Dear ImGui docking / GLFW |
-| ImGui 后端 | GLFW + bgfx（Phase 0 临时 OpenGL3 已替换） |
+| ImGui 后端 | GLFW + bgfx |
 | 窗口图形 API | `GLFW_NO_API`，由 bgfx 创建交换链 |
 | 模型加载 | cgltf（GLB）+ tinyobjloader（OBJ），通过 `IModelLoader` 扩展 |
 | 网络与 JSON | libcurl + nlohmann-json |
@@ -59,6 +54,8 @@
 | 分镜画布 | 剧本是结构唯一来源；自动布局、不可自由连线；导演台变化后按需刷新缩略图 |
 | 分镜导出 | 支持单镜头参考图和完整分镜总览 PNG |
 | vcpkg baseline | `c5a15727ee70fddf0296f0d8aafc3f58916fefac` |
+| Phase 2 变换入口 | 数值 DragFloat3；不引入 ImGuizmo（未锁定进技术栈） |
+| 外部 .gltf + 分离 bin/uri | P0 只保证 `.glb`；外部 URI 纹理降级为纯色并警告 |
 
 ## 已知风险
 
@@ -66,8 +63,8 @@
 |------|------|----------|
 | bgfx shader 跨平台编译复杂 | CMake 自动调用 shaderc，禁止手工产物 | Phase 1 已在 Windows 验证 |
 | 透明离屏渲染/回读可能因后端差异失败 | 在正式 Export 前完成技术切片 | Phase 1 Windows 已通过；macOS 待 CI |
-| Windows 中文路径与编码 | Platform 统一 UTF-8 边界并加入测试 | Phase 0 已测 / Phase 2/3 |
-| GLB 特性范围失控 | P0 限基础静态网格/材质，不做骨骼动画 | Phase 2 |
+| Windows 中文路径与编码 | Platform 统一 UTF-8 边界并加入测试 | Phase 0/2 已测 |
+| GLB 特性范围失控 | P0 限基础静态网格/材质，忽略骨骼和动画 | Phase 2 |
 | GitHub 在部分网络环境不可用 | 缓存最后有效清单；镜像源仅列后续 | Phase 8 |
 | 大型剧本的布局和缩略图刷新造成卡顿 | 确定性布局、可见区裁剪、防抖、单帧单任务和缓存上限 | Phase 7 |
 | 多模型协作导致架构漂移 | 强制读地图、更新状态、执行 Phase 门禁 | 全程 |
@@ -75,17 +72,23 @@
 ## 本次验证
 
 - Windows MSVC 19.44 + Ninja Debug 配置与构建成功
-- `ctest`：`DirectorDeskTests` 通过（含 OrbitCamera、PngWriter、中文路径）
-- 启动 `DirectorDesk.exe`：bgfx renderer=`Direct3D 11`，左侧 Workspace + 右侧 Viewport 停靠，视口中可见测试立方体
-- 轨道提示与视口拖拽/滚轮已接入 Command
-- `--export-test-png` 与菜单/按钮均可写出 `%APPDATA%\DirectorDesk\exports\phase1-offscreen.png`，日志 `opaque=true transparent=true`
+- `DirectorDeskTests`：21 cases / 76 assertions 通过（含中文路径 GLB/OBJ、损坏文件、不支持扩展名、Transform）
+- `--import examples/models/cube.glb`：日志 `Imported model ... as cube`，视口显示带基础色的立方体，Workspace 可选中并编辑 Position/Rotation/Scale
 
 ## 下一步清单
 
-1. 用户明确要求后再打 `phase-1-render-camera`
-2. 之后才能开始 Phase 2：可扩展模型加载（GLB/OBJ）与本地导入
+1. 用户明确要求后再打 `phase-2-model-import`
+2. 之后才能开始 Phase 3：Markdown 剧本与镜头列表
 
 ## 工作日志
+
+### 2026-08-19：Phase 2 模型导入
+
+- 将 Scene/Asset 从接口库落地为实现库。
+- 实现 LoaderRegistry、GLB/OBJ 加载器、后台 Worker、Windows/macOS 文件对话框。
+- 导入结果只经主线程结果队列写入 Scene，再由 Renderer 上传 GPU。
+- 示例模型：`examples/models/cube.obj`、`cube.glb`。
+- 未实现剧本、预设机位、工程文件或在线资产库。
 
 ### 2026-08-19：Phase 1 渲染、相机与离屏 PNG
 

@@ -2,7 +2,7 @@
 
 3D 导演台：用剧本、资源库和预设机位，帮助非 3D 专业用户制作可控的 AI 视频分镜。
 
-当前进度：**Phase 1（bgfx 最小渲染 + 轨道相机）进行中**。权威需求与架构见 [`docs/dev-map/`](docs/dev-map/)。
+当前进度：**Phase 2（模型导入）进行中**。权威需求与架构见 [`docs/dev-map/`](docs/dev-map/)。
 
 ## 要求
 
@@ -22,8 +22,7 @@ cmake --preset windows-debug
 cmake --build --preset windows-debug
 ctest --preset windows-debug --output-on-failure
 .\build\windows-debug\DirectorDesk.exe
-# 可选：导出一张透明测试 PNG 后退出
-.\build\windows-debug\DirectorDesk.exe --export-test-png
+.\build\windows-debug\DirectorDesk.exe --import .\examples\models\cube.glb
 ```
 
 没有 Ninja 时：
@@ -47,12 +46,12 @@ ctest --preset macos-debug --output-on-failure
 
 首次配置会由 vcpkg 编译 spdlog、GLFW、Dear ImGui（docking）和 Catch2，需要联网。
 
-## Phase 1 包含什么
+## Phase 2 包含什么
 
-- bgfx 渲染测试立方体、基础灯光
-- 轨道相机（视口内拖拽/滚轮）
-- ImGui docking 与 3D 视口组合
-- 离屏透明 PNG 技术验证（File / 按钮 / `--export-test-png`）
+- 通过 `IModelLoader` 注册表导入 GLB / OBJ（可扩展）
+- 后台解析，主线程写入场景并上传 GPU
+- 场景节点选择与位置/旋转/缩放数值编辑
+- 示例模型：`examples/models/cube.obj` 与 `cube.glb`
 
 shader 由 CMake 调用 shaderc 编译，不要提交生成的二进制。
 

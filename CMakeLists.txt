@@ -68,12 +68,12 @@ add_subdirectory(src/Core)
 add_subdirectory(src/Platform)
 add_subdirectory(src/Camera)
 add_subdirectory(src/Renderer)
+add_subdirectory(src/Scene)
+add_subdirectory(src/Asset)
 add_subdirectory(src/UI)
 add_subdirectory(backends)
 add_subdirectory(src/App)
 
-dd_add_interface_module(scene)
-dd_add_interface_module(asset)
 dd_add_interface_module(export)
 dd_add_interface_module(script)
 dd_add_interface_module(link)
@@ -100,7 +100,10 @@ add_custom_command(TARGET DirectorDesk POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
         "${DD_SHADER_OUTPUT_DIR}"
         "$<TARGET_FILE_DIR:DirectorDesk>/shaders"
-    COMMENT "Copy compiled shaders next to DirectorDesk"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory
+        "${PROJECT_SOURCE_DIR}/examples"
+        "$<TARGET_FILE_DIR:DirectorDesk>/examples"
+    COMMENT "Copy compiled shaders and examples next to DirectorDesk"
 )
 
 if(DD_BUILD_TESTS)

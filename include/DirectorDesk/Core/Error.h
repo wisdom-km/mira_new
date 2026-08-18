@@ -12,6 +12,8 @@ enum class ErrorCode {
     AlreadyInitialized,
     NotInitialized,
     Internal,
+    ParseFailure,
+    Unsupported,
 };
 
 struct Error {

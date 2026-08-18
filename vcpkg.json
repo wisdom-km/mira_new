@@ -13,6 +13,8 @@
     "glfw3",
     "glm",
     "stb",
+    "cgltf",
+    "tinyobjloader",
     {
       "name": "imgui",
       "features": [

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <variant>
 
 namespace DirectorDesk::Core {
@@ -22,7 +23,25 @@ struct OrbitDeltaCommand {
 
 struct ExportTestPngCommand {};
 
-using Command =
-    std::variant<QuitCommand, ViewportResizeCommand, OrbitDeltaCommand, ExportTestPngCommand>;
+struct ImportModelCommand {};
+
+struct ImportModelFromPathCommand {
+    std::string utf8Path;
+};
+
+struct SelectNodeCommand {
+    std::string nodeId;
+};
+
+struct SetNodeTransformCommand {
+    std::string nodeId;
+    float position[3] = {0.0f, 0.0f, 0.0f};
+    float eulerDegrees[3] = {0.0f, 0.0f, 0.0f};
+    float scale[3] = {1.0f, 1.0f, 1.0f};
+};
+
+using Command = std::variant<QuitCommand, ViewportResizeCommand, OrbitDeltaCommand,
+                             ExportTestPngCommand, ImportModelCommand, ImportModelFromPathCommand,
+                             SelectNodeCommand, SetNodeTransformCommand>;
 
 } // namespace DirectorDesk::Core

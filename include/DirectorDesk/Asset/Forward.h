@@ -1,3 +1,3 @@
 #pragma once
-// Phase 0 placeholder. Asset library implementation starts in Phase 2.
+// Asset loaders, registry, and ModelData live in this module from Phase 2.
 namespace DirectorDesk::Asset {}
