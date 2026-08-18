@@ -108,6 +108,12 @@ void Window::RequestClose() {
     }
 }
 
+void Window::CancelClose() {
+    if (m_handle != nullptr) {
+        glfwSetWindowShouldClose(static_cast<GLFWwindow*>(m_handle), GLFW_FALSE);
+    }
+}
+
 FramebufferSize Window::GetFramebufferSize() const {
     FramebufferSize size;
     if (m_handle == nullptr) {

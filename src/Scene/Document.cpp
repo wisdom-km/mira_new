@@ -1,5 +1,7 @@
 #include "DirectorDesk/Scene/Document.h"
 
+#include <string>
+
 namespace DirectorDesk::Scene {
 
 Node& Document::Add(Node node) {
@@ -36,6 +38,35 @@ const Node* Document::Selected() const {
 
 std::string Document::NextNodeId() {
     return "node-" + std::to_string(m_nextIndex++);
+}
+
+void Document::Clear() {
+    m_nodes.clear();
+    m_selectedId.clear();
+    m_nextIndex = 1;
+}
+
+void Document::ReplaceNodes(std::vector<Node> nodes, std::string selectedId) {
+    m_nodes = std::move(nodes);
+    m_nextIndex = 1;
+    for (const Node& node : m_nodes) {
+        if (node.id.size() > 5 && node.id.compare(0, 5, "node-") == 0) {
+            try {
+                const unsigned long value = std::stoul(node.id.substr(5));
+                if (value >= m_nextIndex) {
+                    m_nextIndex = static_cast<std::uint32_t>(value + 1);
+                }
+            } catch (...) {
+            }
+        }
+    }
+    if (Find(selectedId) != nullptr) {
+        m_selectedId = std::move(selectedId);
+    } else if (!m_nodes.empty()) {
+        m_selectedId = m_nodes.front().id;
+    } else {
+        m_selectedId.clear();
+    }
 }
 
 } // namespace DirectorDesk::Scene

@@ -105,6 +105,33 @@ struct SelectLibraryAssetCommand {
 
 struct RefreshLibraryCommand {};
 
+struct NewProjectCommand {};
+
+struct OpenProjectCommand {};
+
+struct OpenProjectFromPathCommand {
+    std::string utf8Path;
+};
+
+struct SaveProjectCommand {};
+
+struct SaveProjectAsCommand {};
+
+struct LinkShotToCameraCommand {
+    std::string shotId;
+    std::string cameraId;
+};
+
+struct UnlinkShotCommand {
+    std::string shotId;
+};
+
+struct ConfirmSaveProjectCommand {};
+
+struct DiscardProjectCommand {};
+
+struct CancelProjectPromptCommand {};
+
 using Command = std::variant<
     QuitCommand, ViewportResizeCommand, OrbitDeltaCommand, ExportTestPngCommand, ImportModelCommand,
     ImportModelFromPathCommand, SelectNodeCommand, SetNodeTransformCommand, LoadScriptCommand,
@@ -112,6 +139,9 @@ using Command = std::variant<
     InsertShotCommand, SelectShotCommand, ApplyCameraPresetCommand, AddCameraCommand,
     RemoveCameraCommand, RenameCameraCommand, SelectCameraCommand, SetLightPresetCommand,
     AddLibraryAssetToSceneCommand, SetLibrarySearchCommand, SetLibraryOriginFilterCommand,
-    SetLibraryViewModeCommand, SelectLibraryAssetCommand, RefreshLibraryCommand>;
+    SetLibraryViewModeCommand, SelectLibraryAssetCommand, RefreshLibraryCommand, NewProjectCommand,
+    OpenProjectCommand, OpenProjectFromPathCommand, SaveProjectCommand, SaveProjectAsCommand,
+    LinkShotToCameraCommand, UnlinkShotCommand, ConfirmSaveProjectCommand, DiscardProjectCommand,
+    CancelProjectPromptCommand>;
 
 } // namespace DirectorDesk::Core

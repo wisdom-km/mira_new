@@ -13,6 +13,7 @@ struct CameraRig {
     std::string id;
     std::string name;
     OrbitCamera orbit;
+    std::string lastPreset;
 };
 
 class CameraManager {
@@ -38,10 +39,11 @@ public:
         return m_lightPreset;
     }
     [[nodiscard]] LightState CurrentLight() const;
+    [[nodiscard]] CameraRig* Find(const std::string& id);
+    [[nodiscard]] const CameraRig* Find(const std::string& id) const;
+    void Replace(std::vector<CameraRig> cameras, std::string selectedId, LightPresetKind light);
 
 private:
-    CameraRig* Find(const std::string& id);
-    const CameraRig* Find(const std::string& id) const;
     std::string NextId();
 
     std::vector<CameraRig> m_cameras;

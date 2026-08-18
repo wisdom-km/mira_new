@@ -70,6 +70,11 @@ void ScriptPanel::Draw(const AppViewState& state, Core::CommandQueue& commands) 
                     if (ImGui::Selectable(label.c_str(), shot.selected)) {
                         commands.Push(Core::SelectShotCommand{shot.id});
                     }
+                    if (shot.selected && !shot.linkedCameraName.empty()) {
+                        ImGui::SameLine();
+                        ImGui::TextDisabled("%s%s", shot.linkedCameraName.c_str(),
+                                            shot.linkedMissing ? " (缺失)" : "");
+                    }
                 }
                 ImGui::TreePop();
             }

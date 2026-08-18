@@ -37,6 +37,13 @@ public:
     static Core::Result<std::vector<std::uint8_t>> ReadBinaryFile(const std::string& utf8Path);
     static Core::Result<void> WriteBinaryFile(const std::string& utf8Path, const std::uint8_t* data,
                                               std::size_t size);
+    static Core::Result<void> RemoveFile(const std::string& utf8Path);
+    static Core::Result<void> AtomicReplace(const std::string& fromUtf8, const std::string& toUtf8);
+    [[nodiscard]] static bool IsAbsolute(const std::string& utf8Path);
+    [[nodiscard]] static bool IsWithin(const std::string& rootUtf8, const std::string& pathUtf8);
+    static Core::Result<std::string> RelativeTo(const std::string& rootUtf8,
+                                                const std::string& pathUtf8);
+    [[nodiscard]] static std::string NormalizeSlashes(const std::string& utf8Path);
 };
 
 } // namespace DirectorDesk::Platform

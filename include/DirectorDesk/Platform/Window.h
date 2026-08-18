@@ -31,6 +31,7 @@ public:
     void SwapBuffers();
     [[nodiscard]] bool ShouldClose() const;
     void RequestClose();
+    void CancelClose();
     [[nodiscard]] FramebufferSize GetFramebufferSize() const;
 
     // GLFW window pointer. Phase 1 bgfx uses NativeOsHandle() instead.

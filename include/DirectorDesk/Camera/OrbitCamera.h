@@ -38,9 +38,18 @@ public:
     void SetPitchDegrees(float pitchDegrees);
     void SetFovYDegrees(float fovYDegrees);
     void ApplyPose(const CameraPose& pose);
+    bool Restore(const glm::vec3& target, const glm::vec3& position, float fovYDegrees,
+                 float nearPlane, float farPlane, float distance, float yawDegrees,
+                 float pitchDegrees, bool hasOrbitNumbers);
 
     [[nodiscard]] float FovYDegrees() const {
         return m_fovYDegrees;
+    }
+    [[nodiscard]] float NearPlane() const {
+        return m_nearPlane;
+    }
+    [[nodiscard]] float FarPlane() const {
+        return m_farPlane;
     }
 
 private:

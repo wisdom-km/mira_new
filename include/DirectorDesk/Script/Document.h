@@ -21,6 +21,7 @@ public:
     void InsertScene();
     void InsertShot();
     void SelectShot(const std::string& shotId);
+    void Reset();
 
     [[nodiscard]] const std::string& Text() const {
         return m_text;

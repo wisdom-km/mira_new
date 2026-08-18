@@ -72,11 +72,11 @@ add_subdirectory(src/Scene)
 add_subdirectory(src/Asset)
 add_subdirectory(src/Script)
 add_subdirectory(src/UI)
+add_subdirectory(src/Link)
 add_subdirectory(backends)
 add_subdirectory(src/App)
 
 dd_add_interface_module(export)
-dd_add_interface_module(link)
 dd_add_interface_module(storyboard)
 dd_add_interface_module(ai)
 

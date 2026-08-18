@@ -121,4 +121,20 @@ Core::Result<std::string> FileDialog::SaveMarkdownFile() {
     return ShowSaveDialog(L"Save Script", filters, 2, L"md");
 }
 
+Core::Result<std::string> FileDialog::OpenProjectFile() {
+    const COMDLG_FILTERSPEC filters[] = {
+        {L"DirectorDesk Project (*.ddproj)", L"*.ddproj"},
+        {L"All files", L"*.*"},
+    };
+    return ShowOpenDialog(L"Open Project", filters, 2);
+}
+
+Core::Result<std::string> FileDialog::SaveProjectFile() {
+    const COMDLG_FILTERSPEC filters[] = {
+        {L"DirectorDesk Project (*.ddproj)", L"*.ddproj"},
+        {L"All files", L"*.*"},
+    };
+    return ShowSaveDialog(L"Save Project", filters, 2, L"ddproj");
+}
+
 } // namespace DirectorDesk::Platform

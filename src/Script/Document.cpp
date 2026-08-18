@@ -197,4 +197,15 @@ void Document::SelectShot(const std::string& shotId) {
     }
 }
 
+void Document::Reset() {
+    m_text.clear();
+    m_path.clear();
+    m_lineEnding = "\n";
+    m_selectedShotId.clear();
+    m_dirty = false;
+    m_hasWriteTime = false;
+    m_writeTime = 0;
+    ApplyParse(Parser::Parse(""), true);
+}
+
 } // namespace DirectorDesk::Script

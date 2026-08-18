@@ -388,4 +388,97 @@ Core::Result<void> Paths::WriteBinaryFile(const std::string& utf8Path, const std
     return Core::Result<void>::Ok();
 }
 
+Core::Result<void> Paths::RemoveFile(const std::string& utf8Path) {
+    if (utf8Path.empty() || !Exists(utf8Path)) {
+        return Core::Result<void>::Ok();
+    }
+    std::error_code ec;
+    std::filesystem::remove(ToPath(utf8Path), ec);
+    if (ec) {
+        return Core::Result<void>::Fail(
+            IoError("remove failed: " + ec.message(), "无法删除临时文件"));
+    }
+    return Core::Result<void>::Ok();
+}
+
+Core::Result<void> Paths::AtomicReplace(const std::string& fromUtf8, const std::string& toUtf8) {
+    if (fromUtf8.empty() || toUtf8.empty()) {
+        return Core::Result<void>::Fail(Core::Error::Make(
+            Core::ErrorCode::InvalidArgument, "ReplaceFile received an empty path", "路径不能为空"));
+    }
+    std::error_code ec;
+#ifdef _WIN32
+    if (Exists(toUtf8)) {
+        std::filesystem::remove(ToPath(toUtf8), ec);
+        if (ec) {
+            return Core::Result<void>::Fail(
+                IoError("replace remove failed: " + ec.message(), "无法替换文件"));
+        }
+    }
+    std::filesystem::rename(ToPath(fromUtf8), ToPath(toUtf8), ec);
+#else
+    std::filesystem::rename(ToPath(fromUtf8), ToPath(toUtf8), ec);
+#endif
+    if (ec) {
+        return Core::Result<void>::Fail(
+            IoError("replace rename failed: " + ec.message(), "无法替换文件"));
+    }
+    return Core::Result<void>::Ok();
+}
+
+bool Paths::IsAbsolute(const std::string& utf8Path) {
+    return ToPath(utf8Path).is_absolute();
+}
+
+std::string Paths::NormalizeSlashes(const std::string& utf8Path) {
+    std::string out = utf8Path;
+    for (char& ch : out) {
+        if (ch == '\\') {
+            ch = '/';
+        }
+    }
+    return out;
+}
+
+bool Paths::IsWithin(const std::string& rootUtf8, const std::string& pathUtf8) {
+    auto root = WeaklyCanonical(rootUtf8);
+    auto path = WeaklyCanonical(pathUtf8);
+    if (!root.IsOk() || !path.IsOk()) {
+        return false;
+    }
+    const std::string rootKey = StableKey(root.Value());
+    const std::string pathKey = StableKey(path.Value());
+    if (pathKey.size() < rootKey.size()) {
+        return false;
+    }
+    if (pathKey.compare(0, rootKey.size(), rootKey) != 0) {
+        return false;
+    }
+    return pathKey.size() == rootKey.size() || pathKey[rootKey.size()] == '/';
+}
+
+Core::Result<std::string> Paths::RelativeTo(const std::string& rootUtf8,
+                                            const std::string& pathUtf8) {
+    if (!IsWithin(rootUtf8, pathUtf8)) {
+        return Core::Result<std::string>::Fail(Core::Error::Make(
+            Core::ErrorCode::InvalidArgument, "Path escapes project directory", "路径超出工程目录"));
+    }
+    std::error_code ec;
+    const auto relative = std::filesystem::relative(ToPath(pathUtf8), ToPath(rootUtf8), ec);
+    if (ec) {
+        return Core::Result<std::string>::Fail(
+            IoError("relative failed: " + ec.message(), "无法计算相对路径"));
+    }
+    const std::string text = NormalizeSlashes(FromPath(relative));
+    if (text.empty() || text == ".") {
+        return Core::Result<std::string>::Fail(Core::Error::Make(
+            Core::ErrorCode::InvalidArgument, "Relative path is empty", "相对路径无效"));
+    }
+    if (text.find("..") != std::string::npos) {
+        return Core::Result<std::string>::Fail(Core::Error::Make(
+            Core::ErrorCode::InvalidArgument, "Relative path escapes project", "路径超出工程目录"));
+    }
+    return Core::Result<std::string>::Ok(text);
+}
+
 } // namespace DirectorDesk::Platform

@@ -35,6 +35,22 @@ TEST_CASE("UiFontFile finds a system CJK font", "[platform][paths]") {
     REQUIRE(DirectorDesk::Platform::Paths::Exists(font.Value()));
 }
 
+TEST_CASE("RelativeTo stays inside a Chinese project directory", "[platform][paths]") {
+    auto temp = DirectorDesk::Platform::Paths::TemporaryDirectory();
+    REQUIRE(temp.IsOk());
+    const std::string root =
+        DirectorDesk::Platform::Paths::Join(temp.Value(), "导演台工程 DirectorDesk/root");
+    const std::string nested = DirectorDesk::Platform::Paths::Join(root, "assets/椅子.obj");
+    REQUIRE(DirectorDesk::Platform::Paths::CreateDirectories(
+                DirectorDesk::Platform::Paths::Parent(nested))
+                .IsOk());
+    REQUIRE(DirectorDesk::Platform::Paths::WriteTextFile(nested, "x").IsOk());
+    REQUIRE(DirectorDesk::Platform::Paths::IsWithin(root, nested));
+    auto relative = DirectorDesk::Platform::Paths::RelativeTo(root, nested);
+    REQUIRE(relative.IsOk());
+    REQUIRE(relative.Value().find("..") == std::string::npos);
+}
+
 TEST_CASE("CreateDirectories rejects an empty path", "[platform][paths]") {
     auto result = DirectorDesk::Platform::Paths::CreateDirectories("");
     REQUIRE_FALSE(result.IsOk());

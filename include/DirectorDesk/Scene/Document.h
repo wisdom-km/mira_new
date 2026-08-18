@@ -29,6 +29,8 @@ public:
     [[nodiscard]] const Node* Selected() const;
 
     std::string NextNodeId();
+    void Clear();
+    void ReplaceNodes(std::vector<Node> nodes, std::string selectedId);
 
 private:
     std::vector<Node> m_nodes;
