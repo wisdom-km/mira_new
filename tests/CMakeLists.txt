@@ -9,6 +9,7 @@ add_executable(DirectorDeskTests
     Camera/CameraManagerTests.cpp
     Renderer/PngWriterTests.cpp
     Asset/ModelLoaderTests.cpp
+    Asset/LibraryTests.cpp
     Scene/TransformTests.cpp
     Script/ParserTests.cpp
     Script/DocumentTests.cpp

@@ -19,7 +19,11 @@ public:
     // Platform user-data root plus "/DirectorDesk".
     static Core::Result<std::string> UserDataDirectory();
     static Core::Result<std::string> LogDirectory();
+    static Core::Result<std::string> LibraryDirectory();
     static Core::Result<std::string> TemporaryDirectory();
+    static Core::Result<std::string> WeaklyCanonical(const std::string& utf8Path);
+    static Core::Result<std::uint64_t> FileSize(const std::string& utf8Path);
+    [[nodiscard]] static std::string StableKey(const std::string& utf8Path);
 
     static std::string FileName(const std::string& utf8Path);
     static std::string Stem(const std::string& utf8Path);

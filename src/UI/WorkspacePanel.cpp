@@ -20,11 +20,15 @@ void ApplyDefaultDockLayout(ImGuiID dockspaceId, const ImVec2& size) {
     ImGui::DockBuilderSetNodeSize(dockspaceId, size);
 
     ImGuiID dockMain = dockspaceId;
-    const ImGuiID dockLeft =
+    ImGuiID dockLeft =
         ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Left, 0.24f, nullptr, &dockMain);
     const ImGuiID dockRight =
         ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Right, 0.32f, nullptr, &dockMain);
-    ImGui::DockBuilderDockWindow("Workspace", dockLeft);
+    ImGuiID dockLeftBottom = 0;
+    const ImGuiID dockLeftTop =
+        ImGui::DockBuilderSplitNode(dockLeft, ImGuiDir_Down, 0.46f, &dockLeftBottom, &dockLeft);
+    ImGui::DockBuilderDockWindow("Workspace", dockLeftTop);
+    ImGui::DockBuilderDockWindow("Library", dockLeftBottom);
     ImGui::DockBuilderDockWindow("Viewport", dockMain);
     ImGui::DockBuilderDockWindow("Script", dockRight);
     ImGui::DockBuilderFinish(dockspaceId);
@@ -81,6 +85,15 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
     commands.Push(Core::ViewportResizeCommand{width, height});
     if (state.viewportTextureIndex != 0xFFFFu) {
         ImGui::Image(ImTextureRef(static_cast<ImTextureID>(state.viewportTextureIndex)), available);
+        if (ImGui::BeginDragDropTarget()) {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DD_ASSET_ID")) {
+                const char* assetId = static_cast<const char*>(payload->Data);
+                if (assetId != nullptr) {
+                    commands.Push(Core::AddLibraryAssetToSceneCommand{assetId});
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
         if (ImGui::IsItemHovered()) {
             const ImGuiIO& io = ImGui::GetIO();
             Core::OrbitDeltaCommand orbit;

@@ -1,5 +1,6 @@
 #include "DirectorDesk/App/Application.h"
 
+#include "DirectorDesk/Asset/Library.h"
 #include "DirectorDesk/Asset/LoaderRegistry.h"
 #include "DirectorDesk/Asset/ModelLoadResult.h"
 #include "DirectorDesk/Camera/CameraManager.h"
@@ -17,6 +18,7 @@
 #include "DirectorDesk/Renderer/PngWriter.h"
 #include "DirectorDesk/Scene/Document.h"
 #include "DirectorDesk/Script/Document.h"
+#include "DirectorDesk/UI/LibraryPanel.h"
 #include "DirectorDesk/UI/ScriptPanel.h"
 #include "DirectorDesk/UI/WorkspacePanel.h"
 
@@ -187,8 +189,52 @@ void SubmitImport(Platform::Worker& worker, const Asset::LoaderRegistry& registr
     });
 }
 
+void WriteLibraryPlaceholder(Asset::Library& library, const Asset::LibraryAsset& asset) {
+    if (!asset.previewPath.empty()) {
+        return;
+    }
+    Renderer::PixelBuffer pixels;
+    pixels.width = 64;
+    pixels.height = 64;
+    pixels.rgba.assign(64u * 64u * 4u, 255);
+    std::uint8_t red = 90;
+    std::uint8_t green = 110;
+    std::uint8_t blue = 130;
+    if (asset.origin == Asset::AssetOrigin::Builtin) {
+        red = 40;
+        green = 140;
+        blue = 130;
+    } else if (asset.origin == Asset::AssetOrigin::OnlineCache) {
+        red = 110;
+        green = 80;
+        blue = 160;
+    }
+    for (std::size_t i = 0; i < pixels.rgba.size(); i += 4) {
+        pixels.rgba[i] = red;
+        pixels.rgba[i + 1] = green;
+        pixels.rgba[i + 2] = blue;
+        pixels.rgba[i + 3] = 255;
+    }
+    const std::string path = Platform::Paths::Join(
+        Platform::Paths::Join(library.Directory(), "previews"), asset.id + ".png");
+    if (Renderer::WritePng(pixels, path).IsOk()) {
+        library.SetPreviewPath(asset.id, path);
+    }
+}
+
+void IndexLibraryPath(Asset::Library& library, const std::string& path,
+                      Asset::AssetOrigin origin) {
+    if (path.empty() || !Platform::Paths::Exists(path)) {
+        return;
+    }
+    auto imported = library.Import(path, origin);
+    if (imported.IsOk()) {
+        WriteLibraryPlaceholder(library, imported.Value());
+    }
+}
+
 void ApplyLoadedModel(Asset::ModelLoadResult result, Scene::Document& scene,
-                      Renderer::IRenderer& renderer, std::string& status) {
+                      Renderer::IRenderer& renderer, Asset::Library& library, std::string& status) {
     if (!result.ok) {
         status = result.error.userMessage;
         DD_LOG_ERROR("{}", result.error.technicalMessage);
@@ -208,6 +254,7 @@ void ApplyLoadedModel(Asset::ModelLoadResult result, Scene::Document& scene,
                                           : result.model.name;
     node.gpuModelId = uploaded.Value();
     scene.Add(std::move(node));
+    IndexLibraryPath(library, result.sourcePath, Asset::AssetOrigin::User);
     status = result.model.warnings.empty() ? "Imported " + scene.Selected()->name
                                            : result.model.warnings.front();
     DD_LOG_INFO("Imported model {} as {}", result.sourcePath, scene.Selected()->name);
@@ -287,7 +334,7 @@ int Application::Run(int argc, char** argv) {
         return 1;
     }
 
-    DD_LOG_INFO("DirectorDesk starting (Phase 4 camera presets)");
+    DD_LOG_INFO("DirectorDesk starting (Phase 5 local library)");
 
     auto exeDir = Platform::Paths::ExecutableDirectory();
     if (!exeDir.IsOk()) {
@@ -332,7 +379,19 @@ int Application::Run(int argc, char** argv) {
     Camera::CameraManager cameras;
     Scene::Document scene;
     Script::Document script;
+    Asset::Library library;
     Asset::LoaderRegistry registry = Asset::CreateDefaultRegistry();
+    auto libraryDir = Platform::Paths::LibraryDirectory();
+    if (libraryDir.IsOk()) {
+        auto opened = library.Open(libraryDir.Value());
+        if (!opened.IsOk()) {
+            DD_LOG_ERROR("{}", opened.GetError().technicalMessage);
+        } else if (library.RecoveredFromCorruptIndex()) {
+            DD_LOG_WARN("Library index was corrupt and was recovered");
+        }
+        IndexLibraryPath(library, exampleObj, Asset::AssetOrigin::Builtin);
+        IndexLibraryPath(library, exampleGlb, Asset::AssetOrigin::Builtin);
+    }
     if (options.exportAndQuit && options.importPath.empty()) {
         std::string status;
         const bool ok = HandleExportTestPng(
@@ -362,13 +421,19 @@ int Application::Run(int argc, char** argv) {
     Core::ResultQueue<Asset::ModelLoadResult> loadResults;
     UI::WorkspacePanel workspace;
     UI::ScriptPanel scriptPanel;
+    UI::LibraryPanel libraryPanel;
     Core::CommandQueue commands;
     UI::AppViewState viewState;
     std::vector<UI::NodeView> nodeViews;
     std::vector<UI::ScriptSceneView> scriptScenes;
     std::vector<UI::ScriptDiagnosticView> scriptDiagnostics;
     std::vector<UI::CameraItemView> cameraViews;
+    std::vector<UI::LibraryAssetView> libraryViews;
     std::string status;
+    std::string librarySearch;
+    std::string libraryOriginFilter = "all";
+    std::string libraryViewMode = "list";
+    std::string selectedLibraryAssetId;
     bool importInProgress = false;
 
     if (!options.importPath.empty()) {
@@ -384,7 +449,7 @@ int Application::Run(int argc, char** argv) {
         Asset::ModelLoadResult loaded;
         while (loadResults.TryPop(loaded)) {
             importInProgress = false;
-            ApplyLoadedModel(std::move(loaded), scene, *renderer, status);
+            ApplyLoadedModel(std::move(loaded), scene, *renderer, library, status);
         }
 
         Core::Command command;
@@ -479,6 +544,28 @@ int Application::Run(int argc, char** argv) {
                             cameras.SetLightPreset(kind);
                             status = std::string("Light preset ") + typed.presetId;
                         }
+                    } else if constexpr (std::is_same_v<T, Core::AddLibraryAssetToSceneCommand>) {
+                        const Asset::LibraryAsset* asset = library.Find(typed.assetId);
+                        if (asset == nullptr) {
+                            status = "Asset not found";
+                        } else if (!asset->sourceExists || !Platform::Paths::Exists(asset->sourcePath)) {
+                            status = "源文件已丢失";
+                        } else {
+                            selectedLibraryAssetId = asset->id;
+                            SubmitImport(worker, registry, loadResults, asset->sourcePath,
+                                         importInProgress, status);
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::SetLibrarySearchCommand>) {
+                        librarySearch = typed.text;
+                    } else if constexpr (std::is_same_v<T, Core::SetLibraryOriginFilterCommand>) {
+                        libraryOriginFilter = typed.originFilter;
+                    } else if constexpr (std::is_same_v<T, Core::SetLibraryViewModeCommand>) {
+                        libraryViewMode = typed.viewMode;
+                    } else if constexpr (std::is_same_v<T, Core::SelectLibraryAssetCommand>) {
+                        selectedLibraryAssetId = typed.assetId;
+                    } else if constexpr (std::is_same_v<T, Core::RefreshLibraryCommand>) {
+                        library.Refresh();
+                        status = "Library refreshed";
                     }
                 },
                 command);
@@ -562,6 +649,23 @@ int Application::Run(int argc, char** argv) {
         viewState.cameras = &cameraViews;
         viewState.lightPresetId = Camera::LightPresetId(cameras.LightPreset());
 
+        libraryViews.clear();
+        for (const Asset::LibraryAsset& asset : library.Query(librarySearch, libraryOriginFilter)) {
+            UI::LibraryAssetView item;
+            item.id = asset.id;
+            item.name = asset.name;
+            item.format = asset.format;
+            item.origin = Asset::Library::OriginId(asset.origin);
+            item.missing = !asset.sourceExists;
+            item.status = asset.sourceExists ? "就绪" : "缺失";
+            item.selected = asset.id == selectedLibraryAssetId;
+            libraryViews.push_back(std::move(item));
+        }
+        viewState.libraryAssets = &libraryViews;
+        viewState.librarySearch = librarySearch.c_str();
+        viewState.libraryOriginFilter = libraryOriginFilter.c_str();
+        viewState.libraryViewMode = libraryViewMode.c_str();
+
         const float aspect = renderer->ViewportHeight() == 0
                                  ? 1.0f
                                  : static_cast<float>(renderer->ViewportWidth()) /
@@ -573,6 +677,7 @@ int Application::Run(int argc, char** argv) {
         imgui.BeginFrame();
         workspace.Draw(viewState, commands);
         scriptPanel.Draw(viewState, commands);
+        libraryPanel.Draw(viewState, commands);
         imgui.Submit(size.width, size.height);
         renderer->EndFrame();
     }

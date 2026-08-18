@@ -1,3 +1,9 @@
 #pragma once
-// Asset loaders, registry, and ModelData live in this module from Phase 2.
-namespace DirectorDesk::Asset {}
+
+namespace DirectorDesk::Asset {
+
+class LoaderRegistry;
+class Library;
+
+} // namespace DirectorDesk::Asset
+

@@ -83,11 +83,35 @@ struct SetLightPresetCommand {
     std::string presetId;
 };
 
+struct AddLibraryAssetToSceneCommand {
+    std::string assetId;
+};
+
+struct SetLibrarySearchCommand {
+    std::string text;
+};
+
+struct SetLibraryOriginFilterCommand {
+    std::string originFilter;
+};
+
+struct SetLibraryViewModeCommand {
+    std::string viewMode;
+};
+
+struct SelectLibraryAssetCommand {
+    std::string assetId;
+};
+
+struct RefreshLibraryCommand {};
+
 using Command = std::variant<
     QuitCommand, ViewportResizeCommand, OrbitDeltaCommand, ExportTestPngCommand, ImportModelCommand,
     ImportModelFromPathCommand, SelectNodeCommand, SetNodeTransformCommand, LoadScriptCommand,
     LoadScriptFromPathCommand, SaveScriptCommand, SetScriptTextCommand, InsertSceneCommand,
     InsertShotCommand, SelectShotCommand, ApplyCameraPresetCommand, AddCameraCommand,
-    RemoveCameraCommand, RenameCameraCommand, SelectCameraCommand, SetLightPresetCommand>;
+    RemoveCameraCommand, RenameCameraCommand, SelectCameraCommand, SetLightPresetCommand,
+    AddLibraryAssetToSceneCommand, SetLibrarySearchCommand, SetLibraryOriginFilterCommand,
+    SetLibraryViewModeCommand, SelectLibraryAssetCommand, RefreshLibraryCommand>;
 
 } // namespace DirectorDesk::Core

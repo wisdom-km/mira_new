@@ -4,13 +4,13 @@
 
 ## 当前快照
 
-- **当前 Phase**：Phase 4（Windows 本地验收已通过）
-- **当前状态**：多相机、一键预设机位、基础灯光预设、视口 XZ 地面格网；导出 PNG 不含格网。Phase 4 代码尚未提交
+- **当前 Phase**：Phase 5（Windows 本地验收已通过，正在提交）
+- **当前状态**：本地资源库索引、Library 面板、搜索/来源过滤、拖拽或添加到场景；完全离线可用
 - **最后更新**：2026-08-19
 - **更新者**：Cursor AI
-- **当前分支**：`main`
-- **最近完成 tag**：`phase-3-script`（`a5d51b1`）
-- **下一个允许执行的工作**：用户明确要求后提交 Phase 4。打 `phase-4-camera-presets` 前不得开始 Phase 5
+- **当前分支**：`cursor/phase-4-camera-presets`
+- **最近完成 tag**：`phase-3-script`（`a5d51b1`）；本提交后打 `phase-5-local-assets`，并补打 `phase-4-camera-presets`
+- **下一个允许执行的工作**：推送分支与 tag 后开始 Phase 6
 
 ## 已完成
 
@@ -19,15 +19,18 @@
 - [x] Phase 2 GLB/OBJ 导入、Scene Node、后台加载、数值 Transform
 - [x] Phase 3 Markdown 剧本、镜头列表、CJK 字体
 - [x] `phase-3-script` 已打 tag 并推送
-- [x] CameraManager：新增/删除/重命名/切换相机，各自保留轨道参数
-- [x] 正视、侧面、过肩、俯视、特写预设（无选择时落到世界原点附近的明确退化）
-- [x] 中性/暖光/冷光基础灯光预设
-- [x] 视口 XZ 地面格网，原点轴向可辨；离屏导出不绘制
-- [x] 相机与灯光操作只走 Command
+- [x] Phase 4：CameraManager、五种构图预设、三种灯光预设、视口地面格网（已提交 `55ed3a7`，未 push / 未 tag）
+- [x] 本地资产索引：`<UserData>/DirectorDesk/library/index.json` + `previews/`
+- [x] 稳定 Asset ID：`local-` + 路径 StableKey 的 FNV-1a 16 hex
+- [x] 扫描 GLB/OBJ 元数据；sidecar `stem.png` 或纯色占位预览
+- [x] Library 面板：搜索、Builtin/User/Online 过滤、列表/网格、Import/Refresh/Add to Scene、拖拽
+- [x] 视口接收 `DD_ASSET_ID` 拖放
+- [x] 重复导入、缺失源文件、损坏索引恢复
+- [x] 启动登记 `examples/models/cube.obj` / `cube.glb` 为 Builtin；成功导入自动记为 User
 
 ## 进行中
 
-无。Phase 4 功能在 Windows 上已验收，等待用户授权提交。
+无。Phase 5 功能在 Windows 上已验收，等待用户授权提交。
 
 ## 阻塞项
 
@@ -47,7 +50,7 @@
 | ImGui 后端 | GLFW + bgfx |
 | 窗口图形 API | `GLFW_NO_API`，由 bgfx 创建交换链 |
 | 模型加载 | cgltf（GLB）+ tinyobjloader（OBJ），通过 `IModelLoader` 扩展 |
-| 网络与 JSON | libcurl + nlohmann-json |
+| 网络与 JSON | libcurl + nlohmann-json（Phase 5 已实际使用 nlohmann-json） |
 | 完整性校验 | picosha2（SHA-256） |
 | 测试 | Catch2 v3 |
 | 开发顺序 | 先走通含分镜画布的本地资产核心闭环，再实现在线资产库 |
@@ -60,6 +63,8 @@
 | 地面格网 | 写入 Phase 4；视口绘制、导出不含；批准者 Wisdom |
 | 模型线框叠加 | P0 不做 |
 | 预设机位朝向约定 | 物体默认朝 +Z；无选中对象时目标为 `(0, 0.5, 0)`、半径 `1` |
+| 本地资源预览 | sidecar PNG 或纯色占位；Asset 不依赖 Renderer，不做离屏 3D 缩略图（属 Phase 7） |
+| 在线资产 | Phase 5 仅占位来源 `online`；不下载、不请求网络（属 Phase 8） |
 
 ## 已知风险
 
@@ -67,32 +72,40 @@
 |------|------|----------|
 | bgfx shader 跨平台编译复杂 | CMake 自动调用 shaderc，禁止手工产物 | Phase 1 已在 Windows 验证 |
 | 透明离屏渲染/回读可能因后端差异失败 | 在正式 Export 前完成技术切片 | Phase 1 Windows 已通过；macOS 待 CI |
-| Windows 中文路径与编码 | Platform 统一 UTF-8 边界并加入测试 | Phase 0/2/3 已测 |
+| Windows 中文路径与编码 | Platform 统一 UTF-8 边界并加入测试 | Phase 0/2/3/5 已测 |
 | GLB 特性范围失控 | P0 限基础静态网格/材质，忽略骨骼和动画 | Phase 2 |
 | GitHub 在部分网络环境不可用 | 缓存最后有效清单；镜像源仅列后续 | Phase 8 |
 | 大型剧本的布局和缩略图刷新造成卡顿 | 确定性布局、可见区裁剪、防抖、单帧单任务和缓存上限 | Phase 7 |
 | 多模型协作导致架构漂移 | 强制读地图、更新状态、执行 Phase 门禁 | 全程 |
+| 源文件移动后 ID 随路径变化 | ID 绑定稳定路径键；缺失只标状态，不删索引 | Phase 5 |
 
 ## 本次验证
 
 - Windows MSVC 19.44 + Ninja Debug 配置与构建成功
-- `DirectorDeskTests` 全部通过（含预设确定性、无主体退化、多相机参数隔离、最后一台相机不可删）
-- 导出路径 `BuildSceneView(..., showGroundGrid=false)`；视口传入 `true`
-- 未实现镜头↔相机关联、工程文件、分镜画布
+- `DirectorDeskTests` 全部通过：59 cases / 282 assertions（含资源库持久化、重复导入、缺失标记、损坏索引、搜索/来源过滤、ID 稳定）
+- 未实现官方 HTTPS 下载、`.ddproj`、分镜画布、真实 3D 缩略图
 
 ## 下一步清单
 
-1. 用户明确要求后提交并推送 Phase 4 代码
-2. 用户明确要求后再打 `phase-4-camera-presets`
-3. 之后才能开始 Phase 5：本地资源库
+1. 用户明确要求后提交 Phase 5 代码（当前在 `cursor/phase-4-camera-presets`）
+2. 用户明确要求后再打 `phase-4-camera-presets` / `phase-5-local-assets` 或 push
+3. 之后才能开始 Phase 6：镜头关联与工程文件持久化
 
 ## 工作日志
+
+### 2026-08-19：Phase 5 本地资源库
+
+- `Asset::Library` 持久化 `index.json`；稳定 ID、来源、sidecar/占位预览。
+- Library 面板只发 Command；视口可拖入资产。
+- 缺失源文件显示「源文件已丢失」，不拖垮索引；损坏 `index.json` 可恢复。
+- 引入 `nlohmann-json`。未做在线下载或 3D 缩略图。
 
 ### 2026-08-19：Phase 4 预设机位与地面格网
 
 - 实现 CameraManager、五种构图预设和三种灯光预设。
 - 视口绘制 XZ 格网与红/蓝原点轴；离屏导出不画格网。
 - UI 只发相机/灯光 Command。未实现线框、镜头关联或工程文件。
+- 已提交 `55ed3a7`（分支 `cursor/phase-4-camera-presets`，未 push）。
 
 ### 2026-08-19：Phase 3 Markdown 剧本与镜头列表
 
