@@ -15,6 +15,8 @@ add_executable(DirectorDeskTests
     Script/DocumentTests.cpp
     Link/ShotLinkTests.cpp
     App/ProjectFileTests.cpp
+    Storyboard/LayoutTests.cpp
+    Export/ShotExportTests.cpp
 )
 
 target_include_directories(DirectorDeskTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -30,6 +32,8 @@ target_link_libraries(DirectorDeskTests
         dd_script
         dd_link
         dd_app
+        dd_storyboard
+        dd_export
         Catch2::Catch2WithMain
 )
 

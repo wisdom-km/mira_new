@@ -132,6 +132,45 @@ struct DiscardProjectCommand {};
 
 struct CancelProjectPromptCommand {};
 
+struct SetStoryboardSceneCollapsedCommand {
+    std::string sceneId;
+    bool collapsed = false;
+};
+
+struct FocusStoryboardSelectionCommand {};
+
+struct FitStoryboardCommand {};
+
+struct RefreshStoryboardThumbnailCommand {
+    std::string shotId;
+};
+
+struct ExportCurrentShotCommand {
+    std::string resolutionId = "1080p";
+};
+
+struct ExportStoryboardBoardCommand {};
+
+struct SetExportTransparentCommand {
+    bool transparent = true;
+};
+
+struct ConfirmExportOverwriteCommand {};
+
+struct CancelExportOverwriteCommand {};
+
+struct ReportStoryboardViewCommand {
+    float panX = 0.0f;
+    float panY = 0.0f;
+    float zoom = 1.0f;
+    float width = 0.0f;
+    float height = 0.0f;
+};
+
+struct ConfirmStoryboardStaleExportCommand {};
+
+struct CancelStoryboardStaleExportCommand {};
+
 using Command = std::variant<
     QuitCommand, ViewportResizeCommand, OrbitDeltaCommand, ExportTestPngCommand, ImportModelCommand,
     ImportModelFromPathCommand, SelectNodeCommand, SetNodeTransformCommand, LoadScriptCommand,
@@ -142,6 +181,10 @@ using Command = std::variant<
     SetLibraryViewModeCommand, SelectLibraryAssetCommand, RefreshLibraryCommand, NewProjectCommand,
     OpenProjectCommand, OpenProjectFromPathCommand, SaveProjectCommand, SaveProjectAsCommand,
     LinkShotToCameraCommand, UnlinkShotCommand, ConfirmSaveProjectCommand, DiscardProjectCommand,
-    CancelProjectPromptCommand>;
+    CancelProjectPromptCommand, SetStoryboardSceneCollapsedCommand, FocusStoryboardSelectionCommand,
+    FitStoryboardCommand, RefreshStoryboardThumbnailCommand, ExportCurrentShotCommand,
+    ExportStoryboardBoardCommand, SetExportTransparentCommand, ConfirmExportOverwriteCommand,
+    CancelExportOverwriteCommand, ReportStoryboardViewCommand, ConfirmStoryboardStaleExportCommand,
+    CancelStoryboardStaleExportCommand>;
 
 } // namespace DirectorDesk::Core

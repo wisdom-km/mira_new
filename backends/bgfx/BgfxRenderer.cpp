@@ -385,6 +385,34 @@ public:
         m_models.erase(found);
     }
 
+    Core::Result<std::uint16_t> CreateRgbaTexture(std::uint32_t width, std::uint32_t height,
+                                                  const std::uint8_t* rgba) override {
+        if (width == 0 || height == 0 || rgba == nullptr) {
+            return Core::Result<std::uint16_t>::Fail(Core::Error::Make(
+                Core::ErrorCode::InvalidArgument, "CreateRgbaTexture received empty pixels",
+                "缩略图数据无效"));
+        }
+        const bgfx::TextureHandle handle = bgfx::createTexture2D(
+            static_cast<std::uint16_t>(width), static_cast<std::uint16_t>(height), false, 1,
+            bgfx::TextureFormat::RGBA8, 0,
+            bgfx::copy(rgba, width * height * 4u));
+        if (!bgfx::isValid(handle)) {
+            return Core::Result<std::uint16_t>::Fail(Core::Error::Make(
+                Core::ErrorCode::Internal, "bgfx createTexture2D failed", "无法创建缩略图纹理"));
+        }
+        m_images[handle.idx] = handle;
+        return Core::Result<std::uint16_t>::Ok(handle.idx);
+    }
+
+    void DestroyRgbaTexture(std::uint16_t textureIndex) override {
+        const auto found = m_images.find(textureIndex);
+        if (found == m_images.end()) {
+            return;
+        }
+        DestroyHandle(found->second);
+        m_images.erase(found);
+    }
+
     void EndFrame() override {
         if (m_initialized) {
             bgfx::frame();
@@ -582,6 +610,10 @@ private:
         for (std::uint32_t id : ids) {
             DestroyModel(id);
         }
+        for (auto& entry : m_images) {
+            DestroyHandle(entry.second);
+        }
+        m_images.clear();
         DestroyHandle(m_program);
         DestroyHandle(m_lightDir);
         DestroyHandle(m_lightColor);
@@ -626,6 +658,7 @@ private:
     std::uint32_t m_readbackHeight = 0;
     std::uint32_t m_nextModelId = 1;
     std::unordered_map<std::uint32_t, std::vector<UploadedPrimitive>> m_models;
+    std::unordered_map<std::uint16_t, bgfx::TextureHandle> m_images;
 };
 
 } // namespace

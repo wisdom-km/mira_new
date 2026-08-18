@@ -2,6 +2,7 @@
 
 #include "DirectorDesk/App/ProjectBinding.h"
 #include "DirectorDesk/App/ProjectFile.h"
+#include "DirectorDesk/Export/ShotExport.h"
 #include "DirectorDesk/Asset/Library.h"
 #include "DirectorDesk/Asset/LoaderRegistry.h"
 #include "DirectorDesk/Asset/ModelLoadResult.h"
@@ -21,13 +22,18 @@
 #include "DirectorDesk/Renderer/PngWriter.h"
 #include "DirectorDesk/Scene/Document.h"
 #include "DirectorDesk/Script/Document.h"
+#include "DirectorDesk/Storyboard/BoardComposer.h"
+#include "DirectorDesk/Storyboard/Document.h"
 #include "DirectorDesk/UI/LibraryPanel.h"
 #include "DirectorDesk/UI/ScriptPanel.h"
+#include "DirectorDesk/UI/StoryboardPanel.h"
 #include "DirectorDesk/UI/WorkspacePanel.h"
 
 #include "CreateBgfxRenderer.h"
 #include "ImGuiGlfwBackend.h"
 
+#include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -440,6 +446,68 @@ bool OpenProjectAt(const std::string& path, Scene::Document& scene, Camera::Came
     return true;
 }
 
+std::uint64_t NowMs() {
+    return static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch())
+            .count());
+}
+
+Storyboard::StoryboardSourceSnapshot MakeBoardSource(const Script::Document& script,
+                                                     const Link::Table& links,
+                                                     const Camera::CameraManager& cameras,
+                                                     const std::vector<std::string>& collapsed,
+                                                     const std::string& projectId) {
+    Storyboard::StoryboardSourceSnapshot snapshot;
+    snapshot.projectId = projectId;
+    snapshot.scriptValid = script.HasPublishedSnapshot();
+    snapshot.selectedShotId = script.SelectedShotId();
+    snapshot.structureRevision = script.ExternalRevision();
+    if (!snapshot.scriptValid) {
+        return snapshot;
+    }
+    snapshot.documentTitle = script.PublishedSnapshot().documentTitle;
+    int sceneIndex = 1;
+    for (const Script::Scene& scene : script.PublishedSnapshot().scenes) {
+        Storyboard::SceneSource item;
+        item.id = scene.id;
+        item.title = scene.title;
+        item.index = sceneIndex++;
+        item.collapsed = std::find(collapsed.begin(), collapsed.end(), scene.id) != collapsed.end();
+        int shotIndex = 1;
+        for (const Script::Shot& shot : scene.shots) {
+            Storyboard::ShotSource shotItem;
+            shotItem.id = shot.id;
+            shotItem.title = shot.title;
+            shotItem.indexInScene = shotIndex++;
+            if (const std::string* cameraId = links.CameraForShot(shot.id)) {
+                shotItem.cameraId = *cameraId;
+                shotItem.cameraExists = cameras.Find(*cameraId) != nullptr;
+            }
+            item.shots.push_back(std::move(shotItem));
+        }
+        snapshot.scenes.push_back(std::move(item));
+    }
+    return snapshot;
+}
+
+const char* PreviewText(Storyboard::PreviewStatus status) {
+    switch (status) {
+    case Storyboard::PreviewStatus::Ready:
+        return "就绪";
+    case Storyboard::PreviewStatus::Stale:
+        return "过期";
+    case Storyboard::PreviewStatus::Rendering:
+        return "渲染中";
+    case Storyboard::PreviewStatus::Failed:
+        return "失败";
+    case Storyboard::PreviewStatus::Missing:
+    default:
+        return "缺失";
+    }
+}
+
+
 const char* DiagnosticSeverityText(Script::DiagnosticSeverity severity) {
     switch (severity) {
     case Script::DiagnosticSeverity::Error:
@@ -560,6 +628,8 @@ int Application::Run(int argc, char** argv) {
     Scene::Document scene;
     Script::Document script;
     Link::Table links;
+    Storyboard::Document storyboard;
+    Storyboard::ThumbnailScheduler thumbScheduler;
     Asset::Library library;
     Asset::LoaderRegistry registry = Asset::CreateDefaultRegistry();
     auto libraryDir = Platform::Paths::LibraryDirectory();
@@ -603,6 +673,7 @@ int Application::Run(int argc, char** argv) {
     UI::WorkspacePanel workspace;
     UI::ScriptPanel scriptPanel;
     UI::LibraryPanel libraryPanel;
+    UI::StoryboardPanel storyboardPanel;
     Core::CommandQueue commands;
     UI::AppViewState viewState;
     std::vector<UI::NodeView> nodeViews;
@@ -623,6 +694,20 @@ int Application::Run(int argc, char** argv) {
     PendingProjectAction pendingAction = PendingProjectAction::None;
     bool projectDirty = false;
     bool importInProgress = false;
+    bool exportTransparent = true;
+    bool exportOverwritePrompt = false;
+    bool exportStalePrompt = false;
+    int exportStaleCount = 0;
+    std::string exportPendingPath;
+    bool exportPendingBoard = false;
+    Export::ShotResolution exportPendingResolution = Export::ShotResolution::Hd1080;
+    float storyboardViewPanX = 32.0f;
+    float storyboardViewPanY = 32.0f;
+    float storyboardViewZoom = 1.0f;
+    float storyboardViewWidth = 0.0f;
+    float storyboardViewHeight = 0.0f;
+    std::uint64_t frameIndex = 1;
+    std::vector<UI::StoryboardCardView> storyboardViews;
 
     if (!options.importPath.empty()) {
         SubmitImport(worker, registry, loadResults, options.importPath, importInProgress, status);
@@ -636,6 +721,11 @@ int Application::Run(int argc, char** argv) {
                       status);
     }
 
+    const auto refreshBoard = [&]() {
+        storyboard.ApplySource(MakeBoardSource(script, links, cameras, collapsedScenes, projectId));
+        collapsedScenes = storyboard.CollapsedScenes();
+    };
+
     const auto proceedPending = [&]() {
         const PendingProjectAction action = pendingAction;
         const std::string openPath = pendingOpenPath;
@@ -644,11 +734,15 @@ int Application::Run(int argc, char** argv) {
         if (action == PendingProjectAction::New) {
             ResetProject(scene, cameras, links, script, *renderer, projectId, projectName,
                          projectPath, collapsedScenes, projectDirty);
+            storyboard.Clear();
+            refreshBoard();
             status = "已新建工程";
         } else if (action == PendingProjectAction::Open) {
             OpenProjectAt(openPath, scene, cameras, links, script, library, *renderer, registry,
                           projectId, projectName, projectPath, collapsedScenes, projectDirty,
                           status);
+            storyboard.Clear();
+            refreshBoard();
         } else if (action == PendingProjectAction::Quit) {
             window.RequestClose();
         }
@@ -664,6 +758,94 @@ int Application::Run(int argc, char** argv) {
         pendingOpenPath = std::move(openPath);
         proceedPending();
     };
+
+    const auto exportShotTo = [&](const std::string& path, Export::ShotResolution resolution) {
+        if (cameras.Selected() == nullptr) {
+            status = "没有可导出的相机";
+            return false;
+        }
+        const auto target = Export::MakeOffscreenTarget(resolution, exportTransparent);
+        const float aspect = static_cast<float>(target.width) / static_cast<float>(target.height);
+        renderer->BeginFrame(target.width, target.height);
+        renderer->RenderScene(BuildSceneView(scene, cameras.CurrentLight(), false),
+                              cameras.Selected()->orbit.BuildView(aspect), target);
+        auto pixels = renderer->ReadbackTarget(target);
+        if (!pixels.IsOk()) {
+            status = pixels.GetError().userMessage;
+            return false;
+        }
+        auto written = Renderer::WritePng(pixels.Value(), path);
+        if (!written.IsOk()) {
+            status = written.GetError().userMessage;
+            return false;
+        }
+        storyboard.MarkShotExported(script.SelectedShotId());
+        status = "已导出 " + Platform::Paths::FileName(path);
+        return true;
+    };
+
+    const auto exportBoardTo = [&](const std::string& path) {
+        Storyboard::BoardComposeRequest request;
+        request.layout = storyboard.ExportLayout();
+        for (const Storyboard::LayoutCard& card : request.layout.cards) {
+            if (card.kind != Storyboard::CardKind::Shot) {
+                continue;
+            }
+            if (const Storyboard::ThumbnailRecord* thumb = storyboard.Thumbnail(card.shotId)) {
+                request.thumbnails[card.shotId] = thumb->pixels;
+            }
+        }
+        auto font = Platform::Paths::UiFontFile();
+        if (font.IsOk()) {
+            request.fontPath = font.Value();
+        }
+        auto composed = Storyboard::ComposeBoard(request);
+        if (!composed.IsOk()) {
+            status = composed.GetError().userMessage;
+            return false;
+        }
+        Renderer::PixelBuffer pixels;
+        pixels.width = composed.Value().pixels.width;
+        pixels.height = composed.Value().pixels.height;
+        pixels.rgba = composed.Value().pixels.rgba;
+        auto written = Renderer::WritePng(pixels, path);
+        if (!written.IsOk()) {
+            status = written.GetError().userMessage;
+            return false;
+        }
+        status = composed.Value().scaledToMax ? "已导出分镜总览（已缩放）"
+                                              : "已导出分镜总览";
+        return true;
+    };
+
+    const auto requestExportPath = [&](bool board, Export::ShotResolution resolution) {
+        const std::string name =
+            board ? (std::string(projectName) + "-storyboard.png")
+                  : Export::DefaultShotFileName(projectName, script.SelectedShotId(), resolution,
+                                                exportTransparent);
+        auto path = Platform::FileDialog::SavePngFile(name);
+        if (!path.IsOk()) {
+            status = path.GetError().userMessage;
+            return;
+        }
+        if (path.Value().empty()) {
+            return;
+        }
+        if (Platform::Paths::Exists(path.Value())) {
+            exportPendingPath = path.Value();
+            exportPendingBoard = board;
+            exportPendingResolution = resolution;
+            exportOverwritePrompt = true;
+            return;
+        }
+        if (board) {
+            exportBoardTo(path.Value());
+        } else {
+            exportShotTo(path.Value(), resolution);
+        }
+    };
+
+    refreshBoard();
 
     while (true) {
         window.PollEvents();
@@ -681,6 +863,8 @@ int Application::Run(int argc, char** argv) {
             importInProgress = false;
             ApplyLoadedModel(std::move(loaded), scene, *renderer, library, status);
             projectDirty = true;
+            storyboard.MarkLinkedStale();
+            thumbScheduler.NotifyBusy(NowMs());
         }
 
         Core::Command command;
@@ -698,6 +882,8 @@ int Application::Run(int argc, char** argv) {
                             rig->orbit.Pan(typed.panX, typed.panY);
                             rig->orbit.Zoom(typed.zoom);
                             projectDirty = true;
+                            storyboard.MarkCameraShotsStale(cameras.SelectedId());
+                            thumbScheduler.NotifyBusy(NowMs());
                         }
                     } else if constexpr (std::is_same_v<T, Core::ExportTestPngCommand>) {
                         if (const Camera::CameraRig* rig = cameras.Selected()) {
@@ -729,6 +915,8 @@ int Application::Run(int argc, char** argv) {
                             node->transform.scale =
                                 glm::vec3(typed.scale[0], typed.scale[1], typed.scale[2]);
                             projectDirty = true;
+                            storyboard.MarkLinkedStale();
+                            thumbScheduler.NotifyBusy(NowMs());
                         }
                     } else if constexpr (std::is_same_v<T, Core::LoadScriptCommand>) {
                         auto path = Platform::FileDialog::OpenMarkdownFile();
@@ -754,6 +942,7 @@ int Application::Run(int argc, char** argv) {
                         status = "Added shot";
                     } else if constexpr (std::is_same_v<T, Core::SelectShotCommand>) {
                         script.SelectShot(typed.shotId);
+                        storyboard.SetSelectedShot(typed.shotId);
                         if (const std::string* cameraId = links.CameraForShot(typed.shotId)) {
                             if (cameras.Find(*cameraId) != nullptr) {
                                 cameras.Select(*cameraId);
@@ -766,6 +955,8 @@ int Application::Run(int argc, char** argv) {
                         if (Camera::TryParseCameraPreset(typed.presetId, kind)) {
                             cameras.ApplyPreset(kind, SubjectFromScene(scene));
                             projectDirty = true;
+                            storyboard.MarkCameraShotsStale(cameras.SelectedId());
+                            thumbScheduler.NotifyBusy(NowMs());
                             status = std::string("Applied camera preset ") + typed.presetId;
                         } else {
                             status = "Unknown camera preset";
@@ -790,6 +981,8 @@ int Application::Run(int argc, char** argv) {
                         if (Camera::TryParseLightPreset(typed.presetId, kind)) {
                             cameras.SetLightPreset(kind);
                             projectDirty = true;
+                            storyboard.MarkLinkedStale();
+                            thumbScheduler.NotifyBusy(NowMs());
                             status = std::string("Light preset ") + typed.presetId;
                         }
                     } else if constexpr (std::is_same_v<T, Core::AddLibraryAssetToSceneCommand>) {
@@ -826,6 +1019,7 @@ int Application::Run(int argc, char** argv) {
                     } else if constexpr (std::is_same_v<T, Core::OpenProjectFromPathCommand>) {
                         requestIfDirty(PendingProjectAction::Open, typed.utf8Path);
                     } else if constexpr (std::is_same_v<T, Core::SaveProjectCommand>) {
+                        collapsedScenes = storyboard.CollapsedScenes();
                         if (projectPath.empty()) {
                             auto path = Platform::FileDialog::SaveProjectFile();
                             if (path.IsOk() && !path.Value().empty()) {
@@ -839,6 +1033,7 @@ int Application::Run(int argc, char** argv) {
                                           projectDirty, status);
                         }
                     } else if constexpr (std::is_same_v<T, Core::SaveProjectAsCommand>) {
+                        collapsedScenes = storyboard.CollapsedScenes();
                         auto path = Platform::FileDialog::SaveProjectFile();
                         if (path.IsOk() && !path.Value().empty()) {
                             SaveProjectTo(path.Value(), projectId, projectName, projectPath, scene,
@@ -855,6 +1050,8 @@ int Application::Run(int argc, char** argv) {
                         } else {
                             links.Set(shotId, cameraId);
                             projectDirty = true;
+                            storyboard.MarkShotStale(shotId);
+                            thumbScheduler.NotifyBusy(NowMs());
                             status = "已关联镜头与相机";
                         }
                     } else if constexpr (std::is_same_v<T, Core::UnlinkShotCommand>) {
@@ -864,6 +1061,7 @@ int Application::Run(int argc, char** argv) {
                         projectDirty = true;
                         status = "已取消镜头关联";
                     } else if constexpr (std::is_same_v<T, Core::ConfirmSaveProjectCommand>) {
+                        collapsedScenes = storyboard.CollapsedScenes();
                         bool saved = false;
                         if (projectPath.empty()) {
                             auto path = Platform::FileDialog::SaveProjectFile();
@@ -885,6 +1083,63 @@ int Application::Run(int argc, char** argv) {
                     } else if constexpr (std::is_same_v<T, Core::CancelProjectPromptCommand>) {
                         pendingAction = PendingProjectAction::None;
                         pendingOpenPath.clear();
+                    } else if constexpr (std::is_same_v<T, Core::SetStoryboardSceneCollapsedCommand>) {
+                        storyboard.SetCollapsed(typed.sceneId, typed.collapsed);
+                        collapsedScenes = storyboard.CollapsedScenes();
+                        projectDirty = true;
+                    } else if constexpr (std::is_same_v<T, Core::FocusStoryboardSelectionCommand>) {
+                        status = "已聚焦当前镜头";
+                    } else if constexpr (std::is_same_v<T, Core::FitStoryboardCommand>) {
+                        status = "已适配分镜画布";
+                    } else if constexpr (std::is_same_v<T, Core::RefreshStoryboardThumbnailCommand>) {
+                        const std::string shotId =
+                            typed.shotId.empty() ? script.SelectedShotId() : typed.shotId;
+                        if (!shotId.empty()) {
+                            storyboard.MarkShotStale(shotId);
+                            thumbScheduler.NotifyBusy(0);
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::ExportCurrentShotCommand>) {
+                        Export::ShotResolution resolution = Export::ShotResolution::Hd1080;
+                        if (!Export::TryParseResolution(typed.resolutionId, resolution)) {
+                            status = "未知导出分辨率";
+                        } else {
+                            requestExportPath(false, resolution);
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::ExportStoryboardBoardCommand>) {
+                        const Storyboard::PreviewIssueCount issues =
+                            storyboard.CountExportPreviewIssues();
+                        if (issues.Total() > 0) {
+                            exportStalePrompt = true;
+                            exportStaleCount = issues.Total();
+                        } else {
+                            requestExportPath(true, Export::ShotResolution::Hd1080);
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::ConfirmStoryboardStaleExportCommand>) {
+                        exportStalePrompt = false;
+                        exportStaleCount = 0;
+                        requestExportPath(true, Export::ShotResolution::Hd1080);
+                    } else if constexpr (std::is_same_v<T, Core::CancelStoryboardStaleExportCommand>) {
+                        exportStalePrompt = false;
+                        exportStaleCount = 0;
+                    } else if constexpr (std::is_same_v<T, Core::ReportStoryboardViewCommand>) {
+                        storyboardViewPanX = typed.panX;
+                        storyboardViewPanY = typed.panY;
+                        storyboardViewZoom = typed.zoom > 0.0f ? typed.zoom : 1.0f;
+                        storyboardViewWidth = typed.width;
+                        storyboardViewHeight = typed.height;
+                    } else if constexpr (std::is_same_v<T, Core::SetExportTransparentCommand>) {
+                        exportTransparent = typed.transparent;
+                    } else if constexpr (std::is_same_v<T, Core::ConfirmExportOverwriteCommand>) {
+                        exportOverwritePrompt = false;
+                        if (exportPendingBoard) {
+                            exportBoardTo(exportPendingPath);
+                        } else {
+                            exportShotTo(exportPendingPath, exportPendingResolution);
+                        }
+                        exportPendingPath.clear();
+                    } else if constexpr (std::is_same_v<T, Core::CancelExportOverwriteCommand>) {
+                        exportOverwritePrompt = false;
+                        exportPendingPath.clear();
                     }
                 },
                 command);
@@ -993,6 +1248,114 @@ int Application::Run(int argc, char** argv) {
         viewState.librarySearch = librarySearch.c_str();
         viewState.libraryOriginFilter = libraryOriginFilter.c_str();
         viewState.libraryViewMode = libraryViewMode.c_str();
+        refreshBoard();
+        {
+            std::vector<std::uint16_t> dropped;
+            storyboard.TakeDestroyedTextures(dropped);
+            for (std::uint16_t id : dropped) {
+                renderer->DestroyRgbaTexture(id);
+            }
+        }
+        thumbScheduler.BeginFrame();
+        if (thumbScheduler.ShouldRun(NowMs())) {
+            Storyboard::ViewRect view;
+            if (storyboardViewWidth > 1.0f && storyboardViewHeight > 1.0f) {
+                view.x = -storyboardViewPanX / storyboardViewZoom;
+                view.y = -storyboardViewPanY / storyboardViewZoom;
+                view.w = storyboardViewWidth / storyboardViewZoom;
+                view.h = storyboardViewHeight / storyboardViewZoom;
+            } else {
+                view.w = std::max(storyboard.Layout().contentWidth, 1.0f);
+                view.h = std::max(storyboard.Layout().contentHeight, 1.0f);
+            }
+            const std::string shotId = storyboard.NextThumbnailShot(view);
+            if (!shotId.empty()) {
+                if (const std::string* cameraId = links.CameraForShot(shotId)) {
+                    if (Camera::CameraRig* rig = cameras.Find(*cameraId)) {
+                        storyboard.MarkShotRendering(shotId);
+                        Renderer::RenderTargetDesc target;
+                        target.kind = Renderer::RenderTargetKind::Offscreen;
+                        target.width = 320;
+                        target.height = 180;
+                        target.transparentBackground = false;
+                        renderer->BeginFrame(target.width, target.height);
+                        renderer->RenderScene(BuildSceneView(scene, cameras.CurrentLight(), false),
+                                              rig->orbit.BuildView(320.0f / 180.0f), target);
+                        auto pixels = renderer->ReadbackTarget(target);
+                        if (pixels.IsOk()) {
+                            if (Storyboard::ThumbnailRecord* old = storyboard.ThumbnailMutable(shotId)) {
+                                if (old->textureIndex != 0xFFFFu) {
+                                    renderer->DestroyRgbaTexture(old->textureIndex);
+                                    old->textureIndex = 0xFFFFu;
+                                }
+                            }
+                            Storyboard::ImageBuffer image;
+                            image.width = pixels.Value().width;
+                            image.height = pixels.Value().height;
+                            image.rgba = pixels.Value().rgba;
+                            auto texture = renderer->CreateRgbaTexture(image.width, image.height,
+                                                                        image.rgba.data());
+                            storyboard.SetThumbnail(shotId, std::move(image),
+                                                    storyboard.DirectorRevision());
+                            if (texture.IsOk()) {
+                                if (Storyboard::ThumbnailRecord* record =
+                                        storyboard.ThumbnailMutable(shotId)) {
+                                    record->textureIndex = texture.Value();
+                                }
+                            }
+                        } else {
+                            storyboard.MarkShotFailed(shotId);
+                        }
+                        thumbScheduler.ConsumeFrame();
+                    } else {
+                        storyboard.MarkShotFailed(shotId);
+                    }
+                }
+            }
+        }
+        std::vector<std::string> keepIds;
+        keepIds.push_back(script.SelectedShotId());
+        std::vector<std::uint16_t> evicted;
+        storyboard.EvictThumbnails(keepIds, 48, evicted);
+        for (std::uint16_t id : evicted) {
+            renderer->DestroyRgbaTexture(id);
+        }
+        storyboard.Touch(script.SelectedShotId(), frameIndex++);
+
+        storyboardViews.clear();
+        for (const Storyboard::LayoutCard& card : storyboard.Layout().cards) {
+            UI::StoryboardCardView item;
+            item.id = card.id;
+            item.title = card.title;
+            item.shotId = card.shotId;
+            item.sceneId = card.sceneId;
+            item.x = card.x;
+            item.y = card.y;
+            item.w = card.w;
+            item.h = card.h;
+            item.selected = card.selected;
+            item.collapsed = card.collapsed;
+            item.kind = card.kind == Storyboard::CardKind::Root
+                            ? "root"
+                            : (card.kind == Storyboard::CardKind::Scene ? "scene" : "shot");
+            item.link = card.link == Storyboard::LinkStatus::Linked ? "已关联" : "未关联";
+            item.preview = PreviewText(card.preview);
+            item.exported =
+                card.exported == Storyboard::ExportStatus::Exported ? "已导出" : "未导出";
+            if (const Storyboard::ThumbnailRecord* thumb = storyboard.Thumbnail(card.shotId)) {
+                item.thumbTexture = thumb->textureIndex;
+            }
+            storyboardViews.push_back(std::move(item));
+        }
+        viewState.storyboardCards = &storyboardViews;
+        viewState.storyboardContentWidth = storyboard.Layout().contentWidth;
+        viewState.storyboardContentHeight = storyboard.Layout().contentHeight;
+        viewState.storyboardHeldLastValid = storyboard.HeldLastValid();
+        viewState.exportTransparent = exportTransparent;
+        viewState.exportOverwritePrompt = exportOverwritePrompt;
+        viewState.exportStalePrompt = exportStalePrompt;
+        viewState.exportStaleCount = exportStaleCount;
+        viewState.exportPendingPath = exportPendingPath.c_str();
         viewState.projectName = projectName.c_str();
         viewState.projectPath = projectPath.c_str();
         viewState.projectDirty = projectDirty;
@@ -1019,6 +1382,7 @@ int Application::Run(int argc, char** argv) {
         workspace.Draw(viewState, commands);
         scriptPanel.Draw(viewState, commands);
         libraryPanel.Draw(viewState, commands);
+        storyboardPanel.Draw(viewState, commands);
         imgui.Submit(size.width, size.height);
         renderer->EndFrame();
     }

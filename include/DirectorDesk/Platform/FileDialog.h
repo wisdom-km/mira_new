@@ -14,6 +14,7 @@ public:
     static Core::Result<std::string> SaveMarkdownFile();
     static Core::Result<std::string> OpenProjectFile();
     static Core::Result<std::string> SaveProjectFile();
+    static Core::Result<std::string> SavePngFile(const std::string& defaultName);
 };
 
 } // namespace DirectorDesk::Platform

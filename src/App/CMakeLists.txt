@@ -23,6 +23,8 @@ target_link_libraries(dd_app
         dd_asset
         dd_script
         dd_link
+        dd_storyboard
+        dd_export
         dd_backend_imgui
         dd_backend_bgfx
         nlohmann_json::nlohmann_json

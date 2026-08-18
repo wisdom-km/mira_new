@@ -55,6 +55,24 @@ struct LibraryAssetView {
     bool selected = false;
 };
 
+struct StoryboardCardView {
+    std::string id;
+    std::string title;
+    std::string kind;
+    std::string shotId;
+    std::string sceneId;
+    float x = 0.0f;
+    float y = 0.0f;
+    float w = 0.0f;
+    float h = 0.0f;
+    bool selected = false;
+    bool collapsed = false;
+    const char* link = "";
+    const char* preview = "";
+    const char* exported = "";
+    std::uint16_t thumbTexture = 0xFFFFu;
+};
+
 struct AppViewState {
     const char* appName = "DirectorDesk";
     unsigned windowWidth = 0;
@@ -86,6 +104,18 @@ struct AppViewState {
     bool projectDirty = false;
     bool projectPromptVisible = false;
     const char* selectedShotLinkedCamera = "";
+    const std::vector<StoryboardCardView>* storyboardCards = nullptr;
+    float storyboardContentWidth = 0.0f;
+    float storyboardContentHeight = 0.0f;
+    float storyboardPanX = 0.0f;
+    float storyboardPanY = 0.0f;
+    float storyboardZoom = 1.0f;
+    bool storyboardHeldLastValid = false;
+    bool exportTransparent = true;
+    bool exportOverwritePrompt = false;
+    bool exportStalePrompt = false;
+    int exportStaleCount = 0;
+    const char* exportPendingPath = "";
 };
 
 class IPanel {

@@ -81,6 +81,24 @@ Core::Result<std::string> FileDialog::OpenProjectFile() {
     }
 }
 
+Core::Result<std::string> FileDialog::SavePngFile(const std::string& defaultName) {
+    @autoreleasepool {
+        NSSavePanel* panel = [NSSavePanel savePanel];
+        panel.allowedFileTypes = @[ @"png" ];
+        panel.title = @"Export PNG";
+        if (!defaultName.empty()) {
+            panel.nameFieldStringValue = [NSString stringWithUTF8String:defaultName.c_str()];
+        } else {
+            panel.nameFieldStringValue = @"export.png";
+        }
+        const NSModalResponse response = [panel runModal];
+        if (response != NSModalResponseOK) {
+            return Core::Result<std::string>::Ok(std::string{});
+        }
+        return PathFromUrl(panel.URL);
+    }
+}
+
 Core::Result<std::string> FileDialog::SaveProjectFile() {
     @autoreleasepool {
         NSSavePanel* panel = [NSSavePanel savePanel];

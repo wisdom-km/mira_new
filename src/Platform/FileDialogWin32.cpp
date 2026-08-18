@@ -129,6 +129,24 @@ Core::Result<std::string> FileDialog::OpenProjectFile() {
     return ShowOpenDialog(L"Open Project", filters, 2);
 }
 
+Core::Result<std::string> FileDialog::SavePngFile(const std::string& defaultName) {
+    const COMDLG_FILTERSPEC filters[] = {
+        {L"PNG (*.png)", L"*.png"},
+        {L"All files", L"*.*"},
+    };
+    IFileSaveDialog* dialog = nullptr;
+    CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
+    if (dialog != nullptr && !defaultName.empty()) {
+        const int size = MultiByteToWideChar(CP_UTF8, 0, defaultName.c_str(), -1, nullptr, 0);
+        if (size > 1) {
+            std::wstring wide(static_cast<std::size_t>(size - 1), L'\0');
+            MultiByteToWideChar(CP_UTF8, 0, defaultName.c_str(), -1, wide.data(), size);
+            dialog->SetFileName(wide.c_str());
+        }
+    }
+    return ShowDialog(dialog, L"Export PNG", filters, 2, L"png");
+}
+
 Core::Result<std::string> FileDialog::SaveProjectFile() {
     const COMDLG_FILTERSPEC filters[] = {
         {L"DirectorDesk Project (*.ddproj)", L"*.ddproj"},

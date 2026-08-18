@@ -27,9 +27,14 @@ void ApplyDefaultDockLayout(ImGuiID dockspaceId, const ImVec2& size) {
     ImGuiID dockLeftBottom = 0;
     const ImGuiID dockLeftTop =
         ImGui::DockBuilderSplitNode(dockLeft, ImGuiDir_Down, 0.46f, &dockLeftBottom, &dockLeft);
+    ImGuiID dockBottom = 0;
+    const ImGuiID dockCenter =
+        ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Down, 0.36f, &dockBottom, &dockMain);
+    (void)dockCenter;
     ImGui::DockBuilderDockWindow("Workspace", dockLeftTop);
     ImGui::DockBuilderDockWindow("Library", dockLeftBottom);
     ImGui::DockBuilderDockWindow("Viewport", dockMain);
+    ImGui::DockBuilderDockWindow("Storyboard", dockBottom);
     ImGui::DockBuilderDockWindow("Script", dockRight);
     ImGui::DockBuilderFinish(dockspaceId);
 }
@@ -74,6 +79,15 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
             }
             if (ImGui::MenuItem("Import Model...")) {
                 commands.Push(Core::ImportModelCommand{});
+            }
+            if (ImGui::MenuItem("Export Shot 1080p")) {
+                commands.Push(Core::ExportCurrentShotCommand{"1080p"});
+            }
+            if (ImGui::MenuItem("Export Shot 2K")) {
+                commands.Push(Core::ExportCurrentShotCommand{"2k"});
+            }
+            if (ImGui::MenuItem("Export Storyboard")) {
+                commands.Push(Core::ExportStoryboardBoardCommand{});
             }
             if (ImGui::MenuItem("Export Test PNG")) {
                 commands.Push(Core::ExportTestPngCommand{});
@@ -129,6 +143,41 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
     }
     ImGui::End();
 
+    if (state.exportOverwritePrompt) {
+        ImGui::OpenPopup("覆盖导出文件");
+    }
+    if (ImGui::BeginPopupModal("覆盖导出文件", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextUnformatted("目标 PNG 已存在，是否覆盖？");
+        if (ImGui::Button("覆盖")) {
+            commands.Push(Core::ConfirmExportOverwriteCommand{});
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("取消")) {
+            commands.Push(Core::CancelExportOverwriteCommand{});
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    if (state.exportStalePrompt) {
+        ImGui::OpenPopup("缩略图未就绪");
+    }
+    if (ImGui::BeginPopupModal("缩略图未就绪", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("有 %d 个镜头缩略图缺失、过期或失败。", state.exportStaleCount);
+        ImGui::TextUnformatted("继续导出将使用占位状态，是否继续？");
+        if (ImGui::Button("继续导出")) {
+            commands.Push(Core::ConfirmStoryboardStaleExportCommand{});
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("取消")) {
+            commands.Push(Core::CancelStoryboardStaleExportCommand{});
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
     if (state.projectPromptVisible) {
         ImGui::OpenPopup("未保存的工程");
     }
@@ -169,6 +218,10 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
         commands.Push(Core::ImportModelCommand{});
     }
     ImGui::SameLine();
+    bool exportTransparent = state.exportTransparent;
+    if (ImGui::Checkbox("Transparent export", &exportTransparent)) {
+        commands.Push(Core::SetExportTransparentCommand{exportTransparent});
+    }
     if (ImGui::Button("Export Test PNG")) {
         commands.Push(Core::ExportTestPngCommand{});
     }
