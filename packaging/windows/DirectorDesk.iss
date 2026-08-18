@@ -27,19 +27,18 @@ UninstallDisplayIcon={app}\{#AppExeName}
 CloseApplications=yes
 
 [Languages]
-Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加图标："; Flags: unchecked
+Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
 
 [Files]
 Source: "..\stage\DirectorDesk\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--project ""{app}\examples\cafe.ddproj"""
-Name: "{group}\卸载 {#AppName}"; Filename: "{uninstallexe}"
+Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--project ""{app}\examples\cafe.ddproj"""; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Parameters: "--project ""{app}\examples\cafe.ddproj"""; Description: "立即启动 DirectorDesk"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExeName}"; Parameters: "--project ""{app}\examples\cafe.ddproj"""; Description: "Launch DirectorDesk"; Flags: nowait postinstall skipifsilent
