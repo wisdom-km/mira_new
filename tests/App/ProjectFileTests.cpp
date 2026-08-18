@@ -221,3 +221,29 @@ TEST_CASE("Capture and hydrate restore cameras and collapse state", "[project]")
     REQUIRE(captured.activeCamera == "cam-1");
     REQUIRE(captured.shotLinks.size() == 1);
 }
+
+#ifdef DD_EXAMPLE_CAFE_PROJECT
+TEST_CASE("Shipped cafe example project opens with Chinese paths nearby", "[project][example]") {
+    auto loaded = DirectorDesk::App::ProjectFile::Load(DD_EXAMPLE_CAFE_PROJECT);
+    REQUIRE(loaded.IsOk());
+    REQUIRE(loaded.Value().name == "咖啡馆示例");
+    REQUIRE(loaded.Value().script.value == "scripts/cafe.md");
+    REQUIRE(loaded.Value().assets.front().path == "models/cube.glb");
+
+    const std::string projectDir = DirectorDesk::Platform::Paths::Parent(DD_EXAMPLE_CAFE_PROJECT);
+    DirectorDesk::Scene::Document scene;
+    DirectorDesk::Camera::CameraManager cameras;
+    DirectorDesk::Link::Table links;
+    DirectorDesk::Script::Document script;
+    DirectorDesk::Asset::Library library;
+    std::vector<std::string> diagnostics;
+    REQUIRE(DirectorDesk::App::HydrateProject(loaded.Value(), projectDir, scene, cameras, links,
+                                              script, library, diagnostics)
+                .IsOk());
+    REQUIRE(scene.Find("node-cube-01") != nullptr);
+    REQUIRE_FALSE(scene.Find("node-cube-01")->assetMissing);
+    REQUIRE(cameras.Find("cam-main") != nullptr);
+    REQUIRE(*links.CameraForShot("shot-cafe-001") == "cam-main");
+    REQUIRE(script.Text().find("咖啡馆") != std::string::npos);
+}
+#endif

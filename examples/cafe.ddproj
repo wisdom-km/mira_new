@@ -1,0 +1,65 @@
+{
+  "format": "DirectorDeskProject",
+  "formatVersion": 1,
+  "createdBy": "DirectorDesk 0.1.0",
+  "projectId": "proj-example-cafe-001",
+  "name": "咖啡馆示例",
+  "script": {
+    "path": {
+      "kind": "project-relative",
+      "value": "scripts/cafe.md"
+    }
+  },
+  "assets": [
+    {
+      "refId": "assetref-cube",
+      "source": "project",
+      "path": "models/cube.glb",
+      "sha256": "7045ec99acb06495fc5829f6984db85041b61cc2e2def7f007ce02feb9e4fabb"
+    }
+  ],
+  "scene": {
+    "nodes": [
+      {
+        "id": "node-cube-01",
+        "name": "立方体",
+        "assetRef": "assetref-cube",
+        "parent": null,
+        "transform": {
+          "position": [0.0, 0.0, 0.0],
+          "rotation": [0.0, 0.0, 0.0, 1.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "visible": true
+      }
+    ]
+  },
+  "cameras": [
+    {
+      "id": "cam-main",
+      "name": "主镜头",
+      "projection": "perspective",
+      "position": [0.0, 1.6, 5.0],
+      "rotation": [0.0, 0.0, 0.0, 1.0],
+      "verticalFovDegrees": 50.0,
+      "nearPlane": 0.1,
+      "farPlane": 200.0,
+      "orbitTarget": [0.0, 0.5, 0.0],
+      "orbitDistance": 6.0,
+      "orbitYaw": 40.0,
+      "orbitPitch": 25.0,
+      "preset": "front"
+    }
+  ],
+  "activeCamera": "cam-main",
+  "shotLinks": [
+    { "shotId": "shot-cafe-001", "cameraId": "cam-main" },
+    { "shotId": "shot-cafe-002", "cameraId": "cam-main" },
+    { "shotId": "shot-street-001", "cameraId": "cam-main" }
+  ],
+  "lighting": { "preset": "neutral" },
+  "storyboard": {
+    "layout": "left-to-right",
+    "collapsedScenes": []
+  }
+}

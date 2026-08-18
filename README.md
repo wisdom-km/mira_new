@@ -2,7 +2,9 @@
 
 3D 导演台：用剧本、资源库和预设机位，帮助非 3D 专业用户制作可控的 AI 视频分镜。
 
-当前进度：**Phase 2（模型导入）进行中**。权威需求与架构见 [`docs/dev-map/`](docs/dev-map/)。
+P0 已走通：**Markdown 剧本 → 本地/官方资源 → 预设机位 → 镜头关联 → 分镜画布 → PNG 导出**。权威需求与架构见 [`docs/dev-map/`](docs/dev-map/)。
+
+Windows 用户可直接从 [Releases](https://github.com/wisdom-km/mira_new/releases) 下载 `DirectorDesk-0.1.0-windows-x64.exe` 安装包。
 
 ## 要求
 
@@ -12,56 +14,52 @@
 - [vcpkg](https://github.com/microsoft/vcpkg)
 - Windows 本地 Ninja 构建还需 Ninja；也可用 Visual Studio 生成器
 
-## 构建（Windows 优先）
+## 构建
+
+完整步骤见 [docs/BUILD.md](docs/BUILD.md)。Windows 最快路径：
 
 ```powershell
 git clone https://github.com/wisdom-km/mira_new.git
 cd mira_new
-$env:VCPKG_ROOT = "C:\path\to\vcpkg"   # 改成你的 vcpkg 路径
+$env:VCPKG_ROOT = "C:\path\to\vcpkg"
 cmake --preset windows-debug
 cmake --build --preset windows-debug
 ctest --preset windows-debug --output-on-failure
-.\build\windows-debug\DirectorDesk.exe
-.\build\windows-debug\DirectorDesk.exe --import .\examples\models\cube.glb
+.\build\windows-debug\DirectorDesk.exe --project .\examples\cafe.ddproj
 ```
 
-没有 Ninja 时：
-
-```powershell
-cmake -B build/vs -G "Visual Studio 17 2022" -A x64 `
-  -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
-cmake --build build/vs --config Debug
-ctest --test-dir build/vs -C Debug --output-on-failure
-```
-
-## 构建（macOS）
+macOS：
 
 ```bash
 export VCPKG_ROOT=/path/to/vcpkg
 cmake --preset macos-debug
 cmake --build --preset macos-debug
 ctest --preset macos-debug --output-on-failure
-./build/macos-debug/DirectorDesk
+./build/macos-debug/DirectorDesk --project ./examples/cafe.ddproj
 ```
 
-首次配置会由 vcpkg 编译 spdlog、GLFW、Dear ImGui（docking）和 Catch2，需要联网。
+首次配置会由 vcpkg 编译依赖，需要联网。
 
-## Phase 2 包含什么
+## 使用
 
-- 通过 `IModelLoader` 注册表导入 GLB / OBJ（可扩展）
-- 后台解析，主线程写入场景并上传 GPU
-- 场景节点选择与位置/旋转/缩放数值编辑
-- 示例模型：`examples/models/cube.obj` 与 `cube.glb`
+见 [docs/USER-GUIDE.md](docs/USER-GUIDE.md)。核心路径：
+
+1. 打开 `examples/cafe.ddproj` 或自己的 Markdown 剧本
+2. 从资源库导入本地模型，或在「在线」页下载官方 CC0 立方体
+3. 用预设机位摆镜头，并关联到剧本 Shot
+4. 在分镜画布总览，导出 1080p/2K 单镜头或分镜总览 PNG
+
+## 文档
+
+| 文档 | 内容 |
+|------|------|
+| [docs/BUILD.md](docs/BUILD.md) | Windows / macOS 构建 |
+| [docs/USER-GUIDE.md](docs/USER-GUIDE.md) | 用户路径与快捷键 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献约定 |
+| [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) | 第三方与资产许可证 |
+| [docs/RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md) | P0 发布检查清单 |
+| [docs/dev-map/](docs/dev-map/) | 愿景、架构、路线图 |
 
 shader 由 CMake 调用 shaderc 编译，不要提交生成的二进制。
-
-## 开发约定
-
-请先阅读：
-
-1. [`docs/dev-map/00-VISION-AND-CONSTRAINTS.md`](docs/dev-map/00-VISION-AND-CONSTRAINTS.md)
-2. [`docs/dev-map/01-ARCHITECTURE-MAP.md`](docs/dev-map/01-ARCHITECTURE-MAP.md)
-3. [`docs/dev-map/02-ROADMAP.md`](docs/dev-map/02-ROADMAP.md)
-4. [`docs/dev-map/03-CURRENT-STATUS.md`](docs/dev-map/03-CURRENT-STATUS.md)
 
 许可证：MIT。

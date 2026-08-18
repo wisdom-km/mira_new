@@ -113,11 +113,11 @@ void LibraryPanel::Draw(const AppViewState& state, Core::CommandQueue& commands)
     }
 
     const char* mode = state.libraryViewMode != nullptr ? state.libraryViewMode : "list";
-    if (ImGui::RadioButton("List", std::strcmp(mode, "list") == 0)) {
+    if (ImGui::RadioButton("列表", std::strcmp(mode, "list") == 0)) {
         commands.Push(Core::SetLibraryViewModeCommand{"list"});
     }
     ImGui::SameLine();
-    if (ImGui::RadioButton("Grid", std::strcmp(mode, "grid") == 0)) {
+    if (ImGui::RadioButton("网格", std::strcmp(mode, "grid") == 0)) {
         commands.Push(Core::SetLibraryViewModeCommand{"grid"});
     }
 

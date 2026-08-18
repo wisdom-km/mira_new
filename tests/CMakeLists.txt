@@ -45,6 +45,7 @@ dd_set_strict_warnings(DirectorDeskTests)
 target_compile_definitions(DirectorDeskTests PRIVATE
     "DD_EXAMPLE_CUBE_GLB=\"${PROJECT_SOURCE_DIR}/examples/models/cube.glb\""
     "DD_EXAMPLE_CAFE_SCRIPT=\"${PROJECT_SOURCE_DIR}/examples/scripts/cafe.md\""
+    "DD_EXAMPLE_CAFE_PROJECT=\"${PROJECT_SOURCE_DIR}/examples/cafe.ddproj\""
 )
 
 add_test(NAME DirectorDeskTests COMMAND DirectorDeskTests)

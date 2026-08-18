@@ -1,4 +1,9 @@
-# Example models for Phase 2 import.
+# 示例模型
 
-Use File > Import Model or the example buttons in Workspace after building.
-The GLB file is a static cube without animation.
+`cube.obj` 与 `cube.glb` 是静态立方体，无动画、无外部贴图 URI。许可证随 DirectorDesk（MIT）。
+
+导入方式：
+
+- 导演台「导入示例 OBJ / GLB」
+- 文件 → 导入模型
+- 示例工程 `examples/cafe.ddproj` 已引用 `cube.glb`

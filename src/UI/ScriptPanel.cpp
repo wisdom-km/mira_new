@@ -28,25 +28,25 @@ void ScriptPanel::Draw(const AppViewState& state, Core::CommandQueue& commands) 
         m_seenRevision = state.scriptExternalRevision;
     }
 
-    ImGui::Begin("Script");
-    if (ImGui::Button("Open...")) {
+    ImGui::Begin("剧本###Script");
+    if (ImGui::Button("打开...")) {
         commands.Push(Core::LoadScriptCommand{});
     }
     ImGui::SameLine();
-    if (ImGui::Button("Save")) {
+    if (ImGui::Button("保存")) {
         commands.Push(Core::SaveScriptCommand{});
     }
     if (state.exampleScriptPath != nullptr && state.exampleScriptPath[0] != '\0') {
         ImGui::SameLine();
-        if (ImGui::Button("Load Example")) {
+        if (ImGui::Button("打开示例剧本")) {
             commands.Push(Core::LoadScriptFromPathCommand{state.exampleScriptPath});
         }
     }
-    if (ImGui::Button("Add Scene")) {
+    if (ImGui::Button("添加场次")) {
         commands.Push(Core::InsertSceneCommand{});
     }
     ImGui::SameLine();
-    if (ImGui::Button("Add Shot")) {
+    if (ImGui::Button("添加镜头")) {
         commands.Push(Core::InsertShotCommand{});
     }
 
@@ -61,6 +61,9 @@ void ScriptPanel::Draw(const AppViewState& state, Core::CommandQueue& commands) 
 
     ImGui::Separator();
     ImGui::TextUnformatted("镜头列表");
+    if (state.scriptScenes != nullptr && state.scriptScenes->empty()) {
+        ImGui::TextUnformatted("还没有场次。打开示例剧本，或点击添加场次。");
+    }
     if (state.scriptScenes != nullptr) {
         for (const ScriptSceneView& scene : *state.scriptScenes) {
             if (ImGui::TreeNodeEx(scene.id.c_str(), ImGuiTreeNodeFlags_DefaultOpen, "%s",

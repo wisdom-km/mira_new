@@ -33,7 +33,7 @@ const StoryboardCardView* HitCard(const AppViewState& state, ImVec2 local, float
 } // namespace
 
 void StoryboardPanel::Draw(const AppViewState& state, Core::CommandQueue& commands) {
-    ImGui::Begin("Storyboard");
+    ImGui::Begin("分镜###Storyboard");
     if (ImGui::Button("适配全部")) {
         if (state.storyboardContentWidth > 1.0f && state.storyboardContentHeight > 1.0f) {
             const ImVec2 area = ImGui::GetContentRegionAvail();
@@ -70,6 +70,8 @@ void StoryboardPanel::Draw(const AppViewState& state, Core::CommandQueue& comman
     ImGui::Text("缩放 %.0f%%", m_zoom * 100.0f);
     if (state.storyboardHeldLastValid) {
         ImGui::TextUnformatted("剧本有错误，画布未更新");
+    } else if (state.storyboardCards == nullptr || state.storyboardCards->empty()) {
+        ImGui::TextUnformatted("打开剧本后会自动生成分镜画布。");
     }
 
     const ImVec2 canvasPos = ImGui::GetCursorScreenPos();

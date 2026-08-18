@@ -1,5 +1,7 @@
 /build/
 /out/
+/dist/
+/packaging/stage/
 /cmake-build-*/
 /vcpkg_installed/
 /.vs/

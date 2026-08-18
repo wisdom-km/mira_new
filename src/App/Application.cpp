@@ -203,12 +203,12 @@ void SubmitImport(Platform::Worker& worker, const Asset::LoaderRegistry& registr
                   bool& importInProgress, std::string& status) {
     if (path.empty() || importInProgress) {
         if (importInProgress) {
-            status = "A model is already loading";
+            status = "已有模型正在加载";
         }
         return;
     }
     importInProgress = true;
-    status = "Loading model...";
+    status = "正在加载模型...";
     worker.Submit([&registry, &results, path]() {
         Asset::ModelLoadResult result;
         result.sourcePath = path;
@@ -291,7 +291,7 @@ void ApplyLoadedModel(Asset::ModelLoadResult result, Scene::Document& scene,
     node.libraryAssetId = Asset::Library::MakeId(result.sourcePath);
     scene.Add(std::move(node));
     IndexLibraryPath(library, result.sourcePath, Asset::AssetOrigin::User);
-    status = result.model.warnings.empty() ? "Imported " + scene.Selected()->name
+    status = result.model.warnings.empty() ? "已导入 " + scene.Selected()->name
                                            : result.model.warnings.front();
     DD_LOG_INFO("Imported model {} as {}", result.sourcePath, scene.Selected()->name);
 }
@@ -566,7 +566,7 @@ void ApplyScriptLoad(Script::Document& script, const std::string& path, std::str
         DD_LOG_ERROR("{}", loaded.GetError().technicalMessage);
         return;
     }
-    status = "Loaded script " + Platform::Paths::FileName(path);
+    status = "已打开剧本 " + Platform::Paths::FileName(path);
     DD_LOG_INFO("Loaded script {}", path);
 }
 
@@ -595,7 +595,7 @@ void HandleSaveScript(Script::Document& script, std::string& status) {
             return;
         }
     }
-    status = "Saved script " + Platform::Paths::FileName(script.Path());
+    status = "已保存剧本 " + Platform::Paths::FileName(script.Path());
     DD_LOG_INFO("Saved script {}", script.Path());
 }
 
@@ -621,7 +621,7 @@ int Application::Run(int argc, char** argv) {
         return 1;
     }
 
-    DD_LOG_INFO("DirectorDesk starting (Phase 5 local library)");
+    DD_LOG_INFO("DirectorDesk starting");
 
     auto exeDir = Platform::Paths::ExecutableDirectory();
     if (!exeDir.IsOk()) {
@@ -637,6 +637,8 @@ int Application::Run(int argc, char** argv) {
         Platform::Paths::Join(Platform::Paths::Join(exeDir.Value(), "examples/models"), "cube.glb");
     const std::string exampleScript =
         Platform::Paths::Join(Platform::Paths::Join(exeDir.Value(), "examples/scripts"), "cafe.md");
+    const std::string exampleProject =
+        Platform::Paths::Join(Platform::Paths::Join(exeDir.Value(), "examples"), "cafe.ddproj");
 
     Platform::Window window;
     auto windowResult = window.Create(Platform::WindowDesc{});
@@ -1097,10 +1099,10 @@ int Application::Run(int argc, char** argv) {
                         script.SetText(typed.text);
                     } else if constexpr (std::is_same_v<T, Core::InsertSceneCommand>) {
                         script.InsertScene();
-                        status = "Added scene";
+                        status = "已添加场次";
                     } else if constexpr (std::is_same_v<T, Core::InsertShotCommand>) {
                         script.InsertShot();
-                        status = "Added shot";
+                        status = "已添加镜头";
                     } else if constexpr (std::is_same_v<T, Core::SelectShotCommand>) {
                         script.SelectShot(typed.shotId);
                         storyboard.SetSelectedShot(typed.shotId);
@@ -1118,17 +1120,17 @@ int Application::Run(int argc, char** argv) {
                             projectDirty = true;
                             storyboard.MarkCameraShotsStale(cameras.SelectedId());
                             thumbScheduler.NotifyBusy(NowMs());
-                            status = std::string("Applied camera preset ") + typed.presetId;
+                            status = std::string("已应用机位 ") + typed.presetId;
                         } else {
-                            status = "Unknown camera preset";
+                            status = "未知机位预设";
                         }
                     } else if constexpr (std::is_same_v<T, Core::AddCameraCommand>) {
                         cameras.Add();
                         projectDirty = true;
-                        status = "Added " + cameras.Selected()->name;
+                        status = "已添加 " + cameras.Selected()->name;
                     } else if constexpr (std::is_same_v<T, Core::RemoveCameraCommand>) {
                         if (!cameras.Remove(typed.cameraId)) {
-                            status = "Cannot remove the last camera";
+                            status = "至少需要保留一台相机";
                         } else {
                             projectDirty = true;
                         }
@@ -1144,12 +1146,12 @@ int Application::Run(int argc, char** argv) {
                             projectDirty = true;
                             storyboard.MarkLinkedStale();
                             thumbScheduler.NotifyBusy(NowMs());
-                            status = std::string("Light preset ") + typed.presetId;
+                            status = std::string("灯光预设 ") + typed.presetId;
                         }
                     } else if constexpr (std::is_same_v<T, Core::AddLibraryAssetToSceneCommand>) {
                         const Asset::LibraryAsset* asset = library.Find(typed.assetId);
                         if (asset == nullptr) {
-                            status = "Asset not found";
+                            status = "找不到该资产";
                         } else if (!asset->sourceExists || !Platform::Paths::Exists(asset->sourcePath)) {
                             status = "源文件已丢失";
                         } else {
@@ -1167,7 +1169,7 @@ int Application::Run(int argc, char** argv) {
                         selectedLibraryAssetId = typed.assetId;
                     } else if constexpr (std::is_same_v<T, Core::RefreshLibraryCommand>) {
                         library.Refresh();
-                        status = "Library refreshed";
+                        status = "已刷新资源库";
                     } else if constexpr (std::is_same_v<T, Core::RefreshOfficialCatalogCommand>) {
                         submitOfficialRefresh();
                     } else if constexpr (std::is_same_v<T, Core::SetOfficialCategoryCommand>) {
@@ -1395,6 +1397,8 @@ int Application::Run(int argc, char** argv) {
         viewState.exampleGlbPath = Platform::Paths::Exists(exampleGlb) ? exampleGlb.c_str() : "";
         viewState.exampleScriptPath =
             Platform::Paths::Exists(exampleScript) ? exampleScript.c_str() : "";
+        viewState.exampleProjectPath =
+            Platform::Paths::Exists(exampleProject) ? exampleProject.c_str() : "";
 
         scriptScenes.clear();
         if (script.HasPublishedSnapshot()) {

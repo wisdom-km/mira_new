@@ -57,47 +57,76 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
     ImGui::PopStyleVar(2);
 
     if (ImGui::BeginMenuBar()) {
-        if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("New Project")) {
+        if (ImGui::BeginMenu("文件")) {
+            if (ImGui::MenuItem("新建工程", "Ctrl+N")) {
                 commands.Push(Core::NewProjectCommand{});
             }
-            if (ImGui::MenuItem("Open Project...")) {
+            if (ImGui::MenuItem("打开工程...", "Ctrl+O")) {
                 commands.Push(Core::OpenProjectCommand{});
             }
-            if (ImGui::MenuItem("Save Project", nullptr, false, true)) {
+            if (ImGui::MenuItem("保存工程", "Ctrl+S")) {
                 commands.Push(Core::SaveProjectCommand{});
             }
-            if (ImGui::MenuItem("Save Project As...")) {
+            if (ImGui::MenuItem("工程另存为...", "Ctrl+Shift+S")) {
                 commands.Push(Core::SaveProjectAsCommand{});
             }
             ImGui::Separator();
-            if (ImGui::MenuItem("Open Script...")) {
+            if (ImGui::MenuItem("打开剧本...")) {
                 commands.Push(Core::LoadScriptCommand{});
             }
-            if (ImGui::MenuItem("Save Script")) {
+            if (ImGui::MenuItem("保存剧本")) {
                 commands.Push(Core::SaveScriptCommand{});
             }
-            if (ImGui::MenuItem("Import Model...")) {
+            if (ImGui::MenuItem("导入模型...", "Ctrl+I")) {
                 commands.Push(Core::ImportModelCommand{});
             }
-            if (ImGui::MenuItem("Export Shot 1080p")) {
+            ImGui::Separator();
+            if (ImGui::MenuItem("导出当前镜头 1080p", "Ctrl+E")) {
                 commands.Push(Core::ExportCurrentShotCommand{"1080p"});
             }
-            if (ImGui::MenuItem("Export Shot 2K")) {
+            if (ImGui::MenuItem("导出当前镜头 2K")) {
                 commands.Push(Core::ExportCurrentShotCommand{"2k"});
             }
-            if (ImGui::MenuItem("Export Storyboard")) {
+            if (ImGui::MenuItem("导出分镜总览")) {
                 commands.Push(Core::ExportStoryboardBoardCommand{});
             }
-            if (ImGui::MenuItem("Export Test PNG")) {
-                commands.Push(Core::ExportTestPngCommand{});
-            }
-            if (ImGui::MenuItem("Exit")) {
+            ImGui::Separator();
+            if (ImGui::MenuItem("退出")) {
                 commands.Push(Core::QuitCommand{});
             }
             ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("帮助")) {
+            ImGui::TextUnformatted("Ctrl+N  新建工程");
+            ImGui::TextUnformatted("Ctrl+O  打开工程");
+            ImGui::TextUnformatted("Ctrl+S  保存工程");
+            ImGui::TextUnformatted("Ctrl+Shift+S  工程另存为");
+            ImGui::TextUnformatted("Ctrl+I  导入模型");
+            ImGui::TextUnformatted("Ctrl+E  导出当前镜头 1080p");
+            ImGui::Separator();
+            ImGui::TextUnformatted("视口：左键旋转  右键平移  滚轮缩放");
+            ImGui::TextUnformatted("分镜：右键平移  滚轮缩放");
+            ImGui::EndMenu();
+        }
         ImGui::EndMenuBar();
+    }
+
+    if (!ImGui::GetIO().WantTextInput) {
+        const ImGuiIO& io = ImGui::GetIO();
+        const bool ctrl = io.KeyCtrl && !io.KeyAlt;
+        if (ctrl && io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_S, false)) {
+            commands.Push(Core::SaveProjectAsCommand{});
+        } else if (ctrl && ImGui::IsKeyPressed(ImGuiKey_S, false)) {
+            commands.Push(Core::SaveProjectCommand{});
+        } else if (ctrl && ImGui::IsKeyPressed(ImGuiKey_N, false)) {
+            commands.Push(Core::NewProjectCommand{});
+        } else if (ctrl && ImGui::IsKeyPressed(ImGuiKey_O, false)) {
+            commands.Push(Core::OpenProjectCommand{});
+        } else if (ctrl && ImGui::IsKeyPressed(ImGuiKey_I, false)) {
+            commands.Push(Core::ImportModelCommand{});
+        } else if (ctrl && ImGui::IsKeyPressed(ImGuiKey_E, false)) {
+            commands.Push(Core::ExportCurrentShotCommand{"1080p"});
+        }
     }
 
     const ImGuiID dockspaceId = ImGui::GetID("DirectorDeskMainDockSpace");
@@ -105,7 +134,7 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
     ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
     ImGui::End();
 
-    ImGui::Begin("Viewport");
+    ImGui::Begin("视口###Viewport");
     const ImVec2 available = ImGui::GetContentRegionAvail();
     const std::uint32_t width = available.x > 1.0f ? static_cast<std::uint32_t>(available.x) : 1;
     const std::uint32_t height = available.y > 1.0f ? static_cast<std::uint32_t>(available.y) : 1;
@@ -139,7 +168,7 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
             }
         }
     } else {
-        ImGui::TextUnformatted("Viewport texture is not ready.");
+        ImGui::TextUnformatted("视口尚未就绪。");
     }
     ImGui::End();
 
@@ -200,7 +229,7 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
         ImGui::EndPopup();
     }
 
-    ImGui::Begin("Workspace");
+    ImGui::Begin("导演台###Workspace");
     ImGui::TextUnformatted(state.appName);
     if (state.projectName != nullptr && state.projectName[0] != '\0') {
         ImGui::SameLine();
@@ -210,37 +239,42 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
             ImGui::TextUnformatted("*");
         }
     }
-    ImGui::Text("Window: %u x %u", state.windowWidth, state.windowHeight);
-    ImGui::Text("Viewport: %u x %u", state.viewportTextureWidth, state.viewportTextureHeight);
+    ImGui::TextDisabled("窗口 %u x %u  视口 %u x %u", state.windowWidth, state.windowHeight,
+                        state.viewportTextureWidth, state.viewportTextureHeight);
     ImGui::Separator();
-    ImGui::TextUnformatted("Left drag: orbit  Right drag: pan  Wheel: zoom");
-    if (ImGui::Button("Import Model...")) {
+    ImGui::TextUnformatted("视口：左键旋转  右键平移  滚轮缩放");
+    if (ImGui::Button("导入模型...")) {
         commands.Push(Core::ImportModelCommand{});
     }
     ImGui::SameLine();
     bool exportTransparent = state.exportTransparent;
-    if (ImGui::Checkbox("Transparent export", &exportTransparent)) {
+    if (ImGui::Checkbox("透明导出", &exportTransparent)) {
         commands.Push(Core::SetExportTransparentCommand{exportTransparent});
     }
-    if (ImGui::Button("Export Test PNG")) {
-        commands.Push(Core::ExportTestPngCommand{});
+    if (state.exampleProjectPath != nullptr && state.exampleProjectPath[0] != '\0') {
+        if (ImGui::Button("打开示例工程")) {
+            commands.Push(Core::OpenProjectFromPathCommand{state.exampleProjectPath});
+        }
     }
     if (state.exampleObjPath != nullptr && state.exampleObjPath[0] != '\0') {
-        if (ImGui::Button("Import Example OBJ")) {
+        if (ImGui::Button("导入示例 OBJ")) {
             commands.Push(Core::ImportModelFromPathCommand{state.exampleObjPath});
         }
     }
     if (state.exampleGlbPath != nullptr && state.exampleGlbPath[0] != '\0') {
-        if (ImGui::Button("Import Example GLB")) {
+        if (ImGui::Button("导入示例 GLB")) {
             commands.Push(Core::ImportModelFromPathCommand{state.exampleGlbPath});
         }
     }
     if (state.importInProgress) {
-        ImGui::TextUnformatted("Loading model...");
+        ImGui::TextUnformatted("正在加载模型...");
     }
 
     ImGui::Separator();
-    ImGui::TextUnformatted("Scene");
+    ImGui::TextUnformatted("场景");
+    if (state.nodes != nullptr && state.nodes->empty()) {
+        ImGui::TextUnformatted("场景为空。从资源库拖入模型，或导入 OBJ/GLB。");
+    }
     if (state.nodes != nullptr) {
         for (const NodeView& node : *state.nodes) {
             if (ImGui::Selectable(node.name.c_str(), node.selected)) {
@@ -251,9 +285,9 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                 float euler[3] = {node.eulerDegrees[0], node.eulerDegrees[1], node.eulerDegrees[2]};
                 float scale[3] = {node.scale[0], node.scale[1], node.scale[2]};
                 bool changed = false;
-                changed = ImGui::DragFloat3("Position", position, 0.01f) || changed;
-                changed = ImGui::DragFloat3("Rotation", euler, 0.5f) || changed;
-                changed = ImGui::DragFloat3("Scale", scale, 0.01f) || changed;
+                changed = ImGui::DragFloat3("位置", position, 0.01f) || changed;
+                changed = ImGui::DragFloat3("旋转", euler, 0.5f) || changed;
+                changed = ImGui::DragFloat3("缩放", scale, 0.01f) || changed;
                 if (changed) {
                     Core::SetNodeTransformCommand transform;
                     transform.nodeId = node.id;
@@ -273,8 +307,8 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
     }
 
     ImGui::Separator();
-    ImGui::TextUnformatted("Cameras");
-    if (ImGui::Button("Add Camera")) {
+    ImGui::TextUnformatted("相机");
+    if (ImGui::Button("添加相机")) {
         commands.Push(Core::AddCameraCommand{});
     }
     if (state.cameras != nullptr) {
@@ -294,11 +328,11 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                                              : sizeof(nameBuffer) - 1;
                 std::memcpy(nameBuffer, m_cameraName.data(), copy);
                 nameBuffer[copy] = '\0';
-                if (ImGui::InputText("Name", nameBuffer, sizeof(nameBuffer))) {
+                if (ImGui::InputText("名称", nameBuffer, sizeof(nameBuffer))) {
                     m_cameraName = nameBuffer;
                     commands.Push(Core::RenameCameraCommand{camera.id, m_cameraName});
                 }
-                if (ImGui::Button("Remove Camera")) {
+                if (ImGui::Button("删除相机")) {
                     commands.Push(Core::RemoveCameraCommand{camera.id});
                 }
             }
@@ -320,38 +354,38 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
         commands.Push(Core::UnlinkShotCommand{});
     }
 
-    ImGui::TextUnformatted("Presets");
-    if (ImGui::Button("Front")) {
+    ImGui::TextUnformatted("机位预设");
+    if (ImGui::Button("正视")) {
         commands.Push(Core::ApplyCameraPresetCommand{"front"});
     }
     ImGui::SameLine();
-    if (ImGui::Button("Side")) {
+    if (ImGui::Button("侧面")) {
         commands.Push(Core::ApplyCameraPresetCommand{"side"});
     }
     ImGui::SameLine();
-    if (ImGui::Button("Over Shoulder")) {
+    if (ImGui::Button("过肩")) {
         commands.Push(Core::ApplyCameraPresetCommand{"over-shoulder"});
     }
-    if (ImGui::Button("Top")) {
+    if (ImGui::Button("俯视")) {
         commands.Push(Core::ApplyCameraPresetCommand{"top"});
     }
     ImGui::SameLine();
-    if (ImGui::Button("Close-up")) {
+    if (ImGui::Button("特写")) {
         commands.Push(Core::ApplyCameraPresetCommand{"close-up"});
     }
 
-    ImGui::TextUnformatted("Light");
-    if (ImGui::RadioButton("Neutral", state.lightPresetId != nullptr &&
-                                          std::strcmp(state.lightPresetId, "neutral") == 0)) {
+    ImGui::TextUnformatted("灯光");
+    if (ImGui::RadioButton("中性", state.lightPresetId != nullptr &&
+                                       std::strcmp(state.lightPresetId, "neutral") == 0)) {
         commands.Push(Core::SetLightPresetCommand{"neutral"});
     }
     ImGui::SameLine();
-    if (ImGui::RadioButton("Warm", state.lightPresetId != nullptr &&
+    if (ImGui::RadioButton("暖光", state.lightPresetId != nullptr &&
                                        std::strcmp(state.lightPresetId, "warm") == 0)) {
         commands.Push(Core::SetLightPresetCommand{"warm"});
     }
     ImGui::SameLine();
-    if (ImGui::RadioButton("Cool", state.lightPresetId != nullptr &&
+    if (ImGui::RadioButton("冷光", state.lightPresetId != nullptr &&
                                        std::strcmp(state.lightPresetId, "cool") == 0)) {
         commands.Push(Core::SetLightPresetCommand{"cool"});
     }

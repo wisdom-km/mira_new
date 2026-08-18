@@ -94,6 +94,7 @@ struct AppViewState {
     const char* exampleObjPath = "";
     const char* exampleGlbPath = "";
     const char* exampleScriptPath = "";
+    const char* exampleProjectPath = "";
     const char* scriptText = "";
     const char* scriptPath = "";
     bool scriptDirty = false;
