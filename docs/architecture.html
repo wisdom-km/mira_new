@@ -124,7 +124,9 @@
 
     #world svg {
       display: block;
+      overflow: visible;
       max-width: none;
+      max-height: none;
     }
 
     #world a { cursor: pointer; }
@@ -326,25 +328,61 @@ class node_export,node_ai_services toneIndigo
     }
 
     function fit() {
+      if (!world) return;
       const svg = world.querySelector("svg");
-      const box = svg.getBBox();
-      const pad = 56;
-      const sx = (stage.clientWidth - pad * 2) / box.width;
-      const sy = (stage.clientHeight - pad * 2) / box.height;
-      state.scale = clamp(Math.min(sx, sy), 0.2, 1.4);
+      if (!svg) return;
+      const { width, height } = diagramSize(svg);
+      const pad = 40;
+      const sx = (stage.clientWidth - pad * 2) / width;
+      const sy = (stage.clientHeight - pad * 2) / height;
+      state.scale = clamp(Math.min(sx, sy), 0.05, 8);
       fitScale = state.scale;
-      state.x = (stage.clientWidth - box.width * state.scale) / 2 - box.x * state.scale;
-      state.y = (stage.clientHeight - box.height * state.scale) / 2 - box.y * state.scale;
+      state.x = (stage.clientWidth - width * state.scale) / 2;
+      state.y = (stage.clientHeight - height * state.scale) / 2;
       applyTransform();
     }
 
     function reset() {
+      if (!world) return;
       const svg = world.querySelector("svg");
-      const box = svg.getBBox();
+      if (!svg) return;
+      const { width, height } = diagramSize(svg);
       state.scale = 1;
-      state.x = (stage.clientWidth - box.width) / 2 - box.x;
-      state.y = (stage.clientHeight - box.height) / 2 - box.y;
+      state.x = (stage.clientWidth - width) / 2;
+      state.y = (stage.clientHeight - height) / 2;
       applyTransform();
+    }
+
+    function pixelAttr(value) {
+      if (!value || String(value).includes("%")) return 0;
+      const parsed = parseFloat(value);
+      return Number.isFinite(parsed) && parsed > 1 ? parsed : 0;
+    }
+
+    function sizeSvg(svg) {
+      const viewBox = svg.viewBox && svg.viewBox.baseVal;
+      const width = (viewBox && viewBox.width)
+        || pixelAttr(svg.getAttribute("width"))
+        || svg.getBBox().width
+        || 1;
+      const height = (viewBox && viewBox.height)
+        || pixelAttr(svg.getAttribute("height"))
+        || svg.getBBox().height
+        || 1;
+      svg.setAttribute("width", String(width));
+      svg.setAttribute("height", String(height));
+      svg.style.width = `${width}px`;
+      svg.style.height = `${height}px`;
+      svg.style.maxWidth = "none";
+      svg.style.maxHeight = "none";
+      return { width, height };
+    }
+
+    function diagramSize(svg) {
+      return {
+        width: parseFloat(svg.style.width) || svg.getBBox().width || 1,
+        height: parseFloat(svg.style.height) || svg.getBBox().height || 1,
+      };
     }
 
     mermaid.initialize({
@@ -354,24 +392,33 @@ class node_export,node_ai_services toneIndigo
       flowchart: { htmlLabels: true, curve: "basis", padding: 16 },
     });
 
-    const source = await loadSource();
-    const { svg } = await mermaid.render("architecture-graph", source);
+    try {
+      const source = await loadSource();
+      const { svg } = await mermaid.render("architecture-graph", source);
 
-    world = document.createElement("div");
-    world.id = "world";
-    world.innerHTML = svg;
-    stage.appendChild(world);
+      world = document.createElement("div");
+      world.id = "world";
+      world.innerHTML = svg;
+      stage.appendChild(world);
 
-    const rendered = world.querySelector("svg");
-    rendered.removeAttribute("width");
-    rendered.removeAttribute("height");
-    rendered.style.maxWidth = "none";
-    world.querySelectorAll("a").forEach((anchor) => {
-      anchor.setAttribute("target", "_blank");
-      anchor.setAttribute("rel", "noopener noreferrer");
-    });
+      const rendered = world.querySelector("svg");
+      if (!rendered) throw new Error("Mermaid 没有生成 SVG");
+      sizeSvg(rendered);
+      world.querySelectorAll("a").forEach((anchor) => {
+        anchor.setAttribute("target", "_blank");
+        anchor.setAttribute("rel", "noopener noreferrer");
+      });
 
-    fit();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      fit();
+    } catch (error) {
+      const note = document.createElement("div");
+      note.className = "status";
+      note.style.padding = "24px";
+      note.textContent = `架构图渲染失败：${error instanceof Error ? error.message : String(error)}`;
+      stage.appendChild(note);
+      throw error;
+    }
 
     stage.addEventListener("wheel", (event) => {
       event.preventDefault();
