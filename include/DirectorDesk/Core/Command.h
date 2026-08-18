@@ -40,8 +40,30 @@ struct SetNodeTransformCommand {
     float scale[3] = {1.0f, 1.0f, 1.0f};
 };
 
+struct LoadScriptCommand {};
+
+struct LoadScriptFromPathCommand {
+    std::string utf8Path;
+};
+
+struct SaveScriptCommand {};
+
+struct SetScriptTextCommand {
+    std::string text;
+};
+
+struct InsertSceneCommand {};
+
+struct InsertShotCommand {};
+
+struct SelectShotCommand {
+    std::string shotId;
+};
+
 using Command = std::variant<QuitCommand, ViewportResizeCommand, OrbitDeltaCommand,
                              ExportTestPngCommand, ImportModelCommand, ImportModelFromPathCommand,
-                             SelectNodeCommand, SetNodeTransformCommand>;
+                             SelectNodeCommand, SetNodeTransformCommand, LoadScriptCommand,
+                             LoadScriptFromPathCommand, SaveScriptCommand, SetScriptTextCommand,
+                             InsertSceneCommand, InsertShotCommand, SelectShotCommand>;
 
 } // namespace DirectorDesk::Core

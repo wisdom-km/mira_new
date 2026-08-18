@@ -17,6 +17,7 @@ target_link_libraries(dd_app
         dd_renderer
         dd_scene
         dd_asset
+        dd_script
         dd_backend_imgui
         dd_backend_bgfx
 )

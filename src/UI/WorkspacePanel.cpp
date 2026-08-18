@@ -20,9 +20,12 @@ void ApplyDefaultDockLayout(ImGuiID dockspaceId, const ImVec2& size) {
 
     ImGuiID dockMain = dockspaceId;
     const ImGuiID dockLeft =
-        ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Left, 0.28f, nullptr, &dockMain);
+        ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Left, 0.24f, nullptr, &dockMain);
+    const ImGuiID dockRight =
+        ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Right, 0.32f, nullptr, &dockMain);
     ImGui::DockBuilderDockWindow("Workspace", dockLeft);
     ImGui::DockBuilderDockWindow("Viewport", dockMain);
+    ImGui::DockBuilderDockWindow("Script", dockRight);
     ImGui::DockBuilderFinish(dockspaceId);
 }
 
@@ -45,6 +48,12 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
 
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu("File")) {
+            if (ImGui::MenuItem("Open Script...")) {
+                commands.Push(Core::LoadScriptCommand{});
+            }
+            if (ImGui::MenuItem("Save Script")) {
+                commands.Push(Core::SaveScriptCommand{});
+            }
             if (ImGui::MenuItem("Import Model...")) {
                 commands.Push(Core::ImportModelCommand{});
             }

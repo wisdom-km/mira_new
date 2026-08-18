@@ -176,6 +176,67 @@ Core::Result<std::string> Paths::ReadTextFile(const std::string& utf8Path) {
     return Core::Result<std::string>::Ok(std::move(text));
 }
 
+Core::Result<void> Paths::WriteTextFile(const std::string& utf8Path, const std::string& utf8Text) {
+    return WriteBinaryFile(utf8Path, reinterpret_cast<const std::uint8_t*>(utf8Text.data()),
+                           utf8Text.size());
+}
+
+Core::Result<std::uint64_t> Paths::LastWriteTimeCount(const std::string& utf8Path) {
+    if (!Exists(utf8Path)) {
+        return Core::Result<std::uint64_t>::Fail(
+            Core::Error::Make(Core::ErrorCode::NotFound, "File does not exist", "文件不存在"));
+    }
+    std::error_code ec;
+    const auto time = std::filesystem::last_write_time(ToPath(utf8Path), ec);
+    if (ec) {
+        return Core::Result<std::uint64_t>::Fail(
+            IoError("last_write_time failed: " + ec.message(), "无法读取文件时间"));
+    }
+    return Core::Result<std::uint64_t>::Ok(
+        static_cast<std::uint64_t>(time.time_since_epoch().count()));
+}
+
+Core::Result<std::string> Paths::UiFontFile() {
+#ifdef _WIN32
+    PWSTR widePath = nullptr;
+    const HRESULT hr = SHGetKnownFolderPath(FOLDERID_Fonts, 0, nullptr, &widePath);
+    if (FAILED(hr) || widePath == nullptr) {
+        if (widePath != nullptr) {
+            CoTaskMemFree(widePath);
+        }
+        return Core::Result<std::string>::Fail(
+            IoError("SHGetKnownFolderPath FOLDERID_Fonts failed", "找不到系统字体目录"));
+    }
+    const std::string fontsDir = WideToUtf8(widePath);
+    CoTaskMemFree(widePath);
+    const char* names[] = {"msyh.ttc", "msyh.ttf", "msjh.ttc", "msjh.ttf",
+                           "simhei.ttf", "simsun.ttc", "deng.ttf"};
+    for (const char* name : names) {
+        const std::string path = Join(fontsDir, name);
+        if (Exists(path)) {
+            return Core::Result<std::string>::Ok(path);
+        }
+    }
+    return Core::Result<std::string>::Fail(
+        Core::Error::Make(Core::ErrorCode::NotFound, "No CJK UI font in Windows Fonts",
+                          "找不到可用的中文字体"));
+#else
+    const char* candidates[] = {"/System/Library/Fonts/PingFang.ttc",
+                                "/System/Library/Fonts/STHeiti Light.ttc",
+                                "/System/Library/Fonts/Hiragino Sans GB.ttc",
+                                "/System/Library/Fonts/Supplemental/Songti.ttc",
+                                "/Library/Fonts/Arial Unicode.ttf"};
+    for (const char* path : candidates) {
+        if (Exists(path)) {
+            return Core::Result<std::string>::Ok(path);
+        }
+    }
+    return Core::Result<std::string>::Fail(
+        Core::Error::Make(Core::ErrorCode::NotFound, "No CJK UI font on this system",
+                          "找不到可用的中文字体"));
+#endif
+}
+
 Core::Result<std::string> Paths::ExecutableDirectory() {
 #ifdef _WIN32
     wchar_t buffer[MAX_PATH];

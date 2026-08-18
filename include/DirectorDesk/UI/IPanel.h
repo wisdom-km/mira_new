@@ -17,6 +17,25 @@ struct NodeView {
     bool selected = false;
 };
 
+struct ScriptShotView {
+    std::string id;
+    std::string title;
+    bool selected = false;
+};
+
+struct ScriptSceneView {
+    std::string id;
+    std::string title;
+    std::vector<ScriptShotView> shots;
+};
+
+struct ScriptDiagnosticView {
+    const char* severity = "";
+    int line = 1;
+    const char* code = "";
+    const char* message = "";
+};
+
 struct AppViewState {
     const char* appName = "DirectorDesk";
     unsigned windowWidth = 0;
@@ -29,6 +48,14 @@ struct AppViewState {
     const std::vector<NodeView>* nodes = nullptr;
     const char* exampleObjPath = "";
     const char* exampleGlbPath = "";
+    const char* exampleScriptPath = "";
+    const char* scriptText = "";
+    const char* scriptPath = "";
+    bool scriptDirty = false;
+    bool scriptHasSnapshot = false;
+    std::uint64_t scriptExternalRevision = 0;
+    const std::vector<ScriptSceneView>* scriptScenes = nullptr;
+    const std::vector<ScriptDiagnosticView>* scriptDiagnostics = nullptr;
 };
 
 class IPanel {

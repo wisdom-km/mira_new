@@ -7,6 +7,17 @@
 #include <string>
 
 namespace DirectorDesk::Platform {
+namespace {
+
+Core::Result<std::string> PathFromUrl(NSURL* url) {
+    if (url == nil || url.path == nil) {
+        return Core::Result<std::string>::Fail(Core::Error::Make(
+            Core::ErrorCode::Internal, "File panel returned an empty path", "无法读取所选文件"));
+    }
+    return Core::Result<std::string>::Ok(std::string([url.path UTF8String]));
+}
+
+} // namespace
 
 Core::Result<std::string> FileDialog::OpenModelFile() {
     @autoreleasepool {
@@ -20,12 +31,37 @@ Core::Result<std::string> FileDialog::OpenModelFile() {
         if (response != NSModalResponseOK) {
             return Core::Result<std::string>::Ok(std::string{});
         }
-        NSURL* url = panel.URL;
-        if (url == nil || url.path == nil) {
-            return Core::Result<std::string>::Fail(Core::Error::Make(
-                Core::ErrorCode::Internal, "NSOpenPanel returned an empty path", "无法读取所选文件"));
+        return PathFromUrl(panel.URL);
+    }
+}
+
+Core::Result<std::string> FileDialog::OpenMarkdownFile() {
+    @autoreleasepool {
+        NSOpenPanel* panel = [NSOpenPanel openPanel];
+        panel.canChooseFiles = YES;
+        panel.canChooseDirectories = NO;
+        panel.allowsMultipleSelection = NO;
+        panel.allowedFileTypes = @[ @"md" ];
+        panel.title = @"Open Script";
+        const NSModalResponse response = [panel runModal];
+        if (response != NSModalResponseOK) {
+            return Core::Result<std::string>::Ok(std::string{});
         }
-        return Core::Result<std::string>::Ok(std::string([url.path UTF8String]));
+        return PathFromUrl(panel.URL);
+    }
+}
+
+Core::Result<std::string> FileDialog::SaveMarkdownFile() {
+    @autoreleasepool {
+        NSSavePanel* panel = [NSSavePanel savePanel];
+        panel.allowedFileTypes = @[ @"md" ];
+        panel.title = @"Save Script";
+        panel.nameFieldStringValue = @"script.md";
+        const NSModalResponse response = [panel runModal];
+        if (response != NSModalResponseOK) {
+            return Core::Result<std::string>::Ok(std::string{});
+        }
+        return PathFromUrl(panel.URL);
     }
 }
 

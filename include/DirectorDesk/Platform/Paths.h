@@ -26,7 +26,10 @@ public:
     static std::string Parent(const std::string& utf8Path);
     static std::string ExtensionLower(const std::string& utf8Path);
     static Core::Result<std::string> ReadTextFile(const std::string& utf8Path);
+    static Core::Result<void> WriteTextFile(const std::string& utf8Path, const std::string& utf8Text);
+    static Core::Result<std::uint64_t> LastWriteTimeCount(const std::string& utf8Path);
     static Core::Result<std::string> ExecutableDirectory();
+    static Core::Result<std::string> UiFontFile();
     static Core::Result<std::vector<std::uint8_t>> ReadBinaryFile(const std::string& utf8Path);
     static Core::Result<void> WriteBinaryFile(const std::string& utf8Path, const std::uint8_t* data,
                                               std::size_t size);

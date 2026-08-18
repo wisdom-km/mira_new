@@ -15,6 +15,8 @@
 #include "DirectorDesk/Renderer/IRenderer.h"
 #include "DirectorDesk/Renderer/PngWriter.h"
 #include "DirectorDesk/Scene/Document.h"
+#include "DirectorDesk/Script/Document.h"
+#include "DirectorDesk/UI/ScriptPanel.h"
 #include "DirectorDesk/UI/WorkspacePanel.h"
 
 #include "CreateBgfxRenderer.h"
@@ -33,6 +35,7 @@ namespace {
 struct LaunchOptions {
     bool exportAndQuit = false;
     std::string importPath;
+    std::string scriptPath;
 };
 
 LaunchOptions ParseOptions(int argc, char** argv) {
@@ -46,6 +49,9 @@ LaunchOptions ParseOptions(int argc, char** argv) {
         } else if (std::strcmp(argv[i], "--import") == 0 && i + 1 < argc &&
                    argv[i + 1] != nullptr) {
             options.importPath = argv[++i];
+        } else if (std::strcmp(argv[i], "--script") == 0 && i + 1 < argc &&
+                   argv[i + 1] != nullptr) {
+            options.scriptPath = argv[++i];
         }
     }
     return options;
@@ -195,6 +201,58 @@ void ApplyLoadedModel(Asset::ModelLoadResult result, Scene::Document& scene,
     DD_LOG_INFO("Imported model {} as {}", result.sourcePath, scene.Selected()->name);
 }
 
+const char* DiagnosticSeverityText(Script::DiagnosticSeverity severity) {
+    switch (severity) {
+    case Script::DiagnosticSeverity::Error:
+        return "错误";
+    case Script::DiagnosticSeverity::Warning:
+        return "警告";
+    case Script::DiagnosticSeverity::Hint:
+        return "提示";
+    }
+    return "提示";
+}
+
+void ApplyScriptLoad(Script::Document& script, const std::string& path, std::string& status) {
+    auto loaded = script.LoadFromPath(path);
+    if (!loaded.IsOk()) {
+        status = loaded.GetError().userMessage;
+        DD_LOG_ERROR("{}", loaded.GetError().technicalMessage);
+        return;
+    }
+    status = "Loaded script " + Platform::Paths::FileName(path);
+    DD_LOG_INFO("Loaded script {}", path);
+}
+
+void HandleSaveScript(Script::Document& script, std::string& status) {
+    if (script.Path().empty()) {
+        auto path = Platform::FileDialog::SaveMarkdownFile();
+        if (!path.IsOk()) {
+            status = path.GetError().userMessage;
+            DD_LOG_ERROR("{}", path.GetError().technicalMessage);
+            return;
+        }
+        if (path.Value().empty()) {
+            return;
+        }
+        auto saved = script.SaveToPath(path.Value());
+        if (!saved.IsOk()) {
+            status = saved.GetError().userMessage;
+            DD_LOG_ERROR("{}", saved.GetError().technicalMessage);
+            return;
+        }
+    } else {
+        auto saved = script.Save();
+        if (!saved.IsOk()) {
+            status = saved.GetError().userMessage;
+            DD_LOG_ERROR("{}", saved.GetError().technicalMessage);
+            return;
+        }
+    }
+    status = "Saved script " + Platform::Paths::FileName(script.Path());
+    DD_LOG_INFO("Saved script {}", script.Path());
+}
+
 } // namespace
 
 int Application::Run(int argc, char** argv) {
@@ -217,7 +275,7 @@ int Application::Run(int argc, char** argv) {
         return 1;
     }
 
-    DD_LOG_INFO("DirectorDesk starting (Phase 2 model import)");
+    DD_LOG_INFO("DirectorDesk starting (Phase 3 script)");
 
     auto exeDir = Platform::Paths::ExecutableDirectory();
     if (!exeDir.IsOk()) {
@@ -231,6 +289,8 @@ int Application::Run(int argc, char** argv) {
         Platform::Paths::Join(Platform::Paths::Join(exeDir.Value(), "examples/models"), "cube.obj");
     const std::string exampleGlb =
         Platform::Paths::Join(Platform::Paths::Join(exeDir.Value(), "examples/models"), "cube.glb");
+    const std::string exampleScript =
+        Platform::Paths::Join(Platform::Paths::Join(exeDir.Value(), "examples/scripts"), "cafe.md");
 
     Platform::Window window;
     auto windowResult = window.Create(Platform::WindowDesc{});
@@ -259,6 +319,7 @@ int Application::Run(int argc, char** argv) {
 
     Camera::OrbitCamera camera;
     Scene::Document scene;
+    Script::Document script;
     Asset::LoaderRegistry registry = Asset::CreateDefaultRegistry();
     if (options.exportAndQuit && options.importPath.empty()) {
         std::string status;
@@ -286,14 +347,20 @@ int Application::Run(int argc, char** argv) {
     worker.Start();
     Core::ResultQueue<Asset::ModelLoadResult> loadResults;
     UI::WorkspacePanel workspace;
+    UI::ScriptPanel scriptPanel;
     Core::CommandQueue commands;
     UI::AppViewState viewState;
     std::vector<UI::NodeView> nodeViews;
+    std::vector<UI::ScriptSceneView> scriptScenes;
+    std::vector<UI::ScriptDiagnosticView> scriptDiagnostics;
     std::string status;
     bool importInProgress = false;
 
     if (!options.importPath.empty()) {
         SubmitImport(worker, registry, loadResults, options.importPath, importInProgress, status);
+    }
+    if (!options.scriptPath.empty()) {
+        ApplyScriptLoad(script, options.scriptPath, status);
     }
 
     while (!window.ShouldClose()) {
@@ -344,6 +411,28 @@ int Application::Run(int argc, char** argv) {
                             node->transform.scale =
                                 glm::vec3(typed.scale[0], typed.scale[1], typed.scale[2]);
                         }
+                    } else if constexpr (std::is_same_v<T, Core::LoadScriptCommand>) {
+                        auto path = Platform::FileDialog::OpenMarkdownFile();
+                        if (!path.IsOk()) {
+                            status = path.GetError().userMessage;
+                            DD_LOG_ERROR("{}", path.GetError().technicalMessage);
+                        } else if (!path.Value().empty()) {
+                            ApplyScriptLoad(script, path.Value(), status);
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::LoadScriptFromPathCommand>) {
+                        ApplyScriptLoad(script, typed.utf8Path, status);
+                    } else if constexpr (std::is_same_v<T, Core::SaveScriptCommand>) {
+                        HandleSaveScript(script, status);
+                    } else if constexpr (std::is_same_v<T, Core::SetScriptTextCommand>) {
+                        script.SetText(typed.text);
+                    } else if constexpr (std::is_same_v<T, Core::InsertSceneCommand>) {
+                        script.InsertScene();
+                        status = "Added scene";
+                    } else if constexpr (std::is_same_v<T, Core::InsertShotCommand>) {
+                        script.InsertShot();
+                        status = "Added shot";
+                    } else if constexpr (std::is_same_v<T, Core::SelectShotCommand>) {
+                        script.SelectShot(typed.shotId);
                     }
                 },
                 command);
@@ -379,6 +468,42 @@ int Application::Run(int argc, char** argv) {
         viewState.nodes = &nodeViews;
         viewState.exampleObjPath = Platform::Paths::Exists(exampleObj) ? exampleObj.c_str() : "";
         viewState.exampleGlbPath = Platform::Paths::Exists(exampleGlb) ? exampleGlb.c_str() : "";
+        viewState.exampleScriptPath =
+            Platform::Paths::Exists(exampleScript) ? exampleScript.c_str() : "";
+
+        scriptScenes.clear();
+        if (script.HasPublishedSnapshot()) {
+            for (const Script::Scene& sceneItem : script.PublishedSnapshot().scenes) {
+                UI::ScriptSceneView sceneView;
+                sceneView.id = sceneItem.id;
+                sceneView.title = sceneItem.title;
+                for (const Script::Shot& shot : sceneItem.shots) {
+                    UI::ScriptShotView shotView;
+                    shotView.id = shot.id;
+                    shotView.title = shot.title;
+                    shotView.selected = shot.id == script.SelectedShotId();
+                    sceneView.shots.push_back(std::move(shotView));
+                }
+                scriptScenes.push_back(std::move(sceneView));
+            }
+        }
+        scriptDiagnostics.clear();
+        for (const Script::Diagnostic& diagnostic : script.Diagnostics()) {
+            UI::ScriptDiagnosticView item;
+            item.severity = DiagnosticSeverityText(diagnostic.severity);
+            item.line = diagnostic.line;
+            item.code = diagnostic.code.c_str();
+            item.message = diagnostic.message.c_str();
+            scriptDiagnostics.push_back(item);
+        }
+
+        viewState.scriptText = script.Text().c_str();
+        viewState.scriptPath = script.Path().c_str();
+        viewState.scriptDirty = script.IsDirty();
+        viewState.scriptHasSnapshot = script.HasPublishedSnapshot();
+        viewState.scriptExternalRevision = script.ExternalRevision();
+        viewState.scriptScenes = &scriptScenes;
+        viewState.scriptDiagnostics = &scriptDiagnostics;
 
         const float aspect = renderer->ViewportHeight() == 0
                                  ? 1.0f
@@ -389,6 +514,7 @@ int Application::Run(int argc, char** argv) {
                               Renderer::RenderTargetDesc{});
         imgui.BeginFrame();
         workspace.Draw(viewState, commands);
+        scriptPanel.Draw(viewState, commands);
         imgui.Submit(size.width, size.height);
         renderer->EndFrame();
     }

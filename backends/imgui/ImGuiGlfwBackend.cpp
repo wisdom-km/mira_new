@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <vector>
 
 namespace DirectorDesk::Backends {
 namespace {
@@ -32,6 +33,119 @@ struct ImGuiVertex {
         return layout;
     }
 };
+
+void LoadUiFont() {
+    auto fontPath = Platform::Paths::UiFontFile();
+    if (!fontPath.IsOk()) {
+        DD_LOG_WARN("{}", fontPath.GetError().technicalMessage);
+        return;
+    }
+    auto bytes = Platform::Paths::ReadBinaryFile(fontPath.Value());
+    if (!bytes.IsOk()) {
+        DD_LOG_WARN("Failed to read UI font {}", fontPath.Value());
+        return;
+    }
+
+    void* copy = IM_ALLOC(bytes.Value().size());
+    if (copy == nullptr) {
+        DD_LOG_WARN("Failed to allocate UI font {}", fontPath.Value());
+        return;
+    }
+    std::memcpy(copy, bytes.Value().data(), bytes.Value().size());
+
+    ImFontConfig config;
+    config.OversampleH = 1;
+    config.OversampleV = 1;
+    config.PixelSnapH = true;
+    config.FontDataOwnedByAtlas = true;
+    ImFont* font = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(
+        copy, static_cast<int>(bytes.Value().size()), 18.0f, &config);
+    if (font == nullptr) {
+        DD_LOG_WARN("Failed to load UI font {}", fontPath.Value());
+        return;
+    }
+    DD_LOG_INFO("Loaded UI font {}", fontPath.Value());
+}
+
+void UpdateImGuiTexture(ImTextureData* texture) {
+    if (texture->Status == ImTextureStatus_WantCreate) {
+        if (texture->Format != ImTextureFormat_RGBA32) {
+            DD_LOG_ERROR("ImGui texture format is not RGBA32");
+            return;
+        }
+        const bgfx::TextureHandle handle = bgfx::createTexture2D(
+            static_cast<std::uint16_t>(texture->Width), static_cast<std::uint16_t>(texture->Height),
+            false, 1, bgfx::TextureFormat::RGBA8, BGFX_TEXTURE_NONE | BGFX_SAMPLER_U_CLAMP |
+                                                      BGFX_SAMPLER_V_CLAMP,
+            nullptr);
+        bgfx::updateTexture2D(handle, 0, 0, 0, 0, static_cast<std::uint16_t>(texture->Width),
+                              static_cast<std::uint16_t>(texture->Height),
+                              bgfx::copy(texture->GetPixels(),
+                                         static_cast<std::uint32_t>(texture->GetSizeInBytes())));
+        texture->SetTexID(static_cast<ImTextureID>(handle.idx));
+        texture->SetStatus(ImTextureStatus_OK);
+        return;
+    }
+
+    if (texture->Status == ImTextureStatus_WantUpdates) {
+        const bgfx::TextureHandle handle = {static_cast<std::uint16_t>(texture->GetTexID())};
+        if (!bgfx::isValid(handle)) {
+            return;
+        }
+        for (const ImTextureRect& rect : texture->Updates) {
+            const int bytesPerPixel = texture->BytesPerPixel;
+            std::vector<unsigned char> packed(
+                static_cast<std::size_t>(rect.w) * static_cast<std::size_t>(rect.h) *
+                static_cast<std::size_t>(bytesPerPixel));
+            for (int row = 0; row < rect.h; ++row) {
+                std::memcpy(packed.data() + static_cast<std::size_t>(row) * rect.w * bytesPerPixel,
+                            texture->GetPixelsAt(rect.x, rect.y + row),
+                            static_cast<std::size_t>(rect.w) * bytesPerPixel);
+            }
+            bgfx::updateTexture2D(
+                handle, 0, 0, rect.x, rect.y, rect.w, rect.h,
+                bgfx::copy(packed.data(), static_cast<std::uint32_t>(packed.size())),
+                static_cast<std::uint16_t>(rect.w * bytesPerPixel));
+        }
+        texture->SetStatus(ImTextureStatus_OK);
+        return;
+    }
+
+    if (texture->Status == ImTextureStatus_WantDestroy && texture->UnusedFrames > 0) {
+        const bgfx::TextureHandle handle = {static_cast<std::uint16_t>(texture->GetTexID())};
+        if (bgfx::isValid(handle)) {
+            bgfx::destroy(handle);
+        }
+        texture->SetTexID(ImTextureID_Invalid);
+        texture->SetStatus(ImTextureStatus_Destroyed);
+    }
+}
+
+void UpdateImGuiTextures(ImDrawData* drawData) {
+    if (drawData == nullptr || drawData->Textures == nullptr) {
+        return;
+    }
+    for (ImTextureData* texture : *drawData->Textures) {
+        if (texture != nullptr && texture->Status != ImTextureStatus_OK) {
+            UpdateImGuiTexture(texture);
+        }
+    }
+}
+
+void DestroyOwnedImGuiTextures() {
+    ImGuiPlatformIO& platformIo = ImGui::GetPlatformIO();
+    for (ImTextureData* texture : platformIo.Textures) {
+        if (texture == nullptr || texture->GetTexID() == ImTextureID_Invalid) {
+            continue;
+        }
+        const bgfx::TextureHandle handle = {static_cast<std::uint16_t>(texture->GetTexID())};
+        if (bgfx::isValid(handle)) {
+            bgfx::destroy(handle);
+        }
+        texture->SetTexID(ImTextureID_Invalid);
+        texture->SetStatus(ImTextureStatus_Destroyed);
+    }
+}
 
 bgfx::ShaderHandle LoadShader(const std::string& shaderDirectory, const std::string& name) {
     const bgfx::RendererType::Enum type = bgfx::getRendererType();
@@ -91,8 +205,10 @@ Core::Result<void> ImGuiGlfwBackend::Init(Platform::Window& window,
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
     io.IniFilename = nullptr;
     ImGui::StyleColorsDark();
+    LoadUiFont();
 
     if (!ImGui_ImplGlfw_InitForOther(glfwWindow, true)) {
         ImGui::DestroyContext();
@@ -131,17 +247,6 @@ Core::Result<void> ImGuiGlfwBackend::CreateResources() {
     const bgfx::UniformHandle sampler = bgfx::createUniform("s_tex", bgfx::UniformType::Sampler);
     m_program = program.idx;
     m_textureSampler = sampler.idx;
-
-    unsigned char* pixels = nullptr;
-    int width = 0;
-    int height = 0;
-    ImGui::GetIO().Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-    const bgfx::TextureHandle font =
-        bgfx::createTexture2D(static_cast<std::uint16_t>(width), static_cast<std::uint16_t>(height),
-                              false, 1, bgfx::TextureFormat::RGBA8, 0,
-                              bgfx::copy(pixels, static_cast<std::uint32_t>(width * height * 4)));
-    m_fontTexture = font.idx;
-    ImGui::GetIO().Fonts->SetTexID(static_cast<ImTextureID>(font.idx));
     return Core::Result<void>::Ok();
 }
 
@@ -156,10 +261,8 @@ void ImGuiGlfwBackend::DestroyResources() {
         bgfx::destroy(handle);
         m_textureSampler = 0xFFFFu;
     }
-    if (m_fontTexture != 0xFFFFu) {
-        bgfx::TextureHandle handle = {m_fontTexture};
-        bgfx::destroy(handle);
-        m_fontTexture = 0xFFFFu;
+    if (ImGui::GetCurrentContext() != nullptr) {
+        DestroyOwnedImGuiTextures();
     }
 }
 
@@ -181,8 +284,11 @@ void ImGuiGlfwBackend::BeginFrame() {
 void ImGuiGlfwBackend::Submit(std::uint32_t framebufferWidth, std::uint32_t framebufferHeight) {
     ImGui::Render();
     ImDrawData* drawData = ImGui::GetDrawData();
-    if (drawData == nullptr || drawData->CmdListsCount == 0 || framebufferWidth == 0 ||
-        framebufferHeight == 0) {
+    if (drawData == nullptr || framebufferWidth == 0 || framebufferHeight == 0) {
+        return;
+    }
+    UpdateImGuiTextures(drawData);
+    if (drawData->CmdListsCount == 0) {
         return;
     }
 
@@ -246,10 +352,14 @@ void ImGuiGlfwBackend::Submit(std::uint32_t framebufferWidth, std::uint32_t fram
                                                ? (command.ClipRect.w - command.ClipRect.y)
                                                : 0.0f);
 
-            bgfx::TextureHandle texture = {m_fontTexture};
+            bgfx::TextureHandle texture = BGFX_INVALID_HANDLE;
             const ImTextureID texId = command.GetTexID();
             if (texId != ImTextureID_Invalid) {
                 texture.idx = static_cast<std::uint16_t>(texId);
+            }
+            if (!bgfx::isValid(texture)) {
+                indexOffset += command.ElemCount;
+                continue;
             }
 
             bgfx::setScissor(xx, yy, ww, hh);

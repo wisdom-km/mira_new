@@ -4,33 +4,34 @@
 
 ## 当前快照
 
-- **当前 Phase**：Phase 2（Windows 本地验收已通过）
-- **当前状态**：可导入 GLB/OBJ，后台解析，视口显示并可用数值编辑 Transform；macOS 待 CI 验证
+- **当前 Phase**：Phase 3（Windows 本地验收已通过）
+- **当前状态**：可加载/编辑/保存 Markdown 剧本，Script 面板用系统中文字体按需显示汉字
 - **最后更新**：2026-08-19
 - **更新者**：Cursor AI
 - **当前分支**：`main`
-- **最近完成 tag**：`phase-1-render-camera`（`460911a`）
-- **下一个允许执行的工作**：用户明确要求后再打 `phase-2-model-import`。打 tag 前不得开始 Phase 3
+- **最近完成 tag**：`phase-2-model-import`（`c5c0e25`）
+- **下一个允许执行的工作**：打 `phase-3-script` 后开始 Phase 4：预设机位与视口地面格网
 
 ## 已完成
 
 - [x] Phase 0 骨架、日志、GLFW、ImGui docking、CI
 - [x] Phase 1 bgfx、轨道相机、离屏透明 PNG
-- [x] `IModelLoader`、`LoaderRegistry`、`ModelData`
-- [x] GLB 加载（cgltf）：网格、索引、节点变换、基础色与嵌入纹理
-- [x] OBJ 加载（tinyobjloader）：网格、法线、UV、MTL 基础材质
-- [x] 缺少法线时生成；损坏/不支持文件返回错误且不崩溃
-- [x] Scene Node 与 Transform（位置/旋转/缩放）
-- [x] 原生文件对话框、导入 Command、后台 Worker + 主线程结果队列
-- [x] UI 选择节点与数值 Transform 编辑
+- [x] Phase 2 GLB/OBJ 导入、Scene Node、后台加载、数值 Transform
+- [x] `phase-2-model-import` 已打 tag 并推送
+- [x] 地面格网开发地图改动已提交（`c5c0e25`）
+- [x] 按 `script-format.md` 实现解析器与诊断
+- [x] 剧本加载、查看、简单文本编辑、保存（UTF-8，保留 LF/CRLF）
+- [x] 稳定 Scene/Shot ID、层级列表、选中镜头写入 `AppViewState`
+- [x] 完整解析成功后才发布不可变结构快照；非法 UTF-8 不覆盖旧快照
+- [x] ImGui 加载系统 CJK 字体（Windows 微软雅黑等），动态图集按需光栅化汉字
 
 ## 进行中
 
-无。Phase 2 功能在 Windows 上已验收。
+无。Phase 3 功能在 Windows 上已验收。
 
 ## 阻塞项
 
-无。macOS 实机未在本机验证，依赖 CI。文件对话框在 macOS 使用 `NSOpenPanel`，本机未跑。
+无。macOS 实机未在本机验证，依赖 CI。文件对话框在 macOS 使用 `NSOpenPanel`/`NSSavePanel`，本机未跑。
 
 ## 已确认决策
 
@@ -51,7 +52,7 @@
 | 测试 | Catch2 v3 |
 | 开发顺序 | 先走通含分镜画布的本地资产核心闭环，再实现在线资产库 |
 | 项目持久化 | 版本化 JSON `.ddproj` |
-| 分镜画布 | 剧本是结构唯一来源；自动布局、不可自由连线；导演台变化后按需刷新缩略图 |
+| 分镜画布 | 剧本是 Scene/Shot 结构的唯一来源；自动布局、不可自由连线；导演台变化后按需刷新缩略图 |
 | 分镜导出 | 支持单镜头参考图和完整分镜总览 PNG |
 | vcpkg baseline | `c5a15727ee70fddf0296f0d8aafc3f58916fefac` |
 | Phase 2 变换入口 | 数值 DragFloat3；不引入 ImGuizmo（未锁定进技术栈） |
@@ -65,7 +66,7 @@
 |------|------|----------|
 | bgfx shader 跨平台编译复杂 | CMake 自动调用 shaderc，禁止手工产物 | Phase 1 已在 Windows 验证 |
 | 透明离屏渲染/回读可能因后端差异失败 | 在正式 Export 前完成技术切片 | Phase 1 Windows 已通过；macOS 待 CI |
-| Windows 中文路径与编码 | Platform 统一 UTF-8 边界并加入测试 | Phase 0/2 已测 |
+| Windows 中文路径与编码 | Platform 统一 UTF-8 边界并加入测试 | Phase 0/2/3 已测 |
 | GLB 特性范围失控 | P0 限基础静态网格/材质，忽略骨骼和动画 | Phase 2 |
 | GitHub 在部分网络环境不可用 | 缓存最后有效清单；镜像源仅列后续 | Phase 8 |
 | 大型剧本的布局和缩略图刷新造成卡顿 | 确定性布局、可见区裁剪、防抖、单帧单任务和缓存上限 | Phase 7 |
@@ -74,22 +75,35 @@
 ## 本次验证
 
 - Windows MSVC 19.44 + Ninja Debug 配置与构建成功
-- `DirectorDeskTests`：21 cases / 76 assertions 通过（含中文路径 GLB/OBJ、损坏文件、不支持扩展名、Transform）
-- `--import examples/models/cube.glb`：日志 `Imported model ... as cube`，视口显示带基础色的立方体，Workspace 可选中并编辑 Position/Rotation/Scale
+- `DirectorDeskTests` 通过（含 `UiFontFile` 能找到系统中文字体，以及剧本中文路径/UTF-8 用例）
+- 未启动交互窗口做人工点选；请用 `--script examples/scripts/cafe.md` 确认 Script 面板汉字正常
 
 ## 下一步清单
 
-1. 用户明确要求后再打 `phase-2-model-import`
-2. 之后才能开始 Phase 3：Markdown 剧本与镜头列表
+1. 打 `phase-3-script`
+2. 开始 Phase 4：预设机位、多相机与视口地面格网
 
 ## 工作日志
+
+### 2026-08-19：Script 面板中文乱码
+
+- 根因：ImGui 默认 ProggyClean 不含汉字，UTF-8 剧本本身正确。
+- 从系统字体目录加载微软雅黑等 CJK 字体；ImGui 1.92 后端改为 `RendererHasTextures` 按需上传字形。
+
+### 2026-08-19：Phase 3 Markdown 剧本与镜头列表
+
+- 将 Script 从接口库落地为实现库：Parser、Document、稳定 ID。
+- UI 只发加载、编辑、保存、插入场次/镜头、选中镜头 Command；右侧 Script 面板读只读 State。
+- 保存保留原文件 LF/CRLF；外部修改拒绝静默覆盖。
+- 示例剧本：`examples/scripts/cafe.md`。CLI：`--script <path>`。
+- 未实现预设机位、地面格网、工程文件、分镜画布或在线资产库。
 
 ### 2026-08-19：地面格网写入 Phase 4
 
 - 产品负责人批准：视口增加 XZ 地面格网，便于看清地面和摆机位。
 - 同步 `00` P0 导演台范围、`01` Renderer 契约、`02` Phase 4 任务与验收。
 - 格网不是 Scene 节点；导出参考图不绘制。模型线框叠加仍不在 P0。
-- 未开始实现；当前仍停在 Phase 2 等待 tag。
+- 地图改动已提交为 `c5c0e25` 并随 `phase-2-model-import` 推送。
 
 ### 2026-08-19：Phase 2 模型导入
 

@@ -29,6 +29,12 @@ TEST_CASE("UserDataDirectory is rooted at DirectorDesk", "[platform][paths]") {
     REQUIRE(DirectorDesk::Platform::Paths::FileName(logs.Value()) == "logs");
 }
 
+TEST_CASE("UiFontFile finds a system CJK font", "[platform][paths]") {
+    auto font = DirectorDesk::Platform::Paths::UiFontFile();
+    REQUIRE(font.IsOk());
+    REQUIRE(DirectorDesk::Platform::Paths::Exists(font.Value()));
+}
+
 TEST_CASE("CreateDirectories rejects an empty path", "[platform][paths]") {
     auto result = DirectorDesk::Platform::Paths::CreateDirectories("");
     REQUIRE_FALSE(result.IsOk());

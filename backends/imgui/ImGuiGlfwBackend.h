@@ -33,7 +33,6 @@ private:
     std::uint8_t m_viewId = 255;
     std::uint16_t m_program = 0xFFFFu;
     std::uint16_t m_textureSampler = 0xFFFFu;
-    std::uint16_t m_fontTexture = 0xFFFFu;
 };
 
 } // namespace DirectorDesk::Backends
