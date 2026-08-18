@@ -69,7 +69,7 @@ Core ──▶ （无内部依赖）
 | Scene | 简化场景节点（名称、Transform、模型引用）、场景图 |
 | Asset | 本地资源扫描/导入、模型加载器注册表（IModelLoader，可扩展）、官方在线资产库（清单/下载/缓存） |
 | Camera | 轨道相机、预设机位、多相机管理 |
-| Renderer | IRenderer 接口；实时视口渲染 + 离屏渲染 |
+| Renderer | IRenderer 接口；实时视口渲染 + 离屏渲染；视口地面格网（Phase 4，导出目标不绘制） |
 | Script | Markdown 剧本解析（Scene/Shot）、编辑 |
 | Link | 镜头 ↔ 相机关联 |
 | Storyboard | 从 App 提供的不可变快照生成 Scene/Shot 图、确定性自动布局、卡片状态和可重建缩略图缓存调度 |
@@ -109,6 +109,7 @@ public:
 
 - ImGui 的 bgfx/GLFW 渲染后端属于 `backends/imgui/`，不属于 IRenderer 职责
 - `RenderSceneView` 是 Renderer 模块定义的只读提交快照；App 从业务 Scene 组装它，Renderer 不依赖 Scene 模块
+- 地面格网由 `RenderSceneView` / `RenderTargetDesc` 控制：交互视口绘制，离屏导出不绘制；格网不是 Scene 节点
 - Export 模块只依赖 `RenderScene(离屏) + ReadbackTarget`，不接触 bgfx
 
 ### 3. 模型加载器（可扩展）
