@@ -1,0 +1,27 @@
+{
+  "name": "directordesk",
+  "version-string": "0.1.0",
+  "description": "DirectorDesk 3D director desk for AI video storyboarding",
+  "license": "MIT",
+  "builtin-baseline": "c5a15727ee70fddf0296f0d8aafc3f58916fefac",
+  "dependencies": [
+    {
+      "name": "spdlog",
+      "features": ["fmt"]
+    },
+    "fmt",
+    "glfw3",
+    {
+      "name": "imgui",
+      "features": [
+        "docking-experimental",
+        "glfw-binding",
+        "opengl3-binding"
+      ]
+    },
+    "glad",
+    {
+      "name": "catch2"
+    }
+  ]
+}

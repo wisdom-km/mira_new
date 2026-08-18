@@ -1,0 +1,16 @@
+Checks: >
+  bugprone-*,
+  performance-*,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  -modernize-use-nodiscard,
+  -bugprone-easily-swappable-parameters
+WarningsAsErrors: ''
+HeaderFilterRegex: 'include/DirectorDesk|src/|backends/'
+FormatStyle: file
+CheckOptions:
+  - key: modernize-use-override.IgnoreDestructors
+    value: 'false'
+  - key: performance-unnecessary-value-param.AllowedTypes
+    value: ''
