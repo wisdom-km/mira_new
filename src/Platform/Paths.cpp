@@ -137,6 +137,48 @@ Core::Result<std::string> Paths::LibraryDirectory() {
     return Core::Result<std::string>::Ok(Join(userData.Value(), "library"));
 }
 
+Core::Result<std::string> Paths::OfficialAssetsDirectory() {
+    auto userData = UserDataDirectory();
+    if (!userData.IsOk()) {
+        return userData;
+    }
+    return Core::Result<std::string>::Ok(Join(userData.Value(), "assets"));
+}
+
+Core::Result<std::uint64_t> Paths::AvailableDiskBytes(const std::string& utf8Path) {
+    if (utf8Path.empty()) {
+        return Core::Result<std::uint64_t>::Fail(Core::Error::Make(
+            Core::ErrorCode::InvalidArgument, "AvailableDiskBytes received empty path",
+            "路径不能为空"));
+    }
+    std::error_code ec;
+    const auto info = std::filesystem::space(ToPath(utf8Path), ec);
+    if (ec) {
+        return Core::Result<std::uint64_t>::Fail(
+            IoError("space failed: " + ec.message(), "无法检查磁盘空间"));
+    }
+    return Core::Result<std::uint64_t>::Ok(static_cast<std::uint64_t>(info.available));
+}
+
+Core::Result<void> Paths::CopyFileUtf8(const std::string& fromUtf8, const std::string& toUtf8) {
+    if (fromUtf8.empty() || toUtf8.empty()) {
+        return Core::Result<void>::Fail(Core::Error::Make(
+            Core::ErrorCode::InvalidArgument, "CopyFile received an empty path", "路径不能为空"));
+    }
+    auto parent = CreateDirectories(Parent(toUtf8));
+    if (!parent.IsOk()) {
+        return parent;
+    }
+    std::error_code ec;
+    std::filesystem::copy_file(ToPath(fromUtf8), ToPath(toUtf8),
+                               std::filesystem::copy_options::overwrite_existing, ec);
+    if (ec) {
+        return Core::Result<void>::Fail(
+            IoError("copy_file failed: " + ec.message(), "无法复制文件"));
+    }
+    return Core::Result<void>::Ok();
+}
+
 Core::Result<std::string> Paths::WeaklyCanonical(const std::string& utf8Path) {
     if (utf8Path.empty()) {
         return Core::Result<std::string>::Fail(

@@ -5,6 +5,7 @@
 #include "DirectorDesk/Export/ShotExport.h"
 #include "DirectorDesk/Asset/Library.h"
 #include "DirectorDesk/Asset/LoaderRegistry.h"
+#include "DirectorDesk/Asset/OfficialCatalog.h"
 #include "DirectorDesk/Asset/ModelLoadResult.h"
 #include "DirectorDesk/Camera/CameraManager.h"
 #include "DirectorDesk/Camera/OrbitCamera.h"
@@ -30,18 +31,29 @@
 #include "DirectorDesk/UI/WorkspacePanel.h"
 
 #include "CreateBgfxRenderer.h"
+#include "CurlHttpClient.h"
 #include "ImGuiGlfwBackend.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
+#include <memory>
 #include <string>
 #include <type_traits>
+#include <unordered_map>
 #include <unordered_set>
 #include <variant>
 #include <vector>
+
+#ifndef DD_OFFICIAL_MANIFEST_URL
+#define DD_OFFICIAL_MANIFEST_URL ""
+#endif
+#ifndef DD_OFFICIAL_ASSET_BASE_URL
+#define DD_OFFICIAL_ASSET_BASE_URL ""
+#endif
 
 namespace DirectorDesk::App {
 namespace {
@@ -491,6 +503,33 @@ Storyboard::StoryboardSourceSnapshot MakeBoardSource(const Script::Document& scr
     return snapshot;
 }
 
+void IndexReadyOfficial(Asset::OfficialCatalog& catalog, Asset::Library& library) {
+    for (const Asset::ManifestAsset& asset : catalog.Manifest().assets) {
+        const Asset::OfficialAssetState* state = catalog.State(asset.id);
+        if (state == nullptr || state->status != Asset::OfficialDownloadStatus::Ready ||
+            state->entrypointPath.empty()) {
+            continue;
+        }
+        Asset::LibraryAsset item;
+        item.id = asset.id;
+        item.name = Asset::PickLocale(asset.name);
+        item.sourcePath = state->entrypointPath;
+        item.format = asset.format;
+        item.origin = Asset::AssetOrigin::OnlineCache;
+        item.category = asset.category;
+        item.tags = asset.tags;
+        item.previewPath = state->previewPath;
+        library.Upsert(item);
+    }
+}
+
+Asset::OfficialEndpoints MakeOfficialEndpoints() {
+    Asset::OfficialEndpoints endpoints;
+    endpoints.manifestUrl = DD_OFFICIAL_MANIFEST_URL;
+    endpoints.assetBaseUrl = DD_OFFICIAL_ASSET_BASE_URL;
+    return endpoints;
+}
+
 const char* PreviewText(Storyboard::PreviewStatus status) {
     switch (status) {
     case Storyboard::PreviewStatus::Ready:
@@ -643,6 +682,16 @@ int Application::Run(int argc, char** argv) {
         IndexLibraryPath(library, exampleObj, Asset::AssetOrigin::Builtin);
         IndexLibraryPath(library, exampleGlb, Asset::AssetOrigin::Builtin);
     }
+    std::unique_ptr<Platform::IHttpClient> http = Backends::CreateCurlHttpClient();
+    auto officialRoot = Platform::Paths::OfficialAssetsDirectory();
+    const std::string officialCache =
+        officialRoot.IsOk() ? officialRoot.Value() : std::string();
+    if (!officialCache.empty()) {
+        Platform::Paths::CreateDirectories(officialCache);
+    }
+    Asset::OfficialCatalog officialCatalog(officialCache, MakeOfficialEndpoints());
+    officialCatalog.LoadCache();
+    IndexReadyOfficial(officialCatalog, library);
     if (options.exportAndQuit && options.importPath.empty()) {
         std::string status;
         const bool ok = HandleExportTestPng(
@@ -670,6 +719,27 @@ int Application::Run(int argc, char** argv) {
     Platform::Worker worker;
     worker.Start();
     Core::ResultQueue<Asset::ModelLoadResult> loadResults;
+    struct OfficialRefreshResult {
+        bool ok = false;
+        int status = 0;
+        std::string body;
+        std::string message;
+    };
+    struct OfficialDownloadJobResult {
+        std::string assetId;
+        bool ok = false;
+        Asset::OfficialAssetState state;
+        std::string message;
+        Asset::ManifestAsset asset;
+    };
+    struct OfficialProgressUpdate {
+        std::string assetId;
+        float progress = 0.0f;
+    };
+    Core::ResultQueue<OfficialRefreshResult> officialRefreshResults;
+    Core::ResultQueue<OfficialDownloadJobResult> officialDownloadResults;
+    Core::ResultQueue<OfficialProgressUpdate> officialProgressResults;
+    std::unordered_map<std::string, std::shared_ptr<std::atomic<bool>>> officialCancels;
     UI::WorkspacePanel workspace;
     UI::ScriptPanel scriptPanel;
     UI::LibraryPanel libraryPanel;
@@ -686,6 +756,10 @@ int Application::Run(int argc, char** argv) {
     std::string libraryOriginFilter = "all";
     std::string libraryViewMode = "list";
     std::string selectedLibraryAssetId;
+    std::string officialCategory;
+    std::string officialCatalogStatus;
+    std::vector<std::string> officialCategoryViews;
+    bool officialRefreshInFlight = false;
     std::string projectId = ProjectFile::MakeProjectId();
     std::string projectName = "未命名工程";
     std::string projectPath;
@@ -708,6 +782,45 @@ int Application::Run(int argc, char** argv) {
     float storyboardViewHeight = 0.0f;
     std::uint64_t frameIndex = 1;
     std::vector<UI::StoryboardCardView> storyboardViews;
+
+    const auto submitOfficialRefresh = [&]() {
+        if (officialRefreshInFlight) {
+            return;
+        }
+        if (!officialCatalog.IsConfigured() || http == nullptr) {
+            officialCatalogStatus =
+                officialCatalog.Manifest().assets.empty() ? "官方地址未配置" : "正在使用缓存清单";
+            return;
+        }
+        officialRefreshInFlight = true;
+        officialCatalogStatus = "正在刷新官方清单...";
+        const std::string url = MakeOfficialEndpoints().manifestUrl;
+        Platform::IHttpClient* httpPtr = http.get();
+        worker.Submit([httpPtr, url, &officialRefreshResults]() {
+            OfficialRefreshResult result;
+            if (httpPtr == nullptr) {
+                result.message = "网络未初始化";
+                officialRefreshResults.Push(std::move(result));
+                return;
+            }
+            Platform::HttpGetRequest request;
+            request.url = url;
+            auto got = httpPtr->Get(request);
+            if (!got.IsOk()) {
+                result.message = got.GetError().userMessage;
+                officialRefreshResults.Push(std::move(result));
+                return;
+            }
+            result.status = got.Value().status;
+            result.ok = got.Value().status == 200;
+            result.body.assign(got.Value().body.begin(), got.Value().body.end());
+            if (!result.ok) {
+                result.message = "HTTP 错误";
+            }
+            officialRefreshResults.Push(std::move(result));
+        });
+    };
+    submitOfficialRefresh();
 
     if (!options.importPath.empty()) {
         SubmitImport(worker, registry, loadResults, options.importPath, importInProgress, status);
@@ -867,6 +980,54 @@ int Application::Run(int argc, char** argv) {
             thumbScheduler.NotifyBusy(NowMs());
         }
 
+        OfficialRefreshResult officialRefresh;
+        while (officialRefreshResults.TryPop(officialRefresh)) {
+            officialRefreshInFlight = false;
+            if (officialRefresh.ok) {
+                auto applied = officialCatalog.ApplyManifestJson(officialRefresh.body);
+                if (applied.IsOk()) {
+                    IndexReadyOfficial(officialCatalog, library);
+                    officialCatalogStatus = "官方清单已更新";
+                } else {
+                    officialCatalog.LoadCache();
+                    officialCatalogStatus = applied.GetError().userMessage;
+                }
+            } else {
+                officialCatalog.LoadCache();
+                officialCatalogStatus =
+                    officialRefresh.message.empty() ? "清单刷新失败，已使用缓存"
+                                                    : officialRefresh.message;
+            }
+        }
+        OfficialProgressUpdate officialProgress;
+        while (officialProgressResults.TryPop(officialProgress)) {
+            if (Asset::OfficialAssetState* state =
+                    officialCatalog.MutableState(officialProgress.assetId)) {
+                state->progress = officialProgress.progress;
+                if (state->status == Asset::OfficialDownloadStatus::NotDownloaded ||
+                    state->status == Asset::OfficialDownloadStatus::Queued) {
+                    state->status = Asset::OfficialDownloadStatus::Downloading;
+                }
+            }
+        }
+        OfficialDownloadJobResult officialDownload;
+        while (officialDownloadResults.TryPop(officialDownload)) {
+            officialCancels.erase(officialDownload.assetId);
+            if (Asset::OfficialAssetState* state =
+                    officialCatalog.MutableState(officialDownload.assetId)) {
+                *state = officialDownload.state;
+                if (!officialDownload.message.empty()) {
+                    state->message = officialDownload.message;
+                }
+            }
+            if (officialDownload.ok) {
+                IndexReadyOfficial(officialCatalog, library);
+                status = "已下载 " + Asset::PickLocale(officialDownload.asset.name);
+            } else if (!officialDownload.message.empty()) {
+                status = officialDownload.message;
+            }
+        }
+
         Core::Command command;
         while (commands.TryPop(command)) {
             std::visit(
@@ -1007,6 +1168,63 @@ int Application::Run(int argc, char** argv) {
                     } else if constexpr (std::is_same_v<T, Core::RefreshLibraryCommand>) {
                         library.Refresh();
                         status = "Library refreshed";
+                    } else if constexpr (std::is_same_v<T, Core::RefreshOfficialCatalogCommand>) {
+                        submitOfficialRefresh();
+                    } else if constexpr (std::is_same_v<T, Core::SetOfficialCategoryCommand>) {
+                        officialCategory = typed.categoryId;
+                    } else if constexpr (std::is_same_v<T, Core::DownloadOfficialAssetCommand>) {
+                        const Asset::ManifestAsset* asset = officialCatalog.FindAsset(typed.assetId);
+                        if (asset == nullptr || http == nullptr || officialCache.empty()) {
+                            status = "无法下载官方资产";
+                        } else {
+                            auto cancel = std::make_shared<std::atomic<bool>>(false);
+                            officialCancels[typed.assetId] = cancel;
+                            if (Asset::OfficialAssetState* state =
+                                    officialCatalog.MutableState(typed.assetId)) {
+                                state->status = Asset::OfficialDownloadStatus::Queued;
+                                state->progress = 0.0f;
+                                state->failure = Asset::OfficialFailureKind::None;
+                            }
+                            const Asset::OfficialEndpoints endpoints = MakeOfficialEndpoints();
+                            const std::string cache = officialCache;
+                            const Asset::ManifestAsset copied = *asset;
+                            Platform::IHttpClient* httpPtr = http.get();
+                            worker.Submit([httpPtr, endpoints, cache, copied, cancel,
+                                           &officialDownloadResults, &officialProgressResults]() {
+                                OfficialDownloadJobResult result;
+                                result.assetId = copied.id;
+                                result.asset = copied;
+                                if (httpPtr == nullptr) {
+                                    result.message = "网络未初始化";
+                                    officialDownloadResults.Push(std::move(result));
+                                    return;
+                                }
+                                auto done = Asset::DownloadOfficialFiles(
+                                    cache, endpoints, copied, *httpPtr, cancel.get(),
+                                    [&](float value) {
+                                        officialProgressResults.Push({copied.id, value});
+                                    });
+                                if (done.IsOk()) {
+                                    result.ok = true;
+                                    result.state = done.Value();
+                                } else {
+                                    result.message = done.GetError().userMessage;
+                                    result.state.status =
+                                        result.message == Asset::OfficialCatalog::FailureMessage(
+                                                              Asset::OfficialFailureKind::Cancelled)
+                                            ? Asset::OfficialDownloadStatus::Cancelled
+                                            : Asset::OfficialDownloadStatus::Failed;
+                                }
+                                officialDownloadResults.Push(std::move(result));
+                            });
+                            status = "开始下载 " + Asset::PickLocale(asset->name);
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::CancelOfficialDownloadCommand>) {
+                        const auto found = officialCancels.find(typed.assetId);
+                        if (found != officialCancels.end()) {
+                            found->second->store(true);
+                            status = "正在取消下载";
+                        }
                     } else if constexpr (std::is_same_v<T, Core::NewProjectCommand>) {
                         requestIfDirty(PendingProjectAction::New);
                     } else if constexpr (std::is_same_v<T, Core::OpenProjectCommand>) {
@@ -1233,21 +1451,68 @@ int Application::Run(int argc, char** argv) {
         viewState.lightPresetId = Camera::LightPresetId(cameras.LightPreset());
 
         libraryViews.clear();
-        for (const Asset::LibraryAsset& asset : library.Query(librarySearch, libraryOriginFilter)) {
-            UI::LibraryAssetView item;
-            item.id = asset.id;
-            item.name = asset.name;
-            item.format = asset.format;
-            item.origin = Asset::Library::OriginId(asset.origin);
-            item.missing = !asset.sourceExists;
-            item.status = asset.sourceExists ? "就绪" : "缺失";
-            item.selected = asset.id == selectedLibraryAssetId;
-            libraryViews.push_back(std::move(item));
+        officialCategoryViews.clear();
+        if (libraryOriginFilter == "online") {
+            for (const Asset::ManifestCategory& category : officialCatalog.Manifest().categories) {
+                officialCategoryViews.push_back(category.id);
+            }
+            for (const Asset::ManifestAsset& asset :
+                 officialCatalog.Query(librarySearch, officialCategory)) {
+                UI::LibraryAssetView item;
+                item.id = asset.id;
+                item.name = Asset::PickLocale(asset.name);
+                item.format = asset.format;
+                item.origin = "online";
+                item.category = asset.category;
+                item.description = Asset::PickLocale(asset.description);
+                item.license = asset.license.spdx;
+                if (!asset.license.attribution.empty()) {
+                    item.license += " · " + asset.license.attribution;
+                }
+                item.author = asset.author.name;
+                const Asset::OfficialAssetState* state = officialCatalog.State(asset.id);
+                const Asset::OfficialDownloadStatus downloadStatus =
+                    state == nullptr ? Asset::OfficialDownloadStatus::NotDownloaded : state->status;
+                item.status = Asset::OfficialCatalog::StatusId(downloadStatus);
+                item.progress = state == nullptr ? 0.0f : state->progress;
+                item.canDownload = downloadStatus == Asset::OfficialDownloadStatus::NotDownloaded ||
+                                   downloadStatus == Asset::OfficialDownloadStatus::Failed ||
+                                   downloadStatus == Asset::OfficialDownloadStatus::Cancelled;
+                item.canCancel = downloadStatus == Asset::OfficialDownloadStatus::Queued ||
+                                 downloadStatus == Asset::OfficialDownloadStatus::Downloading;
+                item.canAddToScene = downloadStatus == Asset::OfficialDownloadStatus::Ready;
+                item.missing = downloadStatus != Asset::OfficialDownloadStatus::Ready;
+                item.selected = asset.id == selectedLibraryAssetId;
+                if (downloadStatus == Asset::OfficialDownloadStatus::Failed && state != nullptr &&
+                    !state->message.empty()) {
+                    item.status = state->message;
+                }
+                libraryViews.push_back(std::move(item));
+            }
+        } else {
+            for (const Asset::LibraryAsset& asset :
+                 library.Query(librarySearch, libraryOriginFilter)) {
+                UI::LibraryAssetView item;
+                item.id = asset.id;
+                item.name = asset.name;
+                item.format = asset.format;
+                item.origin = Asset::Library::OriginId(asset.origin);
+                item.category = asset.category;
+                item.missing = !asset.sourceExists;
+                item.status = asset.sourceExists ? "就绪" : "缺失";
+                item.canAddToScene = asset.sourceExists;
+                item.selected = asset.id == selectedLibraryAssetId;
+                libraryViews.push_back(std::move(item));
+            }
         }
         viewState.libraryAssets = &libraryViews;
         viewState.librarySearch = librarySearch.c_str();
         viewState.libraryOriginFilter = libraryOriginFilter.c_str();
         viewState.libraryViewMode = libraryViewMode.c_str();
+        viewState.officialCategory = officialCategory.c_str();
+        viewState.officialCatalogStatus = officialCatalogStatus.c_str();
+        viewState.officialConfigured = officialCatalog.IsConfigured();
+        viewState.officialCategories = &officialCategoryViews;
         refreshBoard();
         {
             std::vector<std::uint16_t> dropped;

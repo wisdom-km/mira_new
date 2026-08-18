@@ -22,6 +22,20 @@ include(Modules)
 include(ShaderCompile)
 
 option(DD_BUILD_TESTS "Build DirectorDesk unit tests" ON)
+set(DD_OFFICIAL_MANIFEST_URL
+    "https://raw.githubusercontent.com/wisdom-km/obj-3d-models/main/manifest.json"
+    CACHE STRING "Official HTTPS manifest URL")
+set(DD_OFFICIAL_ASSET_BASE_URL
+    "https://raw.githubusercontent.com/wisdom-km/obj-3d-models/main/"
+    CACHE STRING "Official HTTPS asset base URL")
+if(DD_OFFICIAL_MANIFEST_URL STREQUAL "")
+    set(DD_OFFICIAL_MANIFEST_URL
+        "https://raw.githubusercontent.com/wisdom-km/obj-3d-models/main/manifest.json")
+endif()
+if(DD_OFFICIAL_ASSET_BASE_URL STREQUAL "")
+    set(DD_OFFICIAL_ASSET_BASE_URL
+        "https://raw.githubusercontent.com/wisdom-km/obj-3d-models/main/")
+endif()
 
 find_package(spdlog CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)

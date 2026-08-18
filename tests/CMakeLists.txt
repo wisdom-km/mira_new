@@ -10,6 +10,8 @@ add_executable(DirectorDeskTests
     Renderer/PngWriterTests.cpp
     Asset/ModelLoaderTests.cpp
     Asset/LibraryTests.cpp
+    Asset/ManifestTests.cpp
+    Asset/OfficialCatalogTests.cpp
     Scene/TransformTests.cpp
     Script/ParserTests.cpp
     Script/DocumentTests.cpp

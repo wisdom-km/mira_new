@@ -105,6 +105,20 @@ struct SelectLibraryAssetCommand {
 
 struct RefreshLibraryCommand {};
 
+struct RefreshOfficialCatalogCommand {};
+
+struct DownloadOfficialAssetCommand {
+    std::string assetId;
+};
+
+struct CancelOfficialDownloadCommand {
+    std::string assetId;
+};
+
+struct SetOfficialCategoryCommand {
+    std::string categoryId;
+};
+
 struct NewProjectCommand {};
 
 struct OpenProjectCommand {};
@@ -178,7 +192,9 @@ using Command = std::variant<
     InsertShotCommand, SelectShotCommand, ApplyCameraPresetCommand, AddCameraCommand,
     RemoveCameraCommand, RenameCameraCommand, SelectCameraCommand, SetLightPresetCommand,
     AddLibraryAssetToSceneCommand, SetLibrarySearchCommand, SetLibraryOriginFilterCommand,
-    SetLibraryViewModeCommand, SelectLibraryAssetCommand, RefreshLibraryCommand, NewProjectCommand,
+    SetLibraryViewModeCommand, SelectLibraryAssetCommand, RefreshLibraryCommand,
+    RefreshOfficialCatalogCommand, DownloadOfficialAssetCommand, CancelOfficialDownloadCommand,
+    SetOfficialCategoryCommand, NewProjectCommand,
     OpenProjectCommand, OpenProjectFromPathCommand, SaveProjectCommand, SaveProjectAsCommand,
     LinkShotToCameraCommand, UnlinkShotCommand, ConfirmSaveProjectCommand, DiscardProjectCommand,
     CancelProjectPromptCommand, SetStoryboardSceneCollapsedCommand, FocusStoryboardSelectionCommand,

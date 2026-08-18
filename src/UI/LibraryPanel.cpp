@@ -47,16 +47,21 @@ void LibraryPanel::Draw(const AppViewState& state, Core::CommandQueue& commands)
         m_search = state.librarySearch;
     }
 
-    ImGui::Begin("Library");
-    if (ImGui::Button("Import...")) {
+    ImGui::Begin("资源库###Library");
+    if (ImGui::Button("导入...")) {
         commands.Push(Core::ImportModelCommand{});
     }
     ImGui::SameLine();
-    if (ImGui::Button("Refresh")) {
-        commands.Push(Core::RefreshLibraryCommand{});
+    if (ImGui::Button("刷新")) {
+        if (std::strcmp(state.libraryOriginFilter != nullptr ? state.libraryOriginFilter : "all",
+                        "online") == 0) {
+            commands.Push(Core::RefreshOfficialCatalogCommand{});
+        } else {
+            commands.Push(Core::RefreshLibraryCommand{});
+        }
     }
     ImGui::SameLine();
-    if (ImGui::Button("Add to Scene")) {
+    if (ImGui::Button("加入场景")) {
         if (state.libraryAssets != nullptr) {
             for (const LibraryAssetView& asset : *state.libraryAssets) {
                 if (asset.selected) {
@@ -67,31 +72,44 @@ void LibraryPanel::Draw(const AppViewState& state, Core::CommandQueue& commands)
         }
     }
 
+    const char* origin = state.libraryOriginFilter != nullptr ? state.libraryOriginFilter : "all";
+    if (ImGui::BeginTabBar("library-origin")) {
+        if (ImGui::BeginTabItem("本地")) {
+            if (std::strcmp(origin, "online") == 0) {
+                commands.Push(Core::SetLibraryOriginFilterCommand{"all"});
+            }
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("在线")) {
+            if (std::strcmp(origin, "online") != 0) {
+                commands.Push(Core::SetLibraryOriginFilterCommand{"online"});
+            }
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
+    }
+
     char searchBuffer[128];
     const std::size_t copy =
         m_search.size() < sizeof(searchBuffer) - 1 ? m_search.size() : sizeof(searchBuffer) - 1;
     std::memcpy(searchBuffer, m_search.data(), copy);
     searchBuffer[copy] = '\0';
-    if (ImGui::InputText("Search", searchBuffer, sizeof(searchBuffer))) {
+    if (ImGui::InputText("搜索", searchBuffer, sizeof(searchBuffer))) {
         m_search = searchBuffer;
         commands.Push(Core::SetLibrarySearchCommand{m_search});
     }
 
-    const char* origin = state.libraryOriginFilter != nullptr ? state.libraryOriginFilter : "all";
-    if (ImGui::RadioButton("All", std::strcmp(origin, "all") == 0)) {
-        commands.Push(Core::SetLibraryOriginFilterCommand{"all"});
-    }
-    ImGui::SameLine();
-    if (ImGui::RadioButton("Builtin", std::strcmp(origin, "builtin") == 0)) {
-        commands.Push(Core::SetLibraryOriginFilterCommand{"builtin"});
-    }
-    ImGui::SameLine();
-    if (ImGui::RadioButton("User", std::strcmp(origin, "user") == 0)) {
-        commands.Push(Core::SetLibraryOriginFilterCommand{"user"});
-    }
-    ImGui::SameLine();
-    if (ImGui::RadioButton("Online", std::strcmp(origin, "online") == 0)) {
-        commands.Push(Core::SetLibraryOriginFilterCommand{"online"});
+    if (std::strcmp(origin, "online") != 0) {
+        if (ImGui::RadioButton("全部", std::strcmp(origin, "all") == 0)) {
+            commands.Push(Core::SetLibraryOriginFilterCommand{"all"});
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton("内置", std::strcmp(origin, "builtin") == 0)) {
+            commands.Push(Core::SetLibraryOriginFilterCommand{"builtin"});
+        }
+        if (ImGui::RadioButton("用户", std::strcmp(origin, "user") == 0)) {
+            commands.Push(Core::SetLibraryOriginFilterCommand{"user"});
+        }
     }
 
     const char* mode = state.libraryViewMode != nullptr ? state.libraryViewMode : "list";
@@ -101,6 +119,29 @@ void LibraryPanel::Draw(const AppViewState& state, Core::CommandQueue& commands)
     ImGui::SameLine();
     if (ImGui::RadioButton("Grid", std::strcmp(mode, "grid") == 0)) {
         commands.Push(Core::SetLibraryViewModeCommand{"grid"});
+    }
+
+    if (std::strcmp(origin, "online") == 0) {
+        if (!state.officialConfigured) {
+            ImGui::TextUnformatted("官方地址未配置，仅显示本地缓存。");
+        }
+        if (state.officialCatalogStatus != nullptr && state.officialCatalogStatus[0] != '\0') {
+            ImGui::TextUnformatted(state.officialCatalogStatus);
+        }
+        if (state.officialCategories != nullptr) {
+            if (ImGui::RadioButton("全部分类",
+                                   state.officialCategory == nullptr ||
+                                       state.officialCategory[0] == '\0')) {
+                commands.Push(Core::SetOfficialCategoryCommand{});
+            }
+            for (const std::string& category : *state.officialCategories) {
+                ImGui::SameLine();
+                if (ImGui::RadioButton(category.c_str(), state.officialCategory != nullptr &&
+                                                             category == state.officialCategory)) {
+                    commands.Push(Core::SetOfficialCategoryCommand{category});
+                }
+            }
+        }
     }
 
     ImGui::Separator();
@@ -119,7 +160,31 @@ void LibraryPanel::Draw(const AppViewState& state, Core::CommandQueue& commands)
             }
         }
         if (state.libraryAssets->empty()) {
-            ImGui::TextUnformatted("资源库为空。导入模型后会保留在这里。");
+            ImGui::TextUnformatted(std::strcmp(origin, "online") == 0
+                                       ? "没有可显示的官方资产。"
+                                       : "资源库为空。导入模型后会保留在这里。");
+        }
+        if (std::strcmp(origin, "online") == 0) {
+            for (const LibraryAssetView& asset : *state.libraryAssets) {
+                if (!asset.selected) {
+                    continue;
+                }
+                ImGui::Separator();
+                ImGui::TextWrapped("%s", asset.description.c_str());
+                ImGui::Text("许可: %s", asset.license.c_str());
+                ImGui::Text("作者: %s", asset.author.c_str());
+                ImGui::Text("状态: %s  %.0f%%", asset.status.c_str(), asset.progress * 100.0f);
+                if (asset.canDownload && ImGui::Button("下载")) {
+                    commands.Push(Core::DownloadOfficialAssetCommand{asset.id});
+                }
+                if (asset.canCancel) {
+                    ImGui::SameLine();
+                    if (ImGui::Button("取消下载")) {
+                        commands.Push(Core::CancelOfficialDownloadCommand{asset.id});
+                    }
+                }
+                break;
+            }
         }
     }
     ImGui::End();

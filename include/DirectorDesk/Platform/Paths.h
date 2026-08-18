@@ -20,6 +20,9 @@ public:
     static Core::Result<std::string> UserDataDirectory();
     static Core::Result<std::string> LogDirectory();
     static Core::Result<std::string> LibraryDirectory();
+    static Core::Result<std::string> OfficialAssetsDirectory();
+    static Core::Result<std::uint64_t> AvailableDiskBytes(const std::string& utf8Path);
+    static Core::Result<void> CopyFileUtf8(const std::string& fromUtf8, const std::string& toUtf8);
     static Core::Result<std::string> TemporaryDirectory();
     static Core::Result<std::string> WeaklyCanonical(const std::string& utf8Path);
     static Core::Result<std::uint64_t> FileSize(const std::string& utf8Path);

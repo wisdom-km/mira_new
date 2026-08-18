@@ -275,6 +275,28 @@ Core::Result<LibraryAsset> Library::Import(const std::string& utf8Path, AssetOri
     return Core::Result<LibraryAsset>::Ok(std::move(asset));
 }
 
+Core::Result<LibraryAsset> Library::Upsert(LibraryAsset asset) {
+    if (m_directory.empty()) {
+        return Core::Result<LibraryAsset>::Fail(Core::Error::Make(
+            Core::ErrorCode::NotInitialized, "Library is not open", "资源库尚未打开"));
+    }
+    if (asset.id.empty() || asset.sourcePath.empty()) {
+        return Core::Result<LibraryAsset>::Fail(Core::Error::Make(
+            Core::ErrorCode::InvalidArgument, "Online asset is incomplete", "在线资产不完整"));
+    }
+    asset.sourceExists = Platform::Paths::Exists(asset.sourcePath);
+    if (LibraryAsset* existing = FindMutable(asset.id)) {
+        *existing = asset;
+    } else {
+        m_assets.push_back(asset);
+    }
+    auto saved = Save();
+    if (!saved.IsOk()) {
+        return Core::Result<LibraryAsset>::Fail(saved.GetError());
+    }
+    return Core::Result<LibraryAsset>::Ok(std::move(asset));
+}
+
 bool Library::SetPreviewPath(const std::string& assetId, std::string previewPath) {
     LibraryAsset* asset = FindMutable(assetId);
     if (asset == nullptr) {

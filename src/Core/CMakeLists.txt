@@ -2,12 +2,17 @@ add_library(dd_core
     Error.cpp
     Log.cpp
     CommandQueue.cpp
+    Sha256.cpp
 )
 add_library(DirectorDesk::core ALIAS dd_core)
+
+find_path(PICOSHA2_INCLUDE_DIR picosha2.h)
 
 target_include_directories(dd_core
     PUBLIC
         "${PROJECT_SOURCE_DIR}/include"
+    PRIVATE
+        "${PICOSHA2_INCLUDE_DIR}"
 )
 
 target_link_libraries(dd_core

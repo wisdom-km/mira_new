@@ -51,8 +51,16 @@ struct LibraryAssetView {
     std::string format;
     std::string origin;
     std::string status;
+    std::string category;
+    std::string description;
+    std::string license;
+    std::string author;
+    float progress = 0.0f;
     bool missing = false;
     bool selected = false;
+    bool canDownload = false;
+    bool canCancel = false;
+    bool canAddToScene = false;
 };
 
 struct StoryboardCardView {
@@ -99,6 +107,10 @@ struct AppViewState {
     const char* librarySearch = "";
     const char* libraryOriginFilter = "all";
     const char* libraryViewMode = "list";
+    const char* officialCategory = "";
+    const char* officialCatalogStatus = "";
+    bool officialConfigured = false;
+    const std::vector<std::string>* officialCategories = nullptr;
     const char* projectName = "";
     const char* projectPath = "";
     bool projectDirty = false;

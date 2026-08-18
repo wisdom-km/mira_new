@@ -43,3 +43,21 @@ target_link_libraries(dd_backend_bgfx
 
 target_compile_features(dd_backend_bgfx PUBLIC cxx_std_17)
 dd_set_strict_warnings(dd_backend_bgfx)
+
+find_package(CURL REQUIRED)
+add_library(dd_backend_curl
+    curl/CurlHttpClient.cpp
+)
+add_library(DirectorDesk::backend_curl ALIAS dd_backend_curl)
+target_include_directories(dd_backend_curl
+    PUBLIC
+        "${PROJECT_SOURCE_DIR}/backends/curl"
+)
+target_link_libraries(dd_backend_curl
+    PUBLIC
+        dd_platform
+    PRIVATE
+        CURL::libcurl
+)
+target_compile_features(dd_backend_curl PUBLIC cxx_std_17)
+dd_set_strict_warnings(dd_backend_curl)

@@ -34,6 +34,7 @@ public:
     void Refresh();
 
     Core::Result<LibraryAsset> Import(const std::string& utf8Path, AssetOrigin origin);
+    Core::Result<LibraryAsset> Upsert(LibraryAsset asset);
     bool SetPreviewPath(const std::string& assetId, std::string previewPath);
     [[nodiscard]] const LibraryAsset* Find(const std::string& assetId) const;
     [[nodiscard]] std::vector<LibraryAsset> Query(const std::string& search,

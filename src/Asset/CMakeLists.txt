@@ -5,6 +5,8 @@ add_library(dd_asset
     MeshUtils.cpp
     TextureDecode.cpp
     Library.cpp
+    Manifest.cpp
+    OfficialCatalog.cpp
 )
 add_library(DirectorDesk::asset ALIAS dd_asset)
 
