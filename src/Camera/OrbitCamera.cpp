@@ -50,6 +50,22 @@ void OrbitCamera::SetDistance(float distance) {
     m_distance = std::clamp(distance, kMinDistance, kMaxDistance);
 }
 
+void OrbitCamera::SetPitchDegrees(float pitchDegrees) {
+    m_pitchDegrees = std::clamp(pitchDegrees, kMinPitch, kMaxPitch);
+}
+
+void OrbitCamera::SetFovYDegrees(float fovYDegrees) {
+    m_fovYDegrees = std::clamp(fovYDegrees, 20.0f, 90.0f);
+}
+
+void OrbitCamera::ApplyPose(const CameraPose& pose) {
+    m_target = pose.target;
+    SetDistance(pose.distance);
+    SetYawDegrees(pose.yawDegrees);
+    SetPitchDegrees(pose.pitchDegrees);
+    SetFovYDegrees(pose.fovYDegrees);
+}
+
 glm::vec3 OrbitCamera::Position() const {
     return m_target + OffsetFromAngles(m_distance, m_yawDegrees, m_pitchDegrees);
 }

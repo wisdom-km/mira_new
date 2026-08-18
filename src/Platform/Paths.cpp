@@ -129,6 +129,59 @@ Core::Result<std::string> Paths::LogDirectory() {
     return Core::Result<std::string>::Ok(Join(userData.Value(), "logs"));
 }
 
+Core::Result<std::string> Paths::LibraryDirectory() {
+    auto userData = UserDataDirectory();
+    if (!userData.IsOk()) {
+        return userData;
+    }
+    return Core::Result<std::string>::Ok(Join(userData.Value(), "library"));
+}
+
+Core::Result<std::string> Paths::WeaklyCanonical(const std::string& utf8Path) {
+    if (utf8Path.empty()) {
+        return Core::Result<std::string>::Fail(
+            Core::Error::Make(Core::ErrorCode::InvalidArgument, "WeaklyCanonical received empty path",
+                              "路径不能为空"));
+    }
+    std::error_code ec;
+    const auto canonical = std::filesystem::weakly_canonical(ToPath(utf8Path), ec);
+    if (ec) {
+        return Core::Result<std::string>::Fail(
+            IoError("weakly_canonical failed: " + ec.message(), "无法规范化路径"));
+    }
+    return Core::Result<std::string>::Ok(FromPath(canonical));
+}
+
+Core::Result<std::uint64_t> Paths::FileSize(const std::string& utf8Path) {
+    if (!Exists(utf8Path) || IsDirectory(utf8Path)) {
+        return Core::Result<std::uint64_t>::Fail(
+            Core::Error::Make(Core::ErrorCode::NotFound, "File does not exist", "文件不存在"));
+    }
+    std::error_code ec;
+    const auto size = std::filesystem::file_size(ToPath(utf8Path), ec);
+    if (ec) {
+        return Core::Result<std::uint64_t>::Fail(
+            IoError("file_size failed: " + ec.message(), "无法读取文件大小"));
+    }
+    return Core::Result<std::uint64_t>::Ok(static_cast<std::uint64_t>(size));
+}
+
+std::string Paths::StableKey(const std::string& utf8Path) {
+    std::string key = utf8Path;
+    auto canonical = WeaklyCanonical(utf8Path);
+    if (canonical.IsOk()) {
+        key = canonical.Value();
+    }
+    for (char& ch : key) {
+        if (ch == '\\') {
+            ch = '/';
+        } else if (ch >= 'A' && ch <= 'Z') {
+            ch = static_cast<char>(ch - 'A' + 'a');
+        }
+    }
+    return key;
+}
+
 Core::Result<std::string> Paths::TemporaryDirectory() {
     std::error_code ec;
     const auto temp = std::filesystem::temp_directory_path(ec);

@@ -28,6 +28,7 @@
     },
     {
       "name": "catch2"
-    }
+    },
+    "nlohmann-json"
   ]
 }

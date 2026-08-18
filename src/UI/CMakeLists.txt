@@ -1,6 +1,7 @@
 add_library(dd_ui
     WorkspacePanel.cpp
     ScriptPanel.cpp
+    LibraryPanel.cpp
 )
 add_library(DirectorDesk::ui ALIAS dd_ui)
 

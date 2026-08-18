@@ -216,10 +216,26 @@ public:
         bgfx::setViewTransform(viewId, glm::value_ptr(view.view), glm::value_ptr(view.projection));
         bgfx::touch(viewId);
 
-        const float lightDir[4] = {0.35f, 0.80f, 0.45f, 0.0f};
-        const float lightColor[4] = {1.0f, 0.98f, 0.94f, 1.0f};
+        const float lightDir[4] = {scene.light.direction.x, scene.light.direction.y,
+                                   scene.light.direction.z, 0.0f};
+        const float lightColor[4] = {scene.light.color.x, scene.light.color.y, scene.light.color.z,
+                                     1.0f};
         bgfx::setUniform(m_lightDir, lightDir);
         bgfx::setUniform(m_lightColor, lightColor);
+
+        if (scene.showGroundGrid && !offscreen) {
+            const float identity[16] = {1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+                                        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
+            const float white[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+            bgfx::setTransform(identity);
+            bgfx::setUniform(m_baseColor, white);
+            bgfx::setTexture(0, m_sampler, m_whiteTexture);
+            bgfx::setVertexBuffer(0, m_gridVertexBuffer);
+            bgfx::setIndexBuffer(m_gridIndexBuffer);
+            bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z |
+                           BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_PT_LINES | BGFX_STATE_MSAA);
+            bgfx::submit(viewId, m_program);
+        }
 
         if (scene.showTestMesh) {
             const float identity[16] = {1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
@@ -408,6 +424,7 @@ private:
             .end();
 
         CreateCube();
+        CreateGroundGrid();
 
         const bgfx::ShaderHandle vs = LoadShader(m_shaderDirectory, "vs_mesh");
         const bgfx::ShaderHandle fs = LoadShader(m_shaderDirectory, "fs_mesh");
@@ -460,6 +477,41 @@ private:
 
         m_vertexBuffer = bgfx::createVertexBuffer(bgfx::copy(vertices, sizeof(vertices)), m_layout);
         m_indexBuffer = bgfx::createIndexBuffer(bgfx::copy(indices, sizeof(indices)));
+    }
+
+    void CreateGroundGrid() {
+        constexpr float kExtent = 10.0f;
+        constexpr float kStep = 1.0f;
+        constexpr std::uint32_t kGray = 0xff6a7380;
+        constexpr std::uint32_t kAxisX = 0xff3d5cff;
+        constexpr std::uint32_t kAxisZ = 0xffffb14a;
+
+        std::vector<MeshVertex> vertices;
+        std::vector<std::uint16_t> indices;
+        auto addLine = [&](float x0, float y0, float z0, float x1, float y1, float z1,
+                           std::uint32_t color) {
+            const std::uint16_t start = static_cast<std::uint16_t>(vertices.size());
+            vertices.push_back({x0, y0, z0, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, color});
+            vertices.push_back({x1, y1, z1, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, color});
+            indices.push_back(start);
+            indices.push_back(static_cast<std::uint16_t>(start + 1));
+        };
+
+        for (float x = -kExtent; x <= kExtent + 0.01f; x += kStep) {
+            addLine(x, 0.0f, -kExtent, x, 0.0f, kExtent, kGray);
+        }
+        for (float z = -kExtent; z <= kExtent + 0.01f; z += kStep) {
+            addLine(-kExtent, 0.0f, z, kExtent, 0.0f, z, kGray);
+        }
+        addLine(-kExtent, 0.002f, 0.0f, kExtent, 0.002f, 0.0f, kAxisX);
+        addLine(0.0f, 0.002f, -kExtent, 0.0f, 0.002f, kExtent, kAxisZ);
+
+        m_gridVertexBuffer =
+            bgfx::createVertexBuffer(bgfx::copy(vertices.data(), static_cast<std::uint32_t>(
+                                                                     vertices.size() * sizeof(MeshVertex))),
+                                     m_layout);
+        m_gridIndexBuffer = bgfx::createIndexBuffer(
+            bgfx::copy(indices.data(), static_cast<std::uint32_t>(indices.size() * sizeof(std::uint16_t))));
     }
 
     bool EnsureFramebuffer(FramebufferResources& framebuffer, std::uint32_t width,
@@ -538,6 +590,8 @@ private:
         DestroyHandle(m_whiteTexture);
         DestroyHandle(m_vertexBuffer);
         DestroyHandle(m_indexBuffer);
+        DestroyHandle(m_gridVertexBuffer);
+        DestroyHandle(m_gridIndexBuffer);
         DestroyHandle(m_viewport.frameBuffer);
         m_viewport.color = BGFX_INVALID_HANDLE;
         DestroyHandle(m_offscreen.frameBuffer);
@@ -557,6 +611,8 @@ private:
     bgfx::VertexLayout m_layout{};
     bgfx::VertexBufferHandle m_vertexBuffer = BGFX_INVALID_HANDLE;
     bgfx::IndexBufferHandle m_indexBuffer = BGFX_INVALID_HANDLE;
+    bgfx::VertexBufferHandle m_gridVertexBuffer = BGFX_INVALID_HANDLE;
+    bgfx::IndexBufferHandle m_gridIndexBuffer = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle m_program = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle m_lightDir = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle m_lightColor = BGFX_INVALID_HANDLE;

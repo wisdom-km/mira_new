@@ -36,6 +36,22 @@ struct ScriptDiagnosticView {
     const char* message = "";
 };
 
+struct CameraItemView {
+    std::string id;
+    std::string name;
+    bool selected = false;
+};
+
+struct LibraryAssetView {
+    std::string id;
+    std::string name;
+    std::string format;
+    std::string origin;
+    std::string status;
+    bool missing = false;
+    bool selected = false;
+};
+
 struct AppViewState {
     const char* appName = "DirectorDesk";
     unsigned windowWidth = 0;
@@ -56,6 +72,12 @@ struct AppViewState {
     std::uint64_t scriptExternalRevision = 0;
     const std::vector<ScriptSceneView>* scriptScenes = nullptr;
     const std::vector<ScriptDiagnosticView>* scriptDiagnostics = nullptr;
+    const std::vector<CameraItemView>* cameras = nullptr;
+    const char* lightPresetId = "neutral";
+    const std::vector<LibraryAssetView>* libraryAssets = nullptr;
+    const char* librarySearch = "";
+    const char* libraryOriginFilter = "all";
+    const char* libraryViewMode = "list";
 };
 
 class IPanel {
