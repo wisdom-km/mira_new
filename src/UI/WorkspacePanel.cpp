@@ -53,6 +53,19 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
 
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu("File")) {
+            if (ImGui::MenuItem("New Project")) {
+                commands.Push(Core::NewProjectCommand{});
+            }
+            if (ImGui::MenuItem("Open Project...")) {
+                commands.Push(Core::OpenProjectCommand{});
+            }
+            if (ImGui::MenuItem("Save Project", nullptr, false, true)) {
+                commands.Push(Core::SaveProjectCommand{});
+            }
+            if (ImGui::MenuItem("Save Project As...")) {
+                commands.Push(Core::SaveProjectAsCommand{});
+            }
+            ImGui::Separator();
             if (ImGui::MenuItem("Open Script...")) {
                 commands.Push(Core::LoadScriptCommand{});
             }
@@ -116,8 +129,38 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
     }
     ImGui::End();
 
+    if (state.projectPromptVisible) {
+        ImGui::OpenPopup("未保存的工程");
+    }
+    if (ImGui::BeginPopupModal("未保存的工程", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextUnformatted("当前工程有未保存的更改。");
+        if (ImGui::Button("保存")) {
+            commands.Push(Core::ConfirmSaveProjectCommand{});
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("放弃")) {
+            commands.Push(Core::DiscardProjectCommand{});
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("取消")) {
+            commands.Push(Core::CancelProjectPromptCommand{});
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
     ImGui::Begin("Workspace");
     ImGui::TextUnformatted(state.appName);
+    if (state.projectName != nullptr && state.projectName[0] != '\0') {
+        ImGui::SameLine();
+        ImGui::TextUnformatted(state.projectName);
+        if (state.projectDirty) {
+            ImGui::SameLine();
+            ImGui::TextUnformatted("*");
+        }
+    }
     ImGui::Text("Window: %u x %u", state.windowWidth, state.windowHeight);
     ImGui::Text("Viewport: %u x %u", state.viewportTextureWidth, state.viewportTextureHeight);
     ImGui::Separator();
@@ -207,6 +250,21 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                 }
             }
         }
+    }
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("镜头关联");
+    if (state.selectedShotLinkedCamera != nullptr && state.selectedShotLinkedCamera[0] != '\0') {
+        ImGui::Text("当前镜头相机: %s", state.selectedShotLinkedCamera);
+    } else {
+        ImGui::TextUnformatted("当前镜头未关联相机");
+    }
+    if (ImGui::Button("关联到当前相机")) {
+        commands.Push(Core::LinkShotToCameraCommand{});
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("取消关联")) {
+        commands.Push(Core::UnlinkShotCommand{});
     }
 
     ImGui::TextUnformatted("Presets");

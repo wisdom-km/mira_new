@@ -12,6 +12,8 @@ public:
     static Core::Result<std::string> OpenModelFile();
     static Core::Result<std::string> OpenMarkdownFile();
     static Core::Result<std::string> SaveMarkdownFile();
+    static Core::Result<std::string> OpenProjectFile();
+    static Core::Result<std::string> SaveProjectFile();
 };
 
 } // namespace DirectorDesk::Platform

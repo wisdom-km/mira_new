@@ -20,6 +20,9 @@ struct NodeView {
 struct ScriptShotView {
     std::string id;
     std::string title;
+    std::string linkedCameraId;
+    std::string linkedCameraName;
+    bool linkedMissing = false;
     bool selected = false;
 };
 
@@ -78,6 +81,11 @@ struct AppViewState {
     const char* librarySearch = "";
     const char* libraryOriginFilter = "all";
     const char* libraryViewMode = "list";
+    const char* projectName = "";
+    const char* projectPath = "";
+    bool projectDirty = false;
+    bool projectPromptVisible = false;
+    const char* selectedShotLinkedCamera = "";
 };
 
 class IPanel {

@@ -65,4 +65,34 @@ Core::Result<std::string> FileDialog::SaveMarkdownFile() {
     }
 }
 
+Core::Result<std::string> FileDialog::OpenProjectFile() {
+    @autoreleasepool {
+        NSOpenPanel* panel = [NSOpenPanel openPanel];
+        panel.canChooseFiles = YES;
+        panel.canChooseDirectories = NO;
+        panel.allowsMultipleSelection = NO;
+        panel.allowedFileTypes = @[ @"ddproj" ];
+        panel.title = @"Open Project";
+        const NSModalResponse response = [panel runModal];
+        if (response != NSModalResponseOK) {
+            return Core::Result<std::string>::Ok(std::string{});
+        }
+        return PathFromUrl(panel.URL);
+    }
+}
+
+Core::Result<std::string> FileDialog::SaveProjectFile() {
+    @autoreleasepool {
+        NSSavePanel* panel = [NSSavePanel savePanel];
+        panel.allowedFileTypes = @[ @"ddproj" ];
+        panel.title = @"Save Project";
+        panel.nameFieldStringValue = @"project.ddproj";
+        const NSModalResponse response = [panel runModal];
+        if (response != NSModalResponseOK) {
+            return Core::Result<std::string>::Ok(std::string{});
+        }
+        return PathFromUrl(panel.URL);
+    }
+}
+
 } // namespace DirectorDesk::Platform

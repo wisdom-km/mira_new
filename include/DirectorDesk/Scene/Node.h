@@ -13,6 +13,11 @@ struct Node {
     Transform transform;
     std::uint32_t gpuModelId = 0;
     bool visible = true;
+    std::string assetRef;
+    std::string parent;
+    std::string sourcePath;
+    std::string libraryAssetId;
+    bool assetMissing = false;
 };
 
 } // namespace DirectorDesk::Scene

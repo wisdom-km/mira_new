@@ -66,6 +66,44 @@ void OrbitCamera::ApplyPose(const CameraPose& pose) {
     SetFovYDegrees(pose.fovYDegrees);
 }
 
+bool OrbitCamera::Restore(const glm::vec3& target, const glm::vec3& position, float fovYDegrees,
+                          float nearPlane, float farPlane, float distance, float yawDegrees,
+                          float pitchDegrees, bool hasOrbitNumbers) {
+    if (!std::isfinite(target.x) || !std::isfinite(target.y) || !std::isfinite(target.z) ||
+        !std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z) ||
+        !std::isfinite(fovYDegrees) || !std::isfinite(nearPlane) || !std::isfinite(farPlane)) {
+        return false;
+    }
+    if (nearPlane <= 0.0f || farPlane <= nearPlane || fovYDegrees <= 1.0f ||
+        fovYDegrees >= 179.0f) {
+        return false;
+    }
+
+    m_target = target;
+    m_nearPlane = nearPlane;
+    m_farPlane = farPlane;
+    m_fovYDegrees = fovYDegrees;
+    if (hasOrbitNumbers && std::isfinite(distance) && distance > 0.0f && std::isfinite(yawDegrees) &&
+        std::isfinite(pitchDegrees)) {
+        m_distance = distance;
+        m_yawDegrees = yawDegrees;
+        m_pitchDegrees = std::clamp(pitchDegrees, kMinPitch, kMaxPitch);
+        return true;
+    }
+
+    const glm::vec3 offset = position - target;
+    const float length = glm::length(offset);
+    if (!std::isfinite(length) || length < 1.0e-4f) {
+        return false;
+    }
+    m_distance = length;
+    m_yawDegrees = glm::degrees(std::atan2(offset.z, offset.x));
+    m_pitchDegrees =
+        std::clamp(glm::degrees(std::asin(std::clamp(offset.y / length, -1.0f, 1.0f))), kMinPitch,
+                   kMaxPitch);
+    return true;
+}
+
 glm::vec3 OrbitCamera::Position() const {
     return m_target + OffsetFromAngles(m_distance, m_yawDegrees, m_pitchDegrees);
 }

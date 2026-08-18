@@ -87,6 +87,37 @@ void CameraManager::ApplyPreset(CameraPresetKind kind, const SubjectFrame& subje
     }
     const CameraPose pose = ResolveCameraPreset(kind, subject);
     camera->orbit.ApplyPose(pose);
+    camera->lastPreset = CameraPresetId(kind);
+}
+
+void CameraManager::Replace(std::vector<CameraRig> cameras, std::string selectedId,
+                            LightPresetKind light) {
+    if (cameras.empty()) {
+        m_cameras.clear();
+        m_nextIndex = 1;
+        m_lightPreset = light;
+        Add("Camera 1");
+        return;
+    }
+    m_cameras = std::move(cameras);
+    m_lightPreset = light;
+    m_nextIndex = 1;
+    for (const CameraRig& camera : m_cameras) {
+        if (camera.id.size() > 4 && camera.id.compare(0, 4, "cam-") == 0) {
+            try {
+                const unsigned long value = std::stoul(camera.id.substr(4));
+                if (value >= m_nextIndex) {
+                    m_nextIndex = static_cast<std::uint32_t>(value + 1);
+                }
+            } catch (...) {
+            }
+        }
+    }
+    if (Find(selectedId) != nullptr) {
+        m_selectedId = std::move(selectedId);
+    } else {
+        m_selectedId = m_cameras.front().id;
+    }
 }
 
 void CameraManager::SetLightPreset(LightPresetKind kind) {

@@ -13,6 +13,8 @@ add_executable(DirectorDeskTests
     Scene/TransformTests.cpp
     Script/ParserTests.cpp
     Script/DocumentTests.cpp
+    Link/ShotLinkTests.cpp
+    App/ProjectFileTests.cpp
 )
 
 target_include_directories(DirectorDeskTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -26,6 +28,8 @@ target_link_libraries(DirectorDeskTests
         dd_asset
         dd_scene
         dd_script
+        dd_link
+        dd_app
         Catch2::Catch2WithMain
 )
 

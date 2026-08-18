@@ -1,5 +1,7 @@
 #include "DirectorDesk/App/Application.h"
 
+#include "DirectorDesk/App/ProjectBinding.h"
+#include "DirectorDesk/App/ProjectFile.h"
 #include "DirectorDesk/Asset/Library.h"
 #include "DirectorDesk/Asset/LoaderRegistry.h"
 #include "DirectorDesk/Asset/ModelLoadResult.h"
@@ -9,6 +11,7 @@
 #include "DirectorDesk/Core/CommandQueue.h"
 #include "DirectorDesk/Core/Log.h"
 #include "DirectorDesk/Core/ResultQueue.h"
+#include "DirectorDesk/Link/ShotLink.h"
 #include "DirectorDesk/Platform/FileDialog.h"
 #include "DirectorDesk/Platform/Paths.h"
 #include "DirectorDesk/Platform/Startup.h"
@@ -27,8 +30,10 @@
 
 #include <cstring>
 #include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
 #include <string>
 #include <type_traits>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -39,6 +44,14 @@ struct LaunchOptions {
     bool exportAndQuit = false;
     std::string importPath;
     std::string scriptPath;
+    std::string projectPath;
+};
+
+enum class PendingProjectAction {
+    None,
+    Quit,
+    New,
+    Open,
 };
 
 LaunchOptions ParseOptions(int argc, char** argv) {
@@ -55,6 +68,9 @@ LaunchOptions ParseOptions(int argc, char** argv) {
         } else if (std::strcmp(argv[i], "--script") == 0 && i + 1 < argc &&
                    argv[i + 1] != nullptr) {
             options.scriptPath = argv[++i];
+        } else if (std::strcmp(argv[i], "--project") == 0 && i + 1 < argc &&
+                   argv[i + 1] != nullptr) {
+            options.projectPath = argv[++i];
         }
     }
     return options;
@@ -253,11 +269,175 @@ void ApplyLoadedModel(Asset::ModelLoadResult result, Scene::Document& scene,
     node.name = result.model.name.empty() ? Platform::Paths::FileName(result.sourcePath)
                                           : result.model.name;
     node.gpuModelId = uploaded.Value();
+    node.sourcePath = result.sourcePath;
+    node.libraryAssetId = Asset::Library::MakeId(result.sourcePath);
     scene.Add(std::move(node));
     IndexLibraryPath(library, result.sourcePath, Asset::AssetOrigin::User);
     status = result.model.warnings.empty() ? "Imported " + scene.Selected()->name
                                            : result.model.warnings.front();
     DD_LOG_INFO("Imported model {} as {}", result.sourcePath, scene.Selected()->name);
+}
+
+void ReleaseSceneGpu(Scene::Document& scene, Renderer::IRenderer& renderer) {
+    for (const Scene::Node& node : scene.Nodes()) {
+        if (node.gpuModelId != 0) {
+            renderer.DestroyModel(node.gpuModelId);
+        }
+    }
+}
+
+Asset::ModelData MakePlaceholderBox() {
+    Asset::ModelData model;
+    model.name = "missing";
+    Asset::Material material;
+    material.baseColor = glm::vec4(0.55f, 0.35f, 0.55f, 1.0f);
+    model.materials.push_back(material);
+    Asset::Primitive primitive;
+    primitive.materialIndex = 0;
+    const glm::vec3 corners[8] = {
+        {-0.4f, 0.0f, -0.4f}, {0.4f, 0.0f, -0.4f}, {0.4f, 0.8f, -0.4f}, {-0.4f, 0.8f, -0.4f},
+        {-0.4f, 0.0f, 0.4f},  {0.4f, 0.0f, 0.4f},  {0.4f, 0.8f, 0.4f},  {-0.4f, 0.8f, 0.4f},
+    };
+    const int faces[12][3] = {{0, 1, 2}, {0, 2, 3}, {1, 5, 6}, {1, 6, 2}, {5, 4, 7}, {5, 7, 6},
+                              {4, 0, 3}, {4, 3, 7}, {3, 2, 6}, {3, 6, 7}, {4, 5, 1}, {4, 1, 0}};
+    for (const auto& face : faces) {
+        for (int corner : face) {
+            Asset::Vertex vertex;
+            vertex.position = corners[corner];
+            primitive.vertices.push_back(vertex);
+            primitive.indices.push_back(static_cast<std::uint32_t>(primitive.indices.size()));
+        }
+    }
+    model.primitives.push_back(std::move(primitive));
+    return model;
+}
+
+void UploadSceneModels(Scene::Document& scene, Renderer::IRenderer& renderer,
+                       const Asset::LoaderRegistry& registry, std::string& status) {
+    for (const Scene::Node& item : scene.Nodes()) {
+        Scene::Node* node = scene.Find(item.id);
+        if (node == nullptr) {
+            continue;
+        }
+        Asset::ModelData model;
+        if (node->assetMissing || node->sourcePath.empty()) {
+            model = MakePlaceholderBox();
+            node->assetMissing = true;
+        } else {
+            auto loaded = registry.Load(node->sourcePath);
+            if (!loaded.IsOk()) {
+                model = MakePlaceholderBox();
+                node->assetMissing = true;
+                status = loaded.GetError().userMessage;
+            } else {
+                model = std::move(loaded.Value());
+            }
+        }
+        auto uploaded = renderer.CreateModel(ToGpuModel(model));
+        if (uploaded.IsOk()) {
+            node->gpuModelId = uploaded.Value();
+        }
+    }
+}
+
+void ResetProject(Scene::Document& scene, Camera::CameraManager& cameras, Link::Table& links,
+                  Script::Document& script, Renderer::IRenderer& renderer, std::string& projectId,
+                  std::string& projectName, std::string& projectPath,
+                  std::vector<std::string>& collapsedScenes, bool& projectDirty) {
+    ReleaseSceneGpu(scene, renderer);
+    scene.Clear();
+    cameras.Replace({}, {}, Camera::LightPresetKind::Neutral);
+    links.Clear();
+    script.Reset();
+    projectId = ProjectFile::MakeProjectId();
+    projectName = "未命名工程";
+    projectPath.clear();
+    collapsedScenes.clear();
+    projectDirty = false;
+}
+
+bool SaveProjectTo(const std::string& path, std::string& projectId, std::string& projectName,
+                   std::string& projectPath, const Scene::Document& scene,
+                   const Camera::CameraManager& cameras, const Link::Table& links,
+                   const Script::Document& script, const Asset::Library& library,
+                   const std::vector<std::string>& collapsedScenes, bool& projectDirty,
+                   std::string& status) {
+    if (path.empty()) {
+        return false;
+    }
+    auto snapshot = CaptureProject(projectId, projectName, path, scene, cameras, links, script,
+                                   library, collapsedScenes);
+    auto saved = ProjectFile::Save(path, snapshot);
+    if (!saved.IsOk()) {
+        status = saved.GetError().userMessage;
+        DD_LOG_ERROR("{}", saved.GetError().technicalMessage);
+        return false;
+    }
+    projectId = snapshot.projectId;
+    projectPath = path;
+    projectDirty = false;
+    status = "已保存工程";
+    return true;
+}
+
+bool OpenProjectAt(const std::string& path, Scene::Document& scene, Camera::CameraManager& cameras,
+                   Link::Table& links, Script::Document& script, Asset::Library& library,
+                   Renderer::IRenderer& renderer, const Asset::LoaderRegistry& registry,
+                   std::string& projectId, std::string& projectName, std::string& projectPath,
+                   std::vector<std::string>& collapsedScenes, bool& projectDirty,
+                   std::string& status) {
+    auto loaded = ProjectFile::Load(path);
+    if (!loaded.IsOk()) {
+        status = loaded.GetError().userMessage;
+        DD_LOG_ERROR("{}", loaded.GetError().technicalMessage);
+        return false;
+    }
+
+    Scene::Document nextScene;
+    Camera::CameraManager nextCameras;
+    Link::Table nextLinks;
+    Script::Document nextScript;
+    std::vector<std::string> diagnostics;
+    auto hydrated = HydrateProject(loaded.Value(), Platform::Paths::Parent(path), nextScene,
+                                   nextCameras, nextLinks, nextScript, library, diagnostics);
+    if (!hydrated.IsOk()) {
+        status = hydrated.GetError().userMessage;
+        DD_LOG_ERROR("{}", hydrated.GetError().technicalMessage);
+        return false;
+    }
+
+    ReleaseSceneGpu(scene, renderer);
+    scene.ReplaceNodes(nextScene.Nodes(), nextScene.SelectedId());
+    cameras.Replace(nextCameras.Cameras(), nextCameras.SelectedId(), nextCameras.LightPreset());
+    links.Replace(nextLinks.All());
+    if (nextScript.Path().empty()) {
+        script.Reset();
+    } else {
+        const auto loadedScript = script.LoadFromPath(nextScript.Path());
+        if (!loadedScript.IsOk()) {
+            script.Reset();
+            status = loadedScript.GetError().userMessage;
+        }
+    }
+    UploadSceneModels(scene, renderer, registry, status);
+    projectId = loaded.Value().projectId;
+    projectName = loaded.Value().name;
+    projectPath = path;
+    collapsedScenes.clear();
+    std::unordered_set<std::string> sceneIds;
+    if (script.HasPublishedSnapshot()) {
+        for (const Script::Scene& item : script.PublishedSnapshot().scenes) {
+            sceneIds.insert(item.id);
+        }
+    }
+    for (const std::string& id : loaded.Value().collapsedScenes) {
+        if (sceneIds.count(id) != 0) {
+            collapsedScenes.push_back(id);
+        }
+    }
+    projectDirty = false;
+    status = diagnostics.empty() ? "已打开工程" : diagnostics.front();
+    return true;
 }
 
 const char* DiagnosticSeverityText(Script::DiagnosticSeverity severity) {
@@ -379,6 +559,7 @@ int Application::Run(int argc, char** argv) {
     Camera::CameraManager cameras;
     Scene::Document scene;
     Script::Document script;
+    Link::Table links;
     Asset::Library library;
     Asset::LoaderRegistry registry = Asset::CreateDefaultRegistry();
     auto libraryDir = Platform::Paths::LibraryDirectory();
@@ -434,6 +615,13 @@ int Application::Run(int argc, char** argv) {
     std::string libraryOriginFilter = "all";
     std::string libraryViewMode = "list";
     std::string selectedLibraryAssetId;
+    std::string projectId = ProjectFile::MakeProjectId();
+    std::string projectName = "未命名工程";
+    std::string projectPath;
+    std::vector<std::string> collapsedScenes;
+    std::string pendingOpenPath;
+    PendingProjectAction pendingAction = PendingProjectAction::None;
+    bool projectDirty = false;
     bool importInProgress = false;
 
     if (!options.importPath.empty()) {
@@ -442,14 +630,57 @@ int Application::Run(int argc, char** argv) {
     if (!options.scriptPath.empty()) {
         ApplyScriptLoad(script, options.scriptPath, status);
     }
+    if (!options.projectPath.empty()) {
+        OpenProjectAt(options.projectPath, scene, cameras, links, script, library, *renderer,
+                      registry, projectId, projectName, projectPath, collapsedScenes, projectDirty,
+                      status);
+    }
 
-    while (!window.ShouldClose()) {
+    const auto proceedPending = [&]() {
+        const PendingProjectAction action = pendingAction;
+        const std::string openPath = pendingOpenPath;
+        pendingAction = PendingProjectAction::None;
+        pendingOpenPath.clear();
+        if (action == PendingProjectAction::New) {
+            ResetProject(scene, cameras, links, script, *renderer, projectId, projectName,
+                         projectPath, collapsedScenes, projectDirty);
+            status = "已新建工程";
+        } else if (action == PendingProjectAction::Open) {
+            OpenProjectAt(openPath, scene, cameras, links, script, library, *renderer, registry,
+                          projectId, projectName, projectPath, collapsedScenes, projectDirty,
+                          status);
+        } else if (action == PendingProjectAction::Quit) {
+            window.RequestClose();
+        }
+    };
+
+    const auto requestIfDirty = [&](PendingProjectAction action, std::string openPath = {}) {
+        if (projectDirty) {
+            pendingAction = action;
+            pendingOpenPath = std::move(openPath);
+            return;
+        }
+        pendingAction = action;
+        pendingOpenPath = std::move(openPath);
+        proceedPending();
+    };
+
+    while (true) {
         window.PollEvents();
+        if (window.ShouldClose()) {
+            if (projectDirty && pendingAction != PendingProjectAction::Quit) {
+                window.CancelClose();
+                pendingAction = PendingProjectAction::Quit;
+            } else {
+                break;
+            }
+        }
 
         Asset::ModelLoadResult loaded;
         while (loadResults.TryPop(loaded)) {
             importInProgress = false;
             ApplyLoadedModel(std::move(loaded), scene, *renderer, library, status);
+            projectDirty = true;
         }
 
         Core::Command command;
@@ -458,7 +689,7 @@ int Application::Run(int argc, char** argv) {
                 [&](const auto& typed) {
                     using T = std::decay_t<decltype(typed)>;
                     if constexpr (std::is_same_v<T, Core::QuitCommand>) {
-                        window.RequestClose();
+                        requestIfDirty(PendingProjectAction::Quit);
                     } else if constexpr (std::is_same_v<T, Core::ViewportResizeCommand>) {
                         renderer->SetViewportSize(typed.width, typed.height);
                     } else if constexpr (std::is_same_v<T, Core::OrbitDeltaCommand>) {
@@ -466,6 +697,7 @@ int Application::Run(int argc, char** argv) {
                             rig->orbit.Rotate(typed.rotateYaw, typed.rotatePitch);
                             rig->orbit.Pan(typed.panX, typed.panY);
                             rig->orbit.Zoom(typed.zoom);
+                            projectDirty = true;
                         }
                     } else if constexpr (std::is_same_v<T, Core::ExportTestPngCommand>) {
                         if (const Camera::CameraRig* rig = cameras.Selected()) {
@@ -496,6 +728,7 @@ int Application::Run(int argc, char** argv) {
                                                                       typed.eulerDegrees[2]));
                             node->transform.scale =
                                 glm::vec3(typed.scale[0], typed.scale[1], typed.scale[2]);
+                            projectDirty = true;
                         }
                     } else if constexpr (std::is_same_v<T, Core::LoadScriptCommand>) {
                         auto path = Platform::FileDialog::OpenMarkdownFile();
@@ -504,9 +737,11 @@ int Application::Run(int argc, char** argv) {
                             DD_LOG_ERROR("{}", path.GetError().technicalMessage);
                         } else if (!path.Value().empty()) {
                             ApplyScriptLoad(script, path.Value(), status);
+                            projectDirty = true;
                         }
                     } else if constexpr (std::is_same_v<T, Core::LoadScriptFromPathCommand>) {
                         ApplyScriptLoad(script, typed.utf8Path, status);
+                        projectDirty = true;
                     } else if constexpr (std::is_same_v<T, Core::SaveScriptCommand>) {
                         HandleSaveScript(script, status);
                     } else if constexpr (std::is_same_v<T, Core::SetScriptTextCommand>) {
@@ -519,29 +754,42 @@ int Application::Run(int argc, char** argv) {
                         status = "Added shot";
                     } else if constexpr (std::is_same_v<T, Core::SelectShotCommand>) {
                         script.SelectShot(typed.shotId);
+                        if (const std::string* cameraId = links.CameraForShot(typed.shotId)) {
+                            if (cameras.Find(*cameraId) != nullptr) {
+                                cameras.Select(*cameraId);
+                            } else {
+                                status = "关联相机已不存在";
+                            }
+                        }
                     } else if constexpr (std::is_same_v<T, Core::ApplyCameraPresetCommand>) {
                         Camera::CameraPresetKind kind = Camera::CameraPresetKind::Front;
                         if (Camera::TryParseCameraPreset(typed.presetId, kind)) {
                             cameras.ApplyPreset(kind, SubjectFromScene(scene));
+                            projectDirty = true;
                             status = std::string("Applied camera preset ") + typed.presetId;
                         } else {
                             status = "Unknown camera preset";
                         }
                     } else if constexpr (std::is_same_v<T, Core::AddCameraCommand>) {
                         cameras.Add();
+                        projectDirty = true;
                         status = "Added " + cameras.Selected()->name;
                     } else if constexpr (std::is_same_v<T, Core::RemoveCameraCommand>) {
                         if (!cameras.Remove(typed.cameraId)) {
                             status = "Cannot remove the last camera";
+                        } else {
+                            projectDirty = true;
                         }
                     } else if constexpr (std::is_same_v<T, Core::RenameCameraCommand>) {
                         cameras.Rename(typed.cameraId, typed.name);
+                        projectDirty = true;
                     } else if constexpr (std::is_same_v<T, Core::SelectCameraCommand>) {
                         cameras.Select(typed.cameraId);
                     } else if constexpr (std::is_same_v<T, Core::SetLightPresetCommand>) {
                         Camera::LightPresetKind kind = Camera::LightPresetKind::Neutral;
                         if (Camera::TryParseLightPreset(typed.presetId, kind)) {
                             cameras.SetLightPreset(kind);
+                            projectDirty = true;
                             status = std::string("Light preset ") + typed.presetId;
                         }
                     } else if constexpr (std::is_same_v<T, Core::AddLibraryAssetToSceneCommand>) {
@@ -566,6 +814,77 @@ int Application::Run(int argc, char** argv) {
                     } else if constexpr (std::is_same_v<T, Core::RefreshLibraryCommand>) {
                         library.Refresh();
                         status = "Library refreshed";
+                    } else if constexpr (std::is_same_v<T, Core::NewProjectCommand>) {
+                        requestIfDirty(PendingProjectAction::New);
+                    } else if constexpr (std::is_same_v<T, Core::OpenProjectCommand>) {
+                        auto path = Platform::FileDialog::OpenProjectFile();
+                        if (!path.IsOk()) {
+                            status = path.GetError().userMessage;
+                        } else if (!path.Value().empty()) {
+                            requestIfDirty(PendingProjectAction::Open, path.Value());
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::OpenProjectFromPathCommand>) {
+                        requestIfDirty(PendingProjectAction::Open, typed.utf8Path);
+                    } else if constexpr (std::is_same_v<T, Core::SaveProjectCommand>) {
+                        if (projectPath.empty()) {
+                            auto path = Platform::FileDialog::SaveProjectFile();
+                            if (path.IsOk() && !path.Value().empty()) {
+                                SaveProjectTo(path.Value(), projectId, projectName, projectPath,
+                                              scene, cameras, links, script, library,
+                                              collapsedScenes, projectDirty, status);
+                            }
+                        } else {
+                            SaveProjectTo(projectPath, projectId, projectName, projectPath, scene,
+                                          cameras, links, script, library, collapsedScenes,
+                                          projectDirty, status);
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::SaveProjectAsCommand>) {
+                        auto path = Platform::FileDialog::SaveProjectFile();
+                        if (path.IsOk() && !path.Value().empty()) {
+                            SaveProjectTo(path.Value(), projectId, projectName, projectPath, scene,
+                                          cameras, links, script, library, collapsedScenes,
+                                          projectDirty, status);
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::LinkShotToCameraCommand>) {
+                        const std::string shotId =
+                            typed.shotId.empty() ? script.SelectedShotId() : typed.shotId;
+                        const std::string cameraId =
+                            typed.cameraId.empty() ? cameras.SelectedId() : typed.cameraId;
+                        if (shotId.empty() || cameraId.empty()) {
+                            status = "请先选择镜头和相机";
+                        } else {
+                            links.Set(shotId, cameraId);
+                            projectDirty = true;
+                            status = "已关联镜头与相机";
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::UnlinkShotCommand>) {
+                        const std::string shotId =
+                            typed.shotId.empty() ? script.SelectedShotId() : typed.shotId;
+                        links.ClearShot(shotId);
+                        projectDirty = true;
+                        status = "已取消镜头关联";
+                    } else if constexpr (std::is_same_v<T, Core::ConfirmSaveProjectCommand>) {
+                        bool saved = false;
+                        if (projectPath.empty()) {
+                            auto path = Platform::FileDialog::SaveProjectFile();
+                            saved = path.IsOk() && !path.Value().empty() &&
+                                    SaveProjectTo(path.Value(), projectId, projectName, projectPath,
+                                                  scene, cameras, links, script, library,
+                                                  collapsedScenes, projectDirty, status);
+                        } else {
+                            saved = SaveProjectTo(projectPath, projectId, projectName, projectPath,
+                                                  scene, cameras, links, script, library,
+                                                  collapsedScenes, projectDirty, status);
+                        }
+                        if (saved) {
+                            proceedPending();
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::DiscardProjectCommand>) {
+                        projectDirty = false;
+                        proceedPending();
+                    } else if constexpr (std::is_same_v<T, Core::CancelProjectPromptCommand>) {
+                        pendingAction = PendingProjectAction::None;
+                        pendingOpenPath.clear();
                     }
                 },
                 command);
@@ -615,6 +934,15 @@ int Application::Run(int argc, char** argv) {
                     shotView.id = shot.id;
                     shotView.title = shot.title;
                     shotView.selected = shot.id == script.SelectedShotId();
+                    if (const std::string* cameraId = links.CameraForShot(shot.id)) {
+                        shotView.linkedCameraId = *cameraId;
+                        if (const Camera::CameraRig* rig = cameras.Find(*cameraId)) {
+                            shotView.linkedCameraName = rig->name;
+                        } else {
+                            shotView.linkedCameraName = *cameraId;
+                            shotView.linkedMissing = true;
+                        }
+                    }
                     sceneView.shots.push_back(std::move(shotView));
                 }
                 scriptScenes.push_back(std::move(sceneView));
@@ -665,6 +993,19 @@ int Application::Run(int argc, char** argv) {
         viewState.librarySearch = librarySearch.c_str();
         viewState.libraryOriginFilter = libraryOriginFilter.c_str();
         viewState.libraryViewMode = libraryViewMode.c_str();
+        viewState.projectName = projectName.c_str();
+        viewState.projectPath = projectPath.c_str();
+        viewState.projectDirty = projectDirty;
+        viewState.projectPromptVisible = pendingAction != PendingProjectAction::None;
+        if (const std::string* cameraId = links.CameraForShot(script.SelectedShotId())) {
+            if (const Camera::CameraRig* rig = cameras.Find(*cameraId)) {
+                viewState.selectedShotLinkedCamera = rig->name.c_str();
+            } else {
+                viewState.selectedShotLinkedCamera = cameraId->c_str();
+            }
+        } else {
+            viewState.selectedShotLinkedCamera = "";
+        }
 
         const float aspect = renderer->ViewportHeight() == 0
                                  ? 1.0f
