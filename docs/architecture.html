@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DirectorDesk 架构</title>
+  <meta name="description" content="DirectorDesk 运行时架构：滚轮缩放、拖拽平移、点击节点打开源码。" />
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --ink: #0f172a;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --panel: rgba(255, 255, 255, 0.86);
+      --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.45 ui-sans-serif, "Segoe UI", system-ui, sans-serif;
+    }
+
+    body {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .top, .bottom {
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 18px;
+      background: var(--panel);
+      border-color: var(--line);
+      backdrop-filter: blur(16px);
+    }
+
+    .top {
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .bottom {
+      justify-content: space-between;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .brand strong {
+      font-size: 15px;
+      letter-spacing: -0.02em;
+    }
+
+    .brand span { color: var(--muted); font-size: 12px; }
+
+    .tools, .legend {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button, .link {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 7px 12px;
+      font: inherit;
+      text-decoration: none;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: transform 140ms var(--ease-out), background 140ms ease, border-color 140ms ease;
+    }
+
+    button:hover, .link:hover { background: #f8fafc; }
+    button:active, .link:active { transform: scale(0.97); }
+
+    .zoom {
+      min-width: 4.5rem;
+      text-align: center;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    #stage {
+      position: relative;
+      overflow: hidden;
+      cursor: grab;
+      background:
+        radial-gradient(circle at top, rgba(219, 234, 254, 0.7), transparent 28%),
+        linear-gradient(var(--line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line) 1px, transparent 1px);
+      background-size: auto, 28px 28px, 28px 28px;
+      background-position: center, 0 0, 0 0;
+    }
+
+    #stage.is-dragging { cursor: grabbing; }
+
+    #world {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+
+    #world svg {
+      display: block;
+      max-width: none;
+    }
+
+    #world a { cursor: pointer; }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .chip i {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+
+    .status { color: #b45309; }
+
+    @media (max-width: 720px) {
+      .top, .bottom { padding: 10px 12px; }
+      .brand span, .hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <strong>DirectorDesk 架构</strong>
+      <span>滚轮缩放 · 拖拽平移 · 点击节点打开源码</span>
+    </div>
+    <div class="tools">
+      <button type="button" id="zoom-out" title="缩小">−</button>
+      <div class="zoom" id="zoom-label">100%</div>
+      <button type="button" id="zoom-in" title="放大">+</button>
+      <button type="button" id="fit">适应窗口</button>
+      <button type="button" id="reset">1:1</button>
+      <a class="link" href="https://github.com/wisdom-km/mira_new">仓库</a>
+    </div>
+  </header>
+
+  <main id="stage" aria-label="可缩放架构图"></main>
+
+  <footer class="bottom">
+    <div class="legend">
+      <span class="chip"><i style="background:#2563eb"></i>应用层</span>
+      <span class="chip"><i style="background:#d97706"></i>创作域</span>
+      <span class="chip"><i style="background:#16a34a"></i>资产与场景</span>
+      <span class="chip"><i style="background:#e11d48"></i>平台与渲染</span>
+      <span class="chip"><i style="background:#4f46e5"></i>导出与服务</span>
+    </div>
+    <div class="hint">快捷键：+ / − 缩放，0 适应窗口，方向键平移</div>
+  </footer>
+
+  <script type="text/plain" id="architecture-source">flowchart TD
+
+subgraph group_app["Application"]
+  node_main["Desktop entry point<br/>C++ executable<br/>[main.cpp]"]
+  node_application["Application loop<br/>application coordinator<br/>[Application.cpp]"]
+  node_project["Project persistence<br/>project binding<br/>[ProjectFile.cpp]"]
+  node_ui_panels["ImGui workflow panels<br/>desktop UI<br/>[WorkspacePanel.cpp]"]
+end
+
+subgraph group_domain["Authoring Domains"]
+  node_script["Script document<br/>Markdown script domain<br/>[Document.cpp]"]
+  node_script_parser["Markdown parser<br/>script parser<br/>[Parser.cpp]"]
+  node_shot_link["Shot links<br/>script-to-shot binding<br/>[ShotLink.cpp]"]
+  node_storyboard["Storyboard composer<br/>board assembly<br/>[BoardComposer.cpp]"]
+  node_camera["Camera authoring<br/>camera presets and controls<br/>[CameraManager.cpp]"]
+end
+
+subgraph group_assets["Assets and Scene"]
+  node_asset_library[("Asset library<br/>asset catalog<br/>[Library.cpp]")]
+  node_asset_loaders["Model importers<br/>OBJ/GLB loader registry<br/>[LoaderRegistry.cpp]"]
+  node_official_catalog["Official asset catalog<br/>remote asset acquisition"]
+  node_scene["Scene document<br/>scene state<br/>[Document.cpp]"]
+end
+
+subgraph group_platform["Platform and Rendering"]
+  node_renderer_api{{"Renderer interface<br/>rendering contract<br/>[IRenderer.h]"}}
+  node_graphics_backend["bgfx renderer<br/>graphics backend<br/>[BgfxRenderer.cpp]"]
+  node_window_backend["GLFW window backend<br/>window platform backend<br/>[GlfwWindow.cpp]"]
+  node_async_work["Background work queues<br/>worker and UI handoff<br/>[Worker.cpp]"]
+  node_http_client{{"HTTP client contract<br/>network abstraction<br/>[IHttpClient.h]"}}
+  node_curl_http["curl HTTP backend<br/>HTTP implementation<br/>[CurlHttpClient.cpp]"]
+end
+
+subgraph group_extension["Export and Services"]
+  node_export["PNG shot export<br/>storyboard export<br/>[ShotExport.cpp]"]
+  node_ai_services{{"AI generation services<br/>image/video service contracts<br/>[IImageGenService.h]"}}
+end
+
+node_main -->|"starts"| node_application
+node_application -->|"loads"| node_project
+node_project -->|"persists"| node_script
+node_project -->|"persists"| node_scene
+node_project -->|"persists"| node_storyboard
+node_script_parser -->|"parses into"| node_script
+node_script -->|"stable IDs"| node_shot_link
+node_scene -->|"scene binding"| node_shot_link
+node_camera -->|"camera binding"| node_shot_link
+node_shot_link -->|"linked shots"| node_storyboard
+node_asset_loaders -->|"imports models"| node_asset_library
+node_asset_library -->|"supplies assets"| node_scene
+node_official_catalog -->|"acquires assets"| node_asset_library
+node_official_catalog -->|"downloads via"| node_http_client
+node_curl_http -->|"implements"| node_http_client
+node_application -->|"hosts"| node_ui_panels
+node_ui_panels -->|"edits"| node_script
+node_ui_panels -->|"edits"| node_scene
+node_ui_panels -->|"edits"| node_storyboard
+node_ui_panels -->|"renders through"| node_renderer_api
+node_graphics_backend -->|"implements"| node_renderer_api
+node_application -->|"creates window"| node_window_backend
+node_application -->|"dispatches"| node_async_work
+node_storyboard -->|"exports shots"| node_export
+node_application -.->|"invokes"| node_ai_services
+
+click node_main "https://github.com/wisdom-km/mira_new/blob/main/src/App/main.cpp"
+click node_application "https://github.com/wisdom-km/mira_new/blob/main/src/App/Application.cpp"
+click node_project "https://github.com/wisdom-km/mira_new/blob/main/src/App/ProjectFile.cpp"
+click node_script "https://github.com/wisdom-km/mira_new/blob/main/src/Script/Document.cpp"
+click node_script_parser "https://github.com/wisdom-km/mira_new/blob/main/src/Script/Parser.cpp"
+click node_shot_link "https://github.com/wisdom-km/mira_new/blob/main/src/Link/ShotLink.cpp"
+click node_storyboard "https://github.com/wisdom-km/mira_new/blob/main/src/Storyboard/BoardComposer.cpp"
+click node_camera "https://github.com/wisdom-km/mira_new/blob/main/src/Camera/CameraManager.cpp"
+click node_asset_library "https://github.com/wisdom-km/mira_new/blob/main/src/Asset/Library.cpp"
+click node_asset_loaders "https://github.com/wisdom-km/mira_new/blob/main/src/Asset/LoaderRegistry.cpp"
+click node_official_catalog "https://github.com/wisdom-km/mira_new/blob/main/src/Asset/OfficialCatalog.cpp"
+click node_scene "https://github.com/wisdom-km/mira_new/blob/main/src/Scene/Document.cpp"
+click node_ui_panels "https://github.com/wisdom-km/mira_new/blob/main/src/UI/WorkspacePanel.cpp"
+click node_renderer_api "https://github.com/wisdom-km/mira_new/blob/main/include/DirectorDesk/Renderer/IRenderer.h"
+click node_graphics_backend "https://github.com/wisdom-km/mira_new/blob/main/backends/bgfx/BgfxRenderer.cpp"
+click node_window_backend "https://github.com/wisdom-km/mira_new/blob/main/backends/glfw/GlfwWindow.cpp"
+click node_async_work "https://github.com/wisdom-km/mira_new/blob/main/src/Platform/Worker.cpp"
+click node_export "https://github.com/wisdom-km/mira_new/blob/main/src/Export/ShotExport.cpp"
+click node_ai_services "https://github.com/wisdom-km/mira_new/blob/main/include/DirectorDesk/AI/IImageGenService.h"
+click node_http_client "https://github.com/wisdom-km/mira_new/blob/main/include/DirectorDesk/Platform/IHttpClient.h"
+click node_curl_http "https://github.com/wisdom-km/mira_new/blob/main/backends/curl/CurlHttpClient.cpp"
+
+classDef toneNeutral fill:#f8fafc,stroke:#334155,stroke-width:1.5px,color:#0f172a
+classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#172554
+classDef toneAmber fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f
+classDef toneMint fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+classDef toneRose fill:#ffe4e6,stroke:#e11d48,stroke-width:1.5px,color:#881337
+classDef toneIndigo fill:#e0e7ff,stroke:#4f46e5,stroke-width:1.5px,color:#312e81
+classDef toneTeal fill:#ccfbf1,stroke:#0f766e,stroke-width:1.5px,color:#134e4a
+class node_main,node_application,node_project,node_ui_panels toneBlue
+class node_script,node_script_parser,node_shot_link,node_storyboard,node_camera toneAmber
+class node_asset_library,node_asset_loaders,node_official_catalog,node_scene toneMint
+class node_renderer_api,node_graphics_backend,node_window_backend,node_async_work,node_http_client,node_curl_http toneRose
+class node_export,node_ai_services toneIndigo
+</script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+    const stage = document.getElementById("stage");
+    const zoomLabel = document.getElementById("zoom-label");
+    const embedded = document.getElementById("architecture-source").textContent.trim();
+
+    const state = { scale: 1, x: 0, y: 0 };
+    let world = null;
+    let dragging = false;
+    let moved = false;
+    let lastX = 0;
+    let lastY = 0;
+    let fitScale = 1;
+
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+    async function loadSource() {
+      try {
+        const response = await fetch("./dev-map/architecture.mmd", { cache: "no-cache" });
+        if (response.ok) {
+          const text = (await response.text()).trim();
+          if (text) return text;
+        }
+      } catch (_) {
+        /* file:// or offline: use the embedded copy */
+      }
+      return embedded;
+    }
+
+    function applyTransform() {
+      world.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+      zoomLabel.textContent = `${Math.round(state.scale * 100)}%`;
+    }
+
+    function zoomAt(clientX, clientY, nextScale) {
+      const rect = stage.getBoundingClientRect();
+      const mx = clientX - rect.left;
+      const my = clientY - rect.top;
+      const scale = clamp(nextScale, 0.2, 8);
+      const ratio = scale / state.scale;
+      state.x = mx - (mx - state.x) * ratio;
+      state.y = my - (my - state.y) * ratio;
+      state.scale = scale;
+      applyTransform();
+    }
+
+    function fit() {
+      const svg = world.querySelector("svg");
+      const box = svg.getBBox();
+      const pad = 56;
+      const sx = (stage.clientWidth - pad * 2) / box.width;
+      const sy = (stage.clientHeight - pad * 2) / box.height;
+      state.scale = clamp(Math.min(sx, sy), 0.2, 1.4);
+      fitScale = state.scale;
+      state.x = (stage.clientWidth - box.width * state.scale) / 2 - box.x * state.scale;
+      state.y = (stage.clientHeight - box.height * state.scale) / 2 - box.y * state.scale;
+      applyTransform();
+    }
+
+    function reset() {
+      const svg = world.querySelector("svg");
+      const box = svg.getBBox();
+      state.scale = 1;
+      state.x = (stage.clientWidth - box.width) / 2 - box.x;
+      state.y = (stage.clientHeight - box.height) / 2 - box.y;
+      applyTransform();
+    }
+
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "loose",
+      theme: "base",
+      flowchart: { htmlLabels: true, curve: "basis", padding: 16 },
+    });
+
+    const source = await loadSource();
+    const { svg } = await mermaid.render("architecture-graph", source);
+
+    world = document.createElement("div");
+    world.id = "world";
+    world.innerHTML = svg;
+    stage.appendChild(world);
+
+    const rendered = world.querySelector("svg");
+    rendered.removeAttribute("width");
+    rendered.removeAttribute("height");
+    rendered.style.maxWidth = "none";
+    world.querySelectorAll("a").forEach((anchor) => {
+      anchor.setAttribute("target", "_blank");
+      anchor.setAttribute("rel", "noopener noreferrer");
+    });
+
+    fit();
+
+    stage.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+      zoomAt(event.clientX, event.clientY, state.scale * factor);
+    }, { passive: false });
+
+    stage.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      if (event.target.closest("a")) return;
+      dragging = true;
+      moved = false;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      stage.classList.add("is-dragging");
+      stage.setPointerCapture(event.pointerId);
+    });
+
+    stage.addEventListener("pointermove", (event) => {
+      if (!dragging) return;
+      const dx = event.clientX - lastX;
+      const dy = event.clientY - lastY;
+      if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
+      state.x += dx;
+      state.y += dy;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      applyTransform();
+    });
+
+    const endDrag = (event) => {
+      if (!dragging) return;
+      dragging = false;
+      stage.classList.remove("is-dragging");
+      if (stage.hasPointerCapture(event.pointerId)) {
+        stage.releasePointerCapture(event.pointerId);
+      }
+    };
+
+    stage.addEventListener("pointerup", endDrag);
+    stage.addEventListener("pointercancel", endDrag);
+
+    stage.addEventListener("click", (event) => {
+      if (moved) event.preventDefault();
+    }, true);
+
+    stage.addEventListener("dblclick", (event) => {
+      if (event.target.closest("a")) return;
+      zoomAt(event.clientX, event.clientY, state.scale * 1.45);
+    });
+
+    document.getElementById("zoom-in").addEventListener("click", () => {
+      zoomAt(stage.clientWidth / 2, stage.clientHeight / 2, state.scale * 1.2);
+    });
+    document.getElementById("zoom-out").addEventListener("click", () => {
+      zoomAt(stage.clientWidth / 2, stage.clientHeight / 2, state.scale / 1.2);
+    });
+    document.getElementById("fit").addEventListener("click", fit);
+    document.getElementById("reset").addEventListener("click", reset);
+
+    window.addEventListener("resize", fit);
+
+    window.addEventListener("keydown", (event) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      const step = 48;
+      if (event.key === "+" || event.key === "=") zoomAt(stage.clientWidth / 2, stage.clientHeight / 2, state.scale * 1.2);
+      if (event.key === "-" || event.key === "_") zoomAt(stage.clientWidth / 2, stage.clientHeight / 2, state.scale / 1.2);
+      if (event.key === "0") fit();
+      if (event.key === "1") reset();
+      if (event.key === "ArrowLeft") state.x += step;
+      if (event.key === "ArrowRight") state.x -= step;
+      if (event.key === "ArrowUp") state.y += step;
+      if (event.key === "ArrowDown") state.y -= step;
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+        event.preventDefault();
+        applyTransform();
+      }
+    });
+
+    fitScale = state.scale;
+  </script>
+</body>
+</html>
