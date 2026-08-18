@@ -53,7 +53,7 @@ Copy-Item (Join-Path $Root "README.md") $StageDir
 Copy-Item (Join-Path $Root "docs\USER-GUIDE.md") $StageDir
 Copy-Item (Join-Path $Root "docs\THIRD_PARTY.md") $StageDir
 
-$zip = Join-Path $DistDir "DirectorDesk-0.1.0-windows-x64.zip"
+$zip = Join-Path $DistDir "DirectorDesk-0.1.1-windows-x64.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $StageDir "*") -DestinationPath $zip -Force
 

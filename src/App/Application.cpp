@@ -152,7 +152,8 @@ Renderer::RenderSceneView BuildSceneView(const Scene::Document& scene,
 }
 
 bool HandleExportTestPng(Renderer::IRenderer& renderer, const Camera::OrbitCamera& camera,
-                         const Renderer::RenderSceneView& sceneView, std::string& status) {
+                         const Renderer::RenderSceneView& sceneView, std::uint32_t windowWidth,
+                         std::uint32_t windowHeight, std::string& status) {
     Renderer::RenderTargetDesc target;
     target.kind = Renderer::RenderTargetKind::Offscreen;
     target.width = 1280;
@@ -160,7 +161,7 @@ bool HandleExportTestPng(Renderer::IRenderer& renderer, const Camera::OrbitCamer
     target.transparentBackground = true;
 
     const float aspect = static_cast<float>(target.width) / static_cast<float>(target.height);
-    renderer.BeginFrame(target.width, target.height);
+    renderer.BeginFrame(windowWidth == 0 ? 1 : windowWidth, windowHeight == 0 ? 1 : windowHeight);
     renderer.RenderScene(sceneView, camera.BuildView(aspect), target);
     auto pixels = renderer.ReadbackTarget(target);
     if (!pixels.IsOk()) {
@@ -696,9 +697,11 @@ int Application::Run(int argc, char** argv) {
     IndexReadyOfficial(officialCatalog, library);
     if (options.exportAndQuit && options.importPath.empty()) {
         std::string status;
+        const auto startupSize = window.GetFramebufferSize();
         const bool ok = HandleExportTestPng(
             *renderer, cameras.Selected()->orbit,
-            BuildSceneView(scene, cameras.CurrentLight(), false), status);
+            BuildSceneView(scene, cameras.CurrentLight(), false), startupSize.width,
+            startupSize.height, status);
         renderer->Shutdown();
         window.Destroy();
         DD_LOG_INFO("DirectorDesk exiting");
@@ -782,6 +785,7 @@ int Application::Run(int argc, char** argv) {
     float storyboardViewZoom = 1.0f;
     float storyboardViewWidth = 0.0f;
     float storyboardViewHeight = 0.0f;
+    std::string pendingThumbShotId;
     std::uint64_t frameIndex = 1;
     std::vector<UI::StoryboardCardView> storyboardViews;
 
@@ -881,7 +885,8 @@ int Application::Run(int argc, char** argv) {
         }
         const auto target = Export::MakeOffscreenTarget(resolution, exportTransparent);
         const float aspect = static_cast<float>(target.width) / static_cast<float>(target.height);
-        renderer->BeginFrame(target.width, target.height);
+        const auto windowSize = window.GetFramebufferSize();
+        renderer->BeginFrame(windowSize.width, windowSize.height);
         renderer->RenderScene(BuildSceneView(scene, cameras.CurrentLight(), false),
                               cameras.Selected()->orbit.BuildView(aspect), target);
         auto pixels = renderer->ReadbackTarget(target);
@@ -1050,9 +1055,11 @@ int Application::Run(int argc, char** argv) {
                         }
                     } else if constexpr (std::is_same_v<T, Core::ExportTestPngCommand>) {
                         if (const Camera::CameraRig* rig = cameras.Selected()) {
+                            const auto windowSize = window.GetFramebufferSize();
                             HandleExportTestPng(
                                 *renderer, rig->orbit,
-                                BuildSceneView(scene, cameras.CurrentLight(), false), status);
+                                BuildSceneView(scene, cameras.CurrentLight(), false),
+                                windowSize.width, windowSize.height, status);
                         }
                     } else if constexpr (std::is_same_v<T, Core::ImportModelCommand>) {
                         auto path = Platform::FileDialog::OpenModelFile();
@@ -1525,63 +1532,37 @@ int Application::Run(int argc, char** argv) {
                 renderer->DestroyRgbaTexture(id);
             }
         }
-        thumbScheduler.BeginFrame();
-        if (thumbScheduler.ShouldRun(NowMs())) {
-            Storyboard::ViewRect view;
-            if (storyboardViewWidth > 1.0f && storyboardViewHeight > 1.0f) {
-                view.x = -storyboardViewPanX / storyboardViewZoom;
-                view.y = -storyboardViewPanY / storyboardViewZoom;
-                view.w = storyboardViewWidth / storyboardViewZoom;
-                view.h = storyboardViewHeight / storyboardViewZoom;
-            } else {
-                view.w = std::max(storyboard.Layout().contentWidth, 1.0f);
-                view.h = std::max(storyboard.Layout().contentHeight, 1.0f);
-            }
-            const std::string shotId = storyboard.NextThumbnailShot(view);
-            if (!shotId.empty()) {
-                if (const std::string* cameraId = links.CameraForShot(shotId)) {
-                    if (Camera::CameraRig* rig = cameras.Find(*cameraId)) {
-                        storyboard.MarkShotRendering(shotId);
-                        Renderer::RenderTargetDesc target;
-                        target.kind = Renderer::RenderTargetKind::Offscreen;
-                        target.width = 320;
-                        target.height = 180;
-                        target.transparentBackground = false;
-                        renderer->BeginFrame(target.width, target.height);
-                        renderer->RenderScene(BuildSceneView(scene, cameras.CurrentLight(), false),
-                                              rig->orbit.BuildView(320.0f / 180.0f), target);
-                        auto pixels = renderer->ReadbackTarget(target);
-                        if (pixels.IsOk()) {
-                            if (Storyboard::ThumbnailRecord* old = storyboard.ThumbnailMutable(shotId)) {
-                                if (old->textureIndex != 0xFFFFu) {
-                                    renderer->DestroyRgbaTexture(old->textureIndex);
-                                    old->textureIndex = 0xFFFFu;
-                                }
-                            }
-                            Storyboard::ImageBuffer image;
-                            image.width = pixels.Value().width;
-                            image.height = pixels.Value().height;
-                            image.rgba = pixels.Value().rgba;
-                            auto texture = renderer->CreateRgbaTexture(image.width, image.height,
-                                                                        image.rgba.data());
-                            storyboard.SetThumbnail(shotId, std::move(image),
-                                                    storyboard.DirectorRevision());
-                            if (texture.IsOk()) {
-                                if (Storyboard::ThumbnailRecord* record =
-                                        storyboard.ThumbnailMutable(shotId)) {
-                                    record->textureIndex = texture.Value();
-                                }
-                            }
-                        } else {
-                            storyboard.MarkShotFailed(shotId);
-                        }
-                        thumbScheduler.ConsumeFrame();
-                    } else {
-                        storyboard.MarkShotFailed(shotId);
+        if (!pendingThumbShotId.empty()) {
+            auto pixels = renderer->TakeReadback();
+            if (pixels.IsOk()) {
+                if (Storyboard::ThumbnailRecord* old =
+                        storyboard.ThumbnailMutable(pendingThumbShotId)) {
+                    if (old->textureIndex != 0xFFFFu) {
+                        renderer->DestroyRgbaTexture(old->textureIndex);
+                        old->textureIndex = 0xFFFFu;
                     }
                 }
+                Storyboard::ImageBuffer image;
+                image.width = pixels.Value().width;
+                image.height = pixels.Value().height;
+                image.rgba = std::move(pixels.Value().rgba);
+                auto texture =
+                    renderer->CreateRgbaTexture(image.width, image.height, image.rgba.data());
+                storyboard.SetThumbnail(pendingThumbShotId, std::move(image),
+                                        storyboard.DirectorRevision());
+                if (texture.IsOk()) {
+                    if (Storyboard::ThumbnailRecord* record =
+                            storyboard.ThumbnailMutable(pendingThumbShotId)) {
+                        record->textureIndex = texture.Value();
+                    }
+                }
+                pendingThumbShotId.clear();
+            } else if (!renderer->HasPendingReadback()) {
+                storyboard.MarkShotFailed(pendingThumbShotId);
+                pendingThumbShotId.clear();
             }
         }
+        thumbScheduler.BeginFrame();
         std::vector<std::string> keepIds;
         keepIds.push_back(script.SelectedShotId());
         std::vector<std::uint16_t> evicted;
@@ -1647,6 +1628,43 @@ int Application::Run(int argc, char** argv) {
         renderer->RenderScene(BuildSceneView(scene, cameras.CurrentLight(), true),
                               cameras.Selected()->orbit.BuildView(aspect),
                               Renderer::RenderTargetDesc{});
+        if (pendingThumbShotId.empty() && !renderer->HasPendingReadback() &&
+            thumbScheduler.ShouldRun(NowMs())) {
+            Storyboard::ViewRect view;
+            if (storyboardViewWidth > 1.0f && storyboardViewHeight > 1.0f) {
+                view.x = -storyboardViewPanX / storyboardViewZoom;
+                view.y = -storyboardViewPanY / storyboardViewZoom;
+                view.w = storyboardViewWidth / storyboardViewZoom;
+                view.h = storyboardViewHeight / storyboardViewZoom;
+            } else {
+                view.w = std::max(storyboard.Layout().contentWidth, 1.0f);
+                view.h = std::max(storyboard.Layout().contentHeight, 1.0f);
+            }
+            const std::string shotId = storyboard.NextThumbnailShot(view);
+            if (!shotId.empty()) {
+                if (const std::string* cameraId = links.CameraForShot(shotId)) {
+                    if (Camera::CameraRig* rig = cameras.Find(*cameraId)) {
+                        storyboard.MarkShotRendering(shotId);
+                        Renderer::RenderTargetDesc target;
+                        target.kind = Renderer::RenderTargetKind::Offscreen;
+                        target.width = 320;
+                        target.height = 180;
+                        target.transparentBackground = false;
+                        renderer->RenderScene(BuildSceneView(scene, cameras.CurrentLight(), false),
+                                              rig->orbit.BuildView(320.0f / 180.0f), target);
+                        auto requested = renderer->RequestReadback(target);
+                        if (requested.IsOk()) {
+                            pendingThumbShotId = shotId;
+                            thumbScheduler.ConsumeFrame();
+                        } else {
+                            storyboard.MarkShotFailed(shotId);
+                        }
+                    } else {
+                        storyboard.MarkShotFailed(shotId);
+                    }
+                }
+            }
+        }
         imgui.BeginFrame();
         workspace.Draw(viewState, commands);
         scriptPanel.Draw(viewState, commands);

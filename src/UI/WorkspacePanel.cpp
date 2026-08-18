@@ -134,25 +134,43 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
     ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
     ImGui::End();
 
-    ImGui::Begin("视口###Viewport");
+    ImGui::Begin("视口###Viewport", nullptr,
+                 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    if (ImGuiWindow* window = ImGui::GetCurrentWindow()) {
+        window->Scroll = ImVec2(0.0f, 0.0f);
+    }
     const ImVec2 available = ImGui::GetContentRegionAvail();
     const std::uint32_t width = available.x > 1.0f ? static_cast<std::uint32_t>(available.x) : 1;
     const std::uint32_t height = available.y > 1.0f ? static_cast<std::uint32_t>(available.y) : 1;
-    commands.Push(Core::ViewportResizeCommand{width, height});
+    const int dw = static_cast<int>(width) - static_cast<int>(m_lastViewportW);
+    const int dh = static_cast<int>(height) - static_cast<int>(m_lastViewportH);
+    if (m_lastViewportW == 0 || m_lastViewportH == 0 || dw * dw + dh * dh >= 4) {
+        m_lastViewportW = width;
+        m_lastViewportH = height;
+    }
+    commands.Push(Core::ViewportResizeCommand{m_lastViewportW, m_lastViewportH});
+    const ImVec2 cursor = ImGui::GetCursorScreenPos();
+    ImGui::InvisibleButton("viewport_input", available);
     if (state.viewportTextureIndex != 0xFFFFu) {
-        ImGui::Image(ImTextureRef(static_cast<ImTextureID>(state.viewportTextureIndex)), available);
-        if (ImGui::BeginDragDropTarget()) {
-            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DD_ASSET_ID")) {
-                const char* assetId = static_cast<const char*>(payload->Data);
-                if (assetId != nullptr) {
-                    commands.Push(Core::AddLibraryAssetToSceneCommand{assetId});
-                }
+        ImGui::GetWindowDrawList()->AddImage(
+            ImTextureRef(static_cast<ImTextureID>(state.viewportTextureIndex)), cursor,
+            ImVec2(cursor.x + available.x, cursor.y + available.y));
+    } else {
+        ImGui::GetWindowDrawList()->AddText(cursor, IM_COL32(200, 200, 200, 255), "视口尚未就绪。");
+    }
+    if (ImGui::BeginDragDropTarget()) {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DD_ASSET_ID")) {
+            const char* assetId = static_cast<const char*>(payload->Data);
+            if (assetId != nullptr) {
+                commands.Push(Core::AddLibraryAssetToSceneCommand{assetId});
             }
-            ImGui::EndDragDropTarget();
         }
-        if (ImGui::IsItemHovered()) {
-            const ImGuiIO& io = ImGui::GetIO();
-            Core::OrbitDeltaCommand orbit;
+        ImGui::EndDragDropTarget();
+    }
+    if (ImGui::IsItemHovered() || ImGui::IsWindowHovered()) {
+        ImGuiIO& io = ImGui::GetIO();
+        Core::OrbitDeltaCommand orbit;
+        if (ImGui::IsItemActive() || ImGui::IsItemHovered()) {
             if (ImGui::IsMouseDragging(ImGuiMouseButton_Left, 0.0f)) {
                 orbit.rotateYaw = io.MouseDelta.x * 0.4f;
                 orbit.rotatePitch = io.MouseDelta.y * 0.4f;
@@ -161,14 +179,14 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                 orbit.panX = io.MouseDelta.x;
                 orbit.panY = io.MouseDelta.y;
             }
-            orbit.zoom = io.MouseWheel;
-            if (orbit.rotateYaw != 0.0f || orbit.rotatePitch != 0.0f || orbit.panX != 0.0f ||
-                orbit.panY != 0.0f || orbit.zoom != 0.0f) {
-                commands.Push(orbit);
-            }
         }
-    } else {
-        ImGui::TextUnformatted("视口尚未就绪。");
+        orbit.zoom = io.MouseWheel;
+        io.MouseWheel = 0.0f;
+        io.MouseWheelH = 0.0f;
+        if (orbit.rotateYaw != 0.0f || orbit.rotatePitch != 0.0f || orbit.panX != 0.0f ||
+            orbit.panY != 0.0f || orbit.zoom != 0.0f) {
+            commands.Push(orbit);
+        }
     }
     ImGui::End();
 

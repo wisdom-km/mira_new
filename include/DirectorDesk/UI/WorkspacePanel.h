@@ -2,6 +2,7 @@
 
 #include "DirectorDesk/UI/IPanel.h"
 
+#include <cstdint>
 #include <string>
 
 namespace DirectorDesk::UI {
@@ -13,6 +14,8 @@ public:
 private:
     std::string m_cameraName;
     std::string m_cameraNameId;
+    std::uint32_t m_lastViewportW = 0;
+    std::uint32_t m_lastViewportH = 0;
 };
 
 } // namespace DirectorDesk::UI

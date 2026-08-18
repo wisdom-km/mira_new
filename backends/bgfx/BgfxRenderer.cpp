@@ -178,6 +178,8 @@ public:
         }
         const std::uint32_t width = framebufferWidth == 0 ? 1 : framebufferWidth;
         const std::uint32_t height = framebufferHeight == 0 ? 1 : framebufferHeight;
+        // Only the window swapchain may be reset here. Offscreen thumbnails/exports
+        // must pass the current window size; resetting to 320x180 flashes the UI.
         if (width != m_backbufferWidth || height != m_backbufferHeight) {
             bgfx::reset(width, height, BGFX_RESET_VSYNC);
             m_backbufferWidth = width;
@@ -273,44 +275,75 @@ public:
 
     Core::Result<Renderer::PixelBuffer>
     ReadbackTarget(const Renderer::RenderTargetDesc& target) override {
+        auto requested = RequestReadback(target);
+        if (!requested.IsOk()) {
+            return Core::Result<Renderer::PixelBuffer>::Fail(requested.GetError());
+        }
+        return WaitForReadback();
+    }
+
+    Core::Result<void> RequestReadback(const Renderer::RenderTargetDesc& target) override {
         if (!m_initialized) {
-            return Core::Result<Renderer::PixelBuffer>::Fail(
+            return Core::Result<void>::Fail(
                 Core::Error::Make(Core::ErrorCode::NotInitialized, "Renderer is not initialized",
                                   "渲染器尚未初始化"));
+        }
+        if (m_readbackPending) {
+            auto discarded = WaitForReadback();
+            if (!discarded.IsOk()) {
+                return Core::Result<void>::Fail(discarded.GetError());
+            }
         }
 
         const bool offscreen = target.kind == Renderer::RenderTargetKind::Offscreen;
         FramebufferResources& framebuffer = offscreen ? m_offscreen : m_viewport;
         if (!bgfx::isValid(framebuffer.frameBuffer) || !bgfx::isValid(framebuffer.color)) {
-            return Core::Result<Renderer::PixelBuffer>::Fail(Core::Error::Make(
+            return Core::Result<void>::Fail(Core::Error::Make(
                 Core::ErrorCode::Internal, "Render target is not ready", "渲染目标尚未准备好"));
         }
 
         const bgfx::Caps* caps = bgfx::getCaps();
         if (caps == nullptr || (caps->supported & BGFX_CAPS_TEXTURE_BLIT) == 0 ||
             (caps->supported & BGFX_CAPS_TEXTURE_READ_BACK) == 0) {
-            return Core::Result<Renderer::PixelBuffer>::Fail(Core::Error::Make(
+            return Core::Result<void>::Fail(Core::Error::Make(
                 Core::ErrorCode::Internal, "GPU does not support texture blit/readback",
                 "当前显卡不支持离屏回读"));
         }
 
         if (!EnsureReadbackTexture(framebuffer.width, framebuffer.height)) {
-            return Core::Result<Renderer::PixelBuffer>::Fail(
+            return Core::Result<void>::Fail(
                 Core::Error::Make(Core::ErrorCode::Internal, "Failed to create readback texture",
                                   "无法创建回读纹理"));
         }
 
-        Renderer::PixelBuffer buffer;
-        buffer.width = framebuffer.width;
-        buffer.height = framebuffer.height;
-        buffer.rgba.resize(static_cast<std::size_t>(buffer.width) * buffer.height * 4u);
+        m_readbackBuffer.width = framebuffer.width;
+        m_readbackBuffer.height = framebuffer.height;
+        m_readbackBuffer.rgba.assign(
+            static_cast<std::size_t>(m_readbackBuffer.width) * m_readbackBuffer.height * 4u, 0);
 
         bgfx::blit(kBlitView, m_readbackTexture, 0, 0, framebuffer.color, 0, 0);
-        const std::uint32_t readyFrame = bgfx::readTexture(m_readbackTexture, buffer.rgba.data());
-        while (bgfx::frame() < readyFrame) {
-        }
+        m_readbackReadyFrame = bgfx::readTexture(m_readbackTexture, m_readbackBuffer.rgba.data());
+        m_readbackPending = true;
+        return Core::Result<void>::Ok();
+    }
 
-        return Core::Result<Renderer::PixelBuffer>::Ok(std::move(buffer));
+    bool HasPendingReadback() const override {
+        return m_readbackPending;
+    }
+
+    Core::Result<Renderer::PixelBuffer> TakeReadback() override {
+        if (!m_readbackPending) {
+            return Core::Result<Renderer::PixelBuffer>::Fail(
+                Core::Error::Make(Core::ErrorCode::NotFound, "No pending GPU readback",
+                                  "没有待完成的回读"));
+        }
+        if (m_lastFrame < m_readbackReadyFrame) {
+            return Core::Result<Renderer::PixelBuffer>::Fail(
+                Core::Error::Make(Core::ErrorCode::Internal, "GPU readback is not ready",
+                                  "回读尚未完成"));
+        }
+        m_readbackPending = false;
+        return Core::Result<Renderer::PixelBuffer>::Ok(std::move(m_readbackBuffer));
     }
 
     Core::Result<std::uint32_t> CreateModel(const Renderer::GpuModelDesc& desc) override {
@@ -415,7 +448,7 @@ public:
 
     void EndFrame() override {
         if (m_initialized) {
-            bgfx::frame();
+            m_lastFrame = bgfx::frame();
         }
     }
 
@@ -586,6 +619,13 @@ private:
         return true;
     }
 
+    Core::Result<Renderer::PixelBuffer> WaitForReadback() {
+        while (m_readbackPending && m_lastFrame < m_readbackReadyFrame) {
+            m_lastFrame = bgfx::frame();
+        }
+        return TakeReadback();
+    }
+
     bool EnsureReadbackTexture(std::uint32_t width, std::uint32_t height) {
         if (bgfx::isValid(m_readbackTexture) && m_readbackWidth == width &&
             m_readbackHeight == height) {
@@ -633,6 +673,10 @@ private:
         m_offscreen = {};
         m_readbackWidth = 0;
         m_readbackHeight = 0;
+        m_readbackPending = false;
+        m_readbackReadyFrame = 0;
+        m_lastFrame = 0;
+        m_readbackBuffer = {};
         m_nextModelId = 1;
     }
 
@@ -656,6 +700,10 @@ private:
     bgfx::TextureHandle m_readbackTexture = BGFX_INVALID_HANDLE;
     std::uint32_t m_readbackWidth = 0;
     std::uint32_t m_readbackHeight = 0;
+    bool m_readbackPending = false;
+    std::uint32_t m_readbackReadyFrame = 0;
+    std::uint32_t m_lastFrame = 0;
+    Renderer::PixelBuffer m_readbackBuffer;
     std::uint32_t m_nextModelId = 1;
     std::unordered_map<std::uint32_t, std::vector<UploadedPrimitive>> m_models;
     std::unordered_map<std::uint16_t, bgfx::TextureHandle> m_images;

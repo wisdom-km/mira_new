@@ -17,6 +17,9 @@ public:
     virtual void RenderScene(const RenderSceneView& scene, const CameraView& view,
                              const RenderTargetDesc& target) = 0;
     virtual Core::Result<PixelBuffer> ReadbackTarget(const RenderTargetDesc& target) = 0;
+    virtual Core::Result<void> RequestReadback(const RenderTargetDesc& target) = 0;
+    [[nodiscard]] virtual bool HasPendingReadback() const = 0;
+    virtual Core::Result<PixelBuffer> TakeReadback() = 0;
     virtual Core::Result<std::uint32_t> CreateModel(const GpuModelDesc& desc) = 0;
     virtual void DestroyModel(std::uint32_t modelId) = 0;
     virtual Core::Result<std::uint16_t> CreateRgbaTexture(std::uint32_t width, std::uint32_t height,

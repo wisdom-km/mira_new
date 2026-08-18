@@ -61,8 +61,8 @@ powershell -ExecutionPolicy Bypass -File packaging\windows\build-installer.ps1
 
 产物在 `dist/`：
 
-- `DirectorDesk-0.1.0-windows-x64.exe`：Inno Setup 安装包
-- `DirectorDesk-0.1.0-windows-x64.zip`：便携目录
+- `DirectorDesk-0.1.1-windows-x64.exe`：Inno Setup 安装包
+- `DirectorDesk-0.1.1-windows-x64.zip`：便携目录
 
 不要把 `dist/` 或 `packaging/stage/` 提交进仓库。
 
