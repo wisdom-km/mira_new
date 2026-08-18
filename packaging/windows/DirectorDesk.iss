@@ -1,3 +1,6 @@
+// DirectorDesk: Project source file for the DirectorDesk Windows packaging module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #define AppName "DirectorDesk"
 #define AppVersion "0.1.1"
 #define AppPublisher "DirectorDesk contributors"

@@ -1,3 +1,8 @@
+// ParserTests: Implementation for the DirectorDesk Script module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: Markdown structure, diagnostics, IDs, and invalid-input retention.
+
+
 #include "DirectorDesk/Script/Parser.h"
 
 #include <catch2/catch_test_macros.hpp>

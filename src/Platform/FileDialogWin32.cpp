@@ -1,3 +1,6 @@
+// FileDialogWin32: Implementation for the DirectorDesk Platform module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/Platform/FileDialog.h"
 
 #include "DirectorDesk/Core/Error.h"

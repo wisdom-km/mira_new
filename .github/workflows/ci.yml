@@ -1,4 +1,9 @@
+# ci: CI workflow for the DirectorDesk continuous integration module.
+# This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 name: CI
+# The two jobs are the platform gate: Windows validates the shipping toolchain,
+# while macOS guards the GLFW/bgfx portability boundary.
 
 on:
   push:

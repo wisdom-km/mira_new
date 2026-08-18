@@ -1,3 +1,6 @@
+// NullServices: Implementation for the DirectorDesk AI module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/AI/NullServices.h"
 
 namespace DirectorDesk::AI {

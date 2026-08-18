@@ -1,3 +1,6 @@
+// PngWriter: Implementation for the DirectorDesk Renderer module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "DirectorDesk/Renderer/PngWriter.h"
 

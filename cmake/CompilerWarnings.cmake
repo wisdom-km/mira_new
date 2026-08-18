@@ -1,3 +1,6 @@
+# CompilerWarnings: CMake module for the DirectorDesk build configuration module.
+# This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 # cmake/CompilerWarnings.cmake
 # Treat warnings as errors for first-party targets only.
 

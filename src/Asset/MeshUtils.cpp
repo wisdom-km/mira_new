@@ -1,3 +1,6 @@
+// MeshUtils: Implementation for the DirectorDesk Asset module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "MeshUtils.h"
 
 #include <cmath>

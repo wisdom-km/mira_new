@@ -1,3 +1,6 @@
+// Types: Implementation for the DirectorDesk AI module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/AI/Types.h"
 
 namespace DirectorDesk::AI {

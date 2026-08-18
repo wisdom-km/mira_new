@@ -1,3 +1,8 @@
+// ShotLinkTests: Implementation for the DirectorDesk Link module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: shot-camera links remain stable and report missing endpoints.
+
+
 #include "DirectorDesk/Link/ShotLink.h"
 
 #include <catch2/catch_test_macros.hpp>

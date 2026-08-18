@@ -1,3 +1,8 @@
+// ServiceTests: Implementation for the DirectorDesk AI module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: provider-neutral image/video services preserve request data and lifecycle state.
+
+
 #include "DirectorDesk/AI/MockServices.h"
 #include "DirectorDesk/AI/NullServices.h"
 

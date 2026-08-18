@@ -1,3 +1,6 @@
+# CMakeLists: Project source file for the DirectorDesk Core module.
+# This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 add_library(dd_core
     Error.cpp
     Log.cpp

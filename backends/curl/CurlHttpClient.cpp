@@ -1,3 +1,6 @@
+// CurlHttpClient: Implementation for the DirectorDesk curl module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "CurlHttpClient.h"
 
 #include "DirectorDesk/Core/Error.h"

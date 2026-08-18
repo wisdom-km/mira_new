@@ -1,3 +1,6 @@
+// OrbitCamera: Implementation for the DirectorDesk Camera module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/Camera/OrbitCamera.h"
 
 #include <algorithm>
@@ -14,6 +17,7 @@ constexpr float kMinPitch = -89.0f;
 constexpr float kMaxPitch = 89.0f;
 
 glm::vec3 OffsetFromAngles(float distance, float yawDegrees, float pitchDegrees) {
+    // The orbit convention is +Y up, with yaw measured around the vertical axis.
     const float yaw = glm::radians(yawDegrees);
     const float pitch = glm::radians(pitchDegrees);
     const float cosPitch = std::cos(pitch);
@@ -43,6 +47,7 @@ void OrbitCamera::Pan(float deltaX, float deltaY) {
 }
 
 void OrbitCamera::Zoom(float wheelDelta) {
+    // Exponential scaling makes equal wheel deltas feel consistent at every distance.
     SetDistance(m_distance * std::pow(0.9f, wheelDelta));
 }
 
@@ -91,6 +96,7 @@ bool OrbitCamera::Restore(const glm::vec3& target, const glm::vec3& position, fl
         return true;
     }
 
+    // Older project files stored position only; derive orbit coordinates when needed.
     const glm::vec3 offset = position - target;
     const float length = glm::length(offset);
     if (!std::isfinite(length) || length < 1.0e-4f) {

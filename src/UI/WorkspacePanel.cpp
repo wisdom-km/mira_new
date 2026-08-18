@@ -1,3 +1,6 @@
+// WorkspacePanel: Implementation for the DirectorDesk UI module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/UI/WorkspacePanel.h"
 
 #include "DirectorDesk/Core/Command.h"
@@ -42,6 +45,8 @@ void ApplyDefaultDockLayout(ImGuiID dockspaceId, const ImVec2& size) {
 } // namespace
 
 void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& commands) {
+    // Panels are deliberately write-only toward the application: they render the immutable
+    // snapshot and enqueue commands; state changes are applied on the next app tick.
     ImGuiWindowFlags windowFlags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
@@ -150,6 +155,8 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
     }
     commands.Push(Core::ViewportResizeCommand{m_lastViewportW, m_lastViewportH});
     const ImVec2 cursor = ImGui::GetCursorScreenPos();
+    // Keep input separate from the renderer texture. This prevents ImGui scrolling from
+    // changing content size and accidentally forcing a render-target rebuild.
     ImGui::InvisibleButton("viewport_input", available);
     if (state.viewportTextureIndex != 0xFFFFu) {
         ImGui::GetWindowDrawList()->AddImage(

@@ -1,3 +1,6 @@
+# CMakeLists: Project source file for the DirectorDesk CMakeLists.txt module.
+# This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 find_package(Catch2 CONFIG REQUIRED)
 
 add_executable(DirectorDeskTests

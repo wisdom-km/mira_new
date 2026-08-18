@@ -1,3 +1,8 @@
+// ProjectFileTests: Implementation for the DirectorDesk App module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: project JSON round-trips, validates versions, and preserves atomic-save invariants.
+
+
 #include "DirectorDesk/App/ProjectBinding.h"
 #include "DirectorDesk/App/ProjectFile.h"
 #include "DirectorDesk/Asset/Library.h"

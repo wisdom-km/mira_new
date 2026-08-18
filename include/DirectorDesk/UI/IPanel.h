@@ -1,3 +1,6 @@
+// IPanel: Public or internal interface for the DirectorDesk UI module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #pragma once
 
 #include "DirectorDesk/Core/CommandQueue.h"
@@ -82,6 +85,7 @@ struct StoryboardCardView {
 };
 
 struct AppViewState {
+    // UI panels receive this immutable snapshot and communicate back only through commands.
     const char* appName = "DirectorDesk";
     unsigned windowWidth = 0;
     unsigned windowHeight = 0;

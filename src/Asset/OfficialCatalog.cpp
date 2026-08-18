@@ -1,3 +1,6 @@
+// OfficialCatalog: Implementation for the DirectorDesk Asset module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/Asset/OfficialCatalog.h"
 
 #include "DirectorDesk/Core/Error.h"

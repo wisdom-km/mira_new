@@ -1,3 +1,8 @@
+// CameraManagerTests: Implementation for the DirectorDesk Camera module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: camera selection, stable IDs, and active-camera persistence.
+
+
 #include "DirectorDesk/Camera/CameraManager.h"
 
 #include <catch2/catch_approx.hpp>

@@ -1,3 +1,6 @@
+// Document: Implementation for the DirectorDesk Scene module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/Scene/Document.h"
 
 #include <string>

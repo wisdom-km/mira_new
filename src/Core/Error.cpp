@@ -1,3 +1,6 @@
+// Error: Implementation for the DirectorDesk Core module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/Core/Error.h"
 
 namespace DirectorDesk::Core {

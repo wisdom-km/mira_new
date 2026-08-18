@@ -1,3 +1,6 @@
+// BgfxRenderer: Implementation for the DirectorDesk bgfx module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "CreateBgfxRenderer.h"
 
 #include "DirectorDesk/Core/Log.h"
@@ -321,6 +324,8 @@ public:
         m_readbackBuffer.rgba.assign(
             static_cast<std::size_t>(m_readbackBuffer.width) * m_readbackBuffer.height * 4u, 0);
 
+        // readTexture completes after a later bgfx frame; never spin here because that
+        // would present intermediate clear-only frames through the window swapchain.
         bgfx::blit(kBlitView, m_readbackTexture, 0, 0, framebuffer.color, 0, 0);
         m_readbackReadyFrame = bgfx::readTexture(m_readbackTexture, m_readbackBuffer.rgba.data());
         m_readbackPending = true;
@@ -337,6 +342,7 @@ public:
                 Core::Error::Make(Core::ErrorCode::NotFound, "No pending GPU readback",
                                   "没有待完成的回读"));
         }
+        // The application polls this at frame boundaries so ImGui remains responsive.
         if (m_lastFrame < m_readbackReadyFrame) {
             return Core::Result<Renderer::PixelBuffer>::Fail(
                 Core::Error::Make(Core::ErrorCode::Internal, "GPU readback is not ready",

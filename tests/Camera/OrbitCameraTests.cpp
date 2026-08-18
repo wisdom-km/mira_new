@@ -1,3 +1,8 @@
+// OrbitCameraTests: Implementation for the DirectorDesk Camera module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: orbit geometry, zoom behavior, and pitch safety limits.
+
+
 #include "DirectorDesk/Camera/OrbitCamera.h"
 
 #include <cmath>

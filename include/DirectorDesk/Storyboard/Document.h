@@ -1,3 +1,6 @@
+// Document: Public or internal interface for the DirectorDesk Storyboard module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #pragma once
 
 #include "DirectorDesk/Storyboard/Layout.h"
@@ -12,11 +15,13 @@ namespace DirectorDesk::Storyboard {
 
 class Document {
 public:
+    // Storyboard consumes immutable script/link snapshots and owns preview lifecycle state.
     void ApplySource(const StoryboardSourceSnapshot& snapshot);
     void Clear();
     void SetCollapsed(const std::string& sceneId, bool collapsed);
     void SetSelectedShot(const std::string& shotId);
     void MarkLinkedStale();
+    // Camera edits invalidate only shots linked to that camera.
     void MarkCameraShotsStale(const std::string& cameraId);
     void MarkShotStale(const std::string& shotId);
     void MarkShotRendering(const std::string& shotId);
@@ -42,6 +47,7 @@ public:
     }
     [[nodiscard]] const ThumbnailRecord* Thumbnail(const std::string& shotId) const;
     ThumbnailRecord* ThumbnailMutable(const std::string& shotId);
+    // Picks one visible stale shot, prioritizing the currently selected shot.
     [[nodiscard]] std::string NextThumbnailShot(const ViewRect& view) const;
     [[nodiscard]] PreviewIssueCount CountExportPreviewIssues() const;
     void TakeDestroyedTextures(std::vector<std::uint16_t>& out);

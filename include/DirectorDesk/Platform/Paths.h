@@ -1,3 +1,6 @@
+// Paths: Public or internal interface for the DirectorDesk Platform module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #pragma once
 
 #include "DirectorDesk/Core/Result.h"
@@ -11,6 +14,7 @@ namespace DirectorDesk::Platform {
 
 class Paths {
 public:
+    // All public path APIs accept and return UTF-8, including on Windows.
     static std::string Join(const std::string& leftUtf8, const std::string& rightUtf8);
     static Core::Result<void> CreateDirectories(const std::string& utf8Path);
     [[nodiscard]] static bool Exists(const std::string& utf8Path);
@@ -41,6 +45,7 @@ public:
     static Core::Result<void> WriteBinaryFile(const std::string& utf8Path, const std::uint8_t* data,
                                               std::size_t size);
     static Core::Result<void> RemoveFile(const std::string& utf8Path);
+    // Replaces the destination after the temporary file has been fully written and closed.
     static Core::Result<void> AtomicReplace(const std::string& fromUtf8, const std::string& toUtf8);
     [[nodiscard]] static bool IsAbsolute(const std::string& utf8Path);
     [[nodiscard]] static bool IsWithin(const std::string& rootUtf8, const std::string& pathUtf8);

@@ -1,3 +1,8 @@
+// TransformTests: Implementation for the DirectorDesk Scene module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: transform composition and persisted rotation/scale values are reversible.
+
+
 #include "DirectorDesk/Scene/Document.h"
 #include "DirectorDesk/Scene/Transform.h"
 

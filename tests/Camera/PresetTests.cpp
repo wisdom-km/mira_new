@@ -1,3 +1,8 @@
+// PresetTests: Implementation for the DirectorDesk Camera module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: preset poses and lighting selections remain deterministic.
+
+
 #include "DirectorDesk/Camera/OrbitCamera.h"
 #include "DirectorDesk/Camera/Presets.h"
 

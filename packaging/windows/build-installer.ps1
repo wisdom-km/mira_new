@@ -1,4 +1,9 @@
+# build-installer: PowerShell build script for the DirectorDesk Windows packaging module.
+# This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 $ErrorActionPreference = "Stop"
+# Build flow: configure Release with the pinned vcpkg toolchain, stage runtime assets,
+# then emit both the portable archive and the Inno Setup installer.
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $BuildDir = Join-Path $Root "build\windows-release"
 $StageDir = Join-Path $Root "packaging\stage\DirectorDesk"

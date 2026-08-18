@@ -1,3 +1,6 @@
+# Modules: CMake module for the DirectorDesk build configuration module.
+# This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 function(dd_add_interface_module module_name)
     set(target_name "dd_${module_name}")
     add_library(${target_name} INTERFACE)

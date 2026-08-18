@@ -1,3 +1,6 @@
+// Application: Implementation for the DirectorDesk App module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/App/Application.h"
 
 #include "DirectorDesk/App/ProjectBinding.h"

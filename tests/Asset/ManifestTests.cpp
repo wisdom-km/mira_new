@@ -1,3 +1,8 @@
+// ManifestTests: Implementation for the DirectorDesk Asset module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: manifest schema, URL safety, hashes, and localized metadata validation.
+
+
 #include "DirectorDesk/Asset/Manifest.h"
 #include "DirectorDesk/Core/Sha256.h"
 

@@ -1,3 +1,8 @@
+// OfficialCatalogTests: Implementation for the DirectorDesk Asset module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: official catalog refresh/download state and cache fallback behavior.
+
+
 #include "DirectorDesk/Asset/OfficialCatalog.h"
 #include "DirectorDesk/Asset/Library.h"
 #include "DirectorDesk/Core/Sha256.h"

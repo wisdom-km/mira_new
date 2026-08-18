@@ -1,3 +1,6 @@
+// ShotLink: Implementation for the DirectorDesk Link module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/Link/ShotLink.h"
 
 namespace DirectorDesk::Link {

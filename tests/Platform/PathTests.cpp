@@ -1,3 +1,8 @@
+// PathTests: Implementation for the DirectorDesk Platform module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: UTF-8 path normalization, containment, and atomic filesystem helpers.
+
+
 #include "DirectorDesk/Platform/Paths.h"
 
 #include <catch2/catch_test_macros.hpp>

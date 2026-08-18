@@ -1,3 +1,8 @@
+// DocumentTests: Implementation for the DirectorDesk Script module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: script edits publish only valid snapshots and preserve external-file safety.
+
+
 #include "DirectorDesk/Platform/Paths.h"
 #include "DirectorDesk/Script/Document.h"
 

@@ -1,3 +1,6 @@
+// CameraManager: Implementation for the DirectorDesk Camera module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/Camera/CameraManager.h"
 
 namespace DirectorDesk::Camera {

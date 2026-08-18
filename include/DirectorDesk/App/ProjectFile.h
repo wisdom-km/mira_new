@@ -1,3 +1,6 @@
+// ProjectFile: Public or internal interface for the DirectorDesk App module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #pragma once
 
 #include "DirectorDesk/Core/Result.h"
@@ -83,6 +86,7 @@ struct ProjectSnapshot {
 
 class ProjectFile {
 public:
+    // Project files are versioned JSON snapshots; loading never partially mutates live state.
     static std::string MakeProjectId();
     static Core::Result<StoredPath> MakeStoredPath(const std::string& projectDir,
                                                    const std::string& utf8Path);
@@ -94,6 +98,7 @@ public:
                                                const std::string& projectDir);
     static Core::Result<std::string> Serialize(const ProjectSnapshot& snapshot);
     static Core::Result<ProjectSnapshot> Load(const std::string& utf8Path);
+    // Saves through a temporary file and atomic replacement to avoid truncated projects.
     static Core::Result<void> Save(const std::string& utf8Path, const ProjectSnapshot& snapshot);
 };
 

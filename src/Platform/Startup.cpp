@@ -1,3 +1,6 @@
+// Startup: Implementation for the DirectorDesk Platform module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/Platform/Startup.h"
 
 #ifdef _WIN32

@@ -1,3 +1,6 @@
+// Ids: Implementation for the DirectorDesk Script module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/Script/Ids.h"
 
 #include <iomanip>

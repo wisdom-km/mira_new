@@ -1,3 +1,6 @@
+# ShaderCompile: CMake module for the DirectorDesk build configuration module.
+# This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 # Compile bgfx .sc shaders to per-renderer binaries. Outputs are never committed.
 
 function(dd_find_shaderc)

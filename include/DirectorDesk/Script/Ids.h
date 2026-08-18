@@ -1,3 +1,6 @@
+// Ids: Public or internal interface for the DirectorDesk Script module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #pragma once
 
 #include <string>

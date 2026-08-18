@@ -1,3 +1,6 @@
+// Library: Implementation for the DirectorDesk Asset module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/Asset/Library.h"
 
 #include "DirectorDesk/Core/Error.h"

@@ -1,3 +1,8 @@
+// ShotExportTests: Implementation for the DirectorDesk Export module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: export resolutions and output names map to stable file contracts.
+
+
 #include "DirectorDesk/Export/ShotExport.h"
 
 #include <catch2/catch_test_macros.hpp>

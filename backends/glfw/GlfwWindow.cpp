@@ -1,3 +1,6 @@
+// GlfwWindow: Implementation for the DirectorDesk glfw module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/Platform/Window.h"
 
 #include "DirectorDesk/Core/Log.h"

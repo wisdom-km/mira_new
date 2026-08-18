@@ -1,3 +1,6 @@
+// LibraryPanel: Implementation for the DirectorDesk UI module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/UI/LibraryPanel.h"
 
 #include "DirectorDesk/Core/Command.h"

@@ -1,3 +1,6 @@
+// Document: Implementation for the DirectorDesk Script module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/Script/Document.h"
 
 #include "DirectorDesk/Core/Error.h"

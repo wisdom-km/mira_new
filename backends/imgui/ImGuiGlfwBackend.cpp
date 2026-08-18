@@ -1,3 +1,6 @@
+// ImGuiGlfwBackend: Implementation for the DirectorDesk imgui module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "ImGuiGlfwBackend.h"
 
 #include "DirectorDesk/Core/Log.h"

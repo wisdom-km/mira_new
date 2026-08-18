@@ -1,3 +1,6 @@
+// MockServices: Implementation for the DirectorDesk AI module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/AI/MockServices.h"
 
 namespace DirectorDesk::AI {

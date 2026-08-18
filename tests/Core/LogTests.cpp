@@ -1,3 +1,8 @@
+// LogTests: Implementation for the DirectorDesk Core module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: logging initializes, writes, and shuts down without leaking global state.
+
+
 #include "DirectorDesk/Core/Log.h"
 #include "DirectorDesk/Platform/Paths.h"
 

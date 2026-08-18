@@ -1,3 +1,8 @@
+// LayoutTests: Implementation for the DirectorDesk Storyboard module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: deterministic scene/shot layout and thumbnail scheduling rules.
+
+
 #include "DirectorDesk/Script/Parser.h"
 #include "DirectorDesk/Storyboard/BoardComposer.h"
 #include "DirectorDesk/Storyboard/Document.h"

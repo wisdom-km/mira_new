@@ -1,3 +1,6 @@
+// ShotExport: Implementation for the DirectorDesk Export module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/Export/ShotExport.h"
 
 namespace DirectorDesk::Export {

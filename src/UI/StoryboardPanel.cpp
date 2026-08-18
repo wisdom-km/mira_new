@@ -1,3 +1,6 @@
+// StoryboardPanel: Implementation for the DirectorDesk UI module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/UI/StoryboardPanel.h"
 
 #include "DirectorDesk/Core/Command.h"

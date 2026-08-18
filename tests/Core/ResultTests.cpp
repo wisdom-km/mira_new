@@ -1,3 +1,8 @@
+// ResultTests: Implementation for the DirectorDesk Core module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: Result carries either a value or an Error without ambiguous states.
+
+
 #include "DirectorDesk/Core/Result.h"
 
 #include <catch2/catch_test_macros.hpp>

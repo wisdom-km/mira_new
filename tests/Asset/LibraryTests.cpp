@@ -1,3 +1,8 @@
+// LibraryTests: Implementation for the DirectorDesk Asset module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: local asset indexing, filtering, stable IDs, and missing-source handling.
+
+
 #include "DirectorDesk/Asset/Library.h"
 #include "DirectorDesk/Platform/Paths.h"
 

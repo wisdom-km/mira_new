@@ -1,3 +1,6 @@
+// IHttpClient: Public or internal interface for the DirectorDesk Platform module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #pragma once
 
 #include "DirectorDesk/Core/Result.h"

@@ -1,3 +1,6 @@
+# CMakeLists: Project source file for the DirectorDesk Link module.
+# This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 add_library(dd_link
     ShotLink.cpp
 )

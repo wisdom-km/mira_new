@@ -1,3 +1,6 @@
+// ObjLoader: Implementation for the DirectorDesk Asset module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "DirectorDesk/Asset/IModelLoader.h"
 

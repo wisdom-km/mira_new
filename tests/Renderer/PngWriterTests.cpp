@@ -1,3 +1,8 @@
+// PngWriterTests: Implementation for the DirectorDesk Renderer module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+// Contract coverage: PNG output preserves dimensions, alpha, and failure reporting.
+
+
 #include "DirectorDesk/Platform/Paths.h"
 #include "DirectorDesk/Renderer/PngWriter.h"
 

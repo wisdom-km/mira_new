@@ -1,3 +1,6 @@
+// Sha256: Implementation for the DirectorDesk Core module.
+// This file owns project behavior only; keep platform and dependency boundaries explicit.
+
 #include "DirectorDesk/Core/Sha256.h"
 
 #include <picosha2.h>

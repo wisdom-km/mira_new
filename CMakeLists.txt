@@ -1,3 +1,4 @@
+# Root build graph: configures the C++17 application, backend libraries, tests, and shader tools.
 cmake_minimum_required(VERSION 3.24)
 
 if(NOT DEFINED CMAKE_TOOLCHAIN_FILE AND DEFINED ENV{VCPKG_ROOT})
