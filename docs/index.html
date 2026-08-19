@@ -2,12 +2,104 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="refresh" content="0; url=./architecture.html" />
-  <link rel="canonical" href="./architecture.html" />
-  <title>DirectorDesk 架构</title>
-  <script>location.replace("./architecture.html");</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DirectorDesk 架构与知识库</title>
+  <meta name="description" content="DirectorDesk 可缩放架构图与开发地图入口。接缝先于功能。" />
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --ink: #0f172a;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --panel: #fff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font: 16px/1.5 ui-sans-serif, "Segoe UI", system-ui, sans-serif;
+    }
+    main {
+      max-width: 40rem;
+      margin: 0 auto;
+      padding: 48px 20px 64px;
+    }
+    h1 {
+      font-size: 1.35rem;
+      letter-spacing: -0.03em;
+      margin: 0 0 8px;
+    }
+    p { color: var(--muted); margin: 0 0 28px; }
+    a {
+      color: #1d4ed8;
+      text-decoration: none;
+    }
+    a:hover { text-decoration: underline; }
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 12px;
+    }
+    li { border-top: 1px solid var(--line); }
+    li:first-child { border-top: 0; }
+    li a {
+      display: block;
+      padding: 14px 16px;
+      color: var(--ink);
+    }
+    li a:hover { background: #f8fafc; text-decoration: none; }
+    li span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 2px;
+    }
+  </style>
 </head>
 <body>
-  <p><a href="./architecture.html">打开可缩放架构图</a></p>
+  <main>
+    <h1>DirectorDesk</h1>
+    <p>先画接缝，再加减功能。图在本站，正文在 GitHub 仓库，避免两份事实源。</p>
+    <ul>
+      <li>
+        <a href="./architecture.html">可缩放架构图
+          <span>滚轮缩放 · 拖拽平移 · 点击节点打开源码</span>
+        </a>
+      </li>
+      <li>
+        <a href="https://github.com/wisdom-km/mira_new/blob/main/docs/dev-map/08-SEAMS-AND-VIBE-CODING.md">08 接缝与 Vibe Coding
+          <span>为什么、好处与弊端、哪些能做哪些不能</span>
+        </a>
+      </li>
+      <li>
+        <a href="https://github.com/wisdom-km/mira_new/blob/main/docs/dev-map/07-ITERATION-AND-LANDING.md">07 迭代与落点
+          <span>模块数锁定 · 按名词放代码</span>
+        </a>
+      </li>
+      <li>
+        <a href="https://github.com/wisdom-km/mira_new/blob/main/docs/dev-map/01-ARCHITECTURE-MAP.md">01 架构地图
+          <span>模块边界、依赖方向与契约</span>
+        </a>
+      </li>
+      <li>
+        <a href="https://github.com/wisdom-km/mira_new/blob/main/docs/dev-map/00-VISION-AND-CONSTRAINTS.md">00 愿景与红线
+          <span>用户路径与 P0 范围</span>
+        </a>
+      </li>
+      <li>
+        <a href="https://github.com/wisdom-km/mira_new/blob/main/AGENTS.md">AGENTS.md
+          <span>给任意 AI 工具的入口，只指向开发地图</span>
+        </a>
+      </li>
+      <li>
+        <a href="https://github.com/wisdom-km/mira_new">GitHub 仓库</a>
+      </li>
+    </ul>
+  </main>
 </body>
 </html>

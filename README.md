@@ -2,7 +2,9 @@
 
 3D 导演台：用剧本、资源库和预设机位，帮助非 3D 专业用户制作可控的 AI 视频分镜。
 
-P0 已走通：**Markdown 剧本 → 本地/官方资源 → 预设机位 → 镜头关联 → 分镜画布 → PNG 导出**。权威需求与架构见 [`docs/dev-map/`](docs/dev-map/)。
+P0 已走通：**Markdown 剧本 → 本地/官方资源 → 预设机位 → 镜头关联 → 分镜画布 → PNG 导出**。权威需求与架构见 [`docs/dev-map/`](docs/dev-map/)。给 AI 的入口是根目录 [`AGENTS.md`](AGENTS.md)。
+
+核心不是预埋未来所有功能，而是先画接缝：哪一块可以独立加、独立删、独立坏。原理见 [08 接缝与 Vibe Coding](docs/dev-map/08-SEAMS-AND-VIBE-CODING.md)。
 
 Windows 用户可直接从 [Releases](https://github.com/wisdom-km/mira_new/releases) 下载 `DirectorDesk-0.1.1-windows-x64.exe` 安装包。
 
@@ -10,7 +12,7 @@ Windows 用户可直接从 [Releases](https://github.com/wisdom-km/mira_new/rele
 
 GitHub README 里的 Mermaid 是静态图，不能滚轮缩放。运行时总览请打开交互视图：
 
-**[打开可缩放架构图](https://wisdom-km.github.io/mira_new/architecture.html)**
+**[打开架构目录（含知识库入口）](https://wisdom-km.github.io/mira_new/)** · **[可缩放架构图](https://wisdom-km.github.io/mira_new/architecture.html)**
 
 滚轮缩放 · 拖拽平移 · 点击节点打开对应源码。本地也可直接打开 [`docs/architecture.html`](docs/architecture.html)。
 
@@ -78,6 +80,9 @@ ctest --preset macos-debug --output-on-failure
 | [docs/RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md) | P0 发布检查清单 |
 | [docs/dev-map/](docs/dev-map/) | 愿景、架构、路线图 |
 | [docs/dev-map/01-ARCHITECTURE-MAP.md](docs/dev-map/01-ARCHITECTURE-MAP.md) | 模块边界、依赖方向与契约 |
+| [docs/dev-map/07-ITERATION-AND-LANDING.md](docs/dev-map/07-ITERATION-AND-LANDING.md) | Demo 阶段：模块数锁定与功能落点 |
+| [docs/dev-map/08-SEAMS-AND-VIBE-CODING.md](docs/dev-map/08-SEAMS-AND-VIBE-CODING.md) | 接缝原理、好处与弊端、vibe coding 哪些能做 |
+| [AGENTS.md](AGENTS.md) | 任意 AI 工具的阅读顺序，只指向开发地图 |
 | [可缩放架构图](https://wisdom-km.github.io/mira_new/architecture.html) | 滚轮缩放、拖拽平移、点击节点 |
 
 shader 由 CMake 调用 shaderc 编译，不要提交生成的二进制。

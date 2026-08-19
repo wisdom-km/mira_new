@@ -171,3 +171,7 @@ public:
 - 统一入口 `DD_LOG_TRACE/DEBUG/INFO/WARN/ERROR`（Core 封装 spdlog）
 - 同时输出控制台与文件（`<用户数据目录>/DirectorDesk/logs/`，按日期滚动）
 - ERROR 仅用于用户可感知的失败；正常流程用 INFO 以下
+
+## 六、Demo 阶段迭代
+
+P0 完成后的加删功能、模块数锁定与落点顺序见 [`07-ITERATION-AND-LANDING.md`](07-ITERATION-AND-LANDING.md)。为什么要接缝、vibe coding 哪些能做哪些不能见 [`08-SEAMS-AND-VIBE-CODING.md`](08-SEAMS-AND-VIBE-CODING.md)。本文件仍是边界与契约的权威；`07`/`08` 不授权新建模块或改变依赖方向。

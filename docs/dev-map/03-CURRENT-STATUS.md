@@ -5,12 +5,12 @@
 ## 当前快照
 
 - **当前 Phase**：Phase 10 已完成
-- **当前状态**：视口滚轮闪屏已修；Windows 安装包随 `phase-10-p1` 发布
+- **当前状态**：视口滚轮闪屏已修；`07`/`08` 已生效。知识库入口：`AGENTS.md`、GitHub Pages 目录页
 - **最后更新**：2026-08-19
 - **更新者**：Cursor AI
 - **当前分支**：`main`
-- **最近完成 tag**：`phase-10-p1`（本提交）
-- **下一个允许执行的工作**：维护与后续演进。P0 路线图已走完。不得接入真实 AI 服务，除非产品负责人批准新 Phase
+- **最近完成 tag**：`phase-10-p1`
+- **下一个允许执行的工作**：按 `07` 在现有名词上加删功能。不得新建 CMake 模块、不得接线真实 AI、暂不拆 `Application.cpp`
 
 ## 已完成
 
@@ -20,7 +20,7 @@
 
 ## 进行中
 
-无。P0 路线图已完成。
+无。P0 路线图已完成；此后加删功能以 `07` 为准。
 
 ## 阻塞项
 
@@ -59,6 +59,7 @@
 | 官方地址 | 仓库 https://github.com/wisdom-km/obj-3d-models ；清单 `https://raw.githubusercontent.com/wisdom-km/obj-3d-models/main/manifest.json` ；资源基地址 `https://raw.githubusercontent.com/wisdom-km/obj-3d-models/main/` ；批准者 Wisdom |
 | AI 接口 | 供应商无关；参考图只接受本地路径或 RGBA；P0 无密钥 UI、无真实调用 |
 | Windows 分发 | Inno Setup 安装包，发布到 GitHub Releases；批准者 Wisdom |
+| Demo 迭代策略 | 部分模块化：控制面保留，模块数锁定，AI 冻结为空岛；加删按 `07` 落点；原理见 `08`；暂不拆 `Application.cpp`；批准者 Wisdom |
 
 ## 已知风险
 
@@ -80,8 +81,25 @@
 
 1. 确认 GitHub Actions Windows + macOS 全绿
 2. 有 Mac 时按 `docs/RELEASE-CHECKLIST.md` 补实机回归
+3. 后续功能只填进现有名词；不拆 `Application.cpp`，除非编排痛到无法安全改 visit
 
 ## 工作日志
+
+### 2026-08-19：知识库 `08` 与 GitHub 入口
+
+- 新增 `docs/dev-map/08-SEAMS-AND-VIBE-CODING.md`：接缝先于功能、好处与弊端、vibe coding 能/不能。
+- 根目录 `AGENTS.md` 只指向开发地图。Pages `docs/index.html` 改为目录枢纽，图与正文仍各一处。
+- 未改业务代码，未拆 `Application.cpp`。
+
+### 2026-08-19：`07` 生效
+
+- Wisdom 确认 `07-ITERATION-AND-LANDING.md` 无改动意见；去掉草稿标记，作为 Demo 现行迭代政策。
+- 未改业务代码，未拆 `Application.cpp`。
+
+### 2026-08-19：Demo 迭代政策
+
+- 新增 `docs/dev-map/07-ITERATION-AND-LANDING.md`：模块数锁定、按名词落点、加/删分层、AI 冻结、暂不拆 Application.cpp。
+- `01`/`04`/`06`、`CONTRIBUTING.md`、`README.md` 增加指向，避免第二份架构正文。
 
 ### 2026-08-19：0.1.1 Windows 发布
 

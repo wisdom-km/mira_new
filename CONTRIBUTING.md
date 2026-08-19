@@ -5,13 +5,14 @@
 ## 开始之前
 
 1. 按 [docs/BUILD.md](docs/BUILD.md) 完成 Windows 或 macOS 构建
-2. 按顺序阅读 `docs/dev-map/` 中的 `00` 到 `05`，以及当前 Phase 对应的 `modules/*.md`
-3. 确认 `docs/dev-map/03-CURRENT-STATUS.md` 中的当前 Phase
-4. 只实现当前 Phase 允许的工作，不要提前做后续功能
+2. 按顺序阅读 `docs/dev-map/` 中的 `00` 到 `05`、`07`，以及当前工作对应的 `modules/*.md`。讨论架构或加删功能时加读 `08`
+3. 确认 `docs/dev-map/03-CURRENT-STATUS.md` 中的当前状态
+4. P0 已完成后遵守 `07` 的模块数锁定与功能落点；不要为小功能新建模块，也不要提前做未批准范围。AI 入口见根目录 [AGENTS.md](AGENTS.md)
 
 ## 开发规则
 
 - 核心用户路径优先
+- 新功能按名词落进现有模块；禁止为单个按钮或预设新建库
 - 模块依赖单向；UI 只发 Command、只读展示状态
 - 公共接口不泄漏 GLFW、bgfx、libcurl、spdlog 类型
 - 内部字符串一律 UTF-8

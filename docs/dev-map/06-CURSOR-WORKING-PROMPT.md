@@ -14,10 +14,12 @@
    - docs/dev-map/02-ROADMAP.md
    - docs/dev-map/03-CURRENT-STATUS.md
    - docs/dev-map/05-CODING-STANDARDS.md
-   - 当前 Phase 涉及的 docs/dev-map/modules/*.md
+   - docs/dev-map/07-ITERATION-AND-LANDING.md
+   - 当前工作涉及的 docs/dev-map/modules/*.md
+   若任务涉及架构、加删模块或讨论模块化：加读 docs/dev-map/08-SEAMS-AND-VIBE-CODING.md
 2. 检查仓库、分支、未提交更改和已有 tag，保护所有非本人更改。
 3. 确认当前 Phase、本次任务范围、模块依赖和验收方式。
-4. 只实现当前 Phase 允许的内容。请求超出范围时，先指出冲突；没有产品负责人明确批准，不得跳 Phase 或扩大 P0。
+4. P0 已完成后：只把功能填进现有名词，遵守 07 的模块数锁定与落点顺序；不得为小功能新建模块，不得接线 AI。仍处于某 Phase 时：只实现该 Phase 允许的内容。请求超出范围时，先指出冲突；没有产品负责人明确批准，不得跳 Phase、扩大 P0 或解开 07 的冻结。
 5. UI 只能产生 Command、读取只读展示状态；业务逻辑不得进入 UI。
 6. 第三方实现必须被接口/Backend 隔离，不得泄漏到公共业务接口。
 7. 用测试、构建或可复现检查验证改动；不得以“看起来正确”代替验收。
@@ -36,5 +38,5 @@
 ## 维护规则
 
 - 此 Prompt 不重复技术栈、Phase 详情或数据格式，以免出现两个事实来源
-- 工作流变化时修改本文件；产品/架构事实修改对应的 `00`—`05` 或 `modules/`
+- 工作流变化时修改本文件；产品/架构事实修改对应的 `00`—`05` 或 `modules/`；Demo 加删与落点修改 `07`；接缝与 vibe coding 原理修改 `08`
 - 若 Cursor 项目规则中保存了副本，修改本文件后需同步副本，并在 `03` 记录
