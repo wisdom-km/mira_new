@@ -85,6 +85,10 @@
 
 ## 工作日志
 
+### 2026-08-19：Pages 目录按 00–08 正序
+
+- `docs/index.html` 开发地图入口改为 00→08，不再 08、07 倒着排。
+
 ### 2026-08-19：知识库 `08` 与 GitHub 入口
 
 - 新增 `docs/dev-map/08-SEAMS-AND-VIBE-CODING.md`：接缝先于功能、好处与弊端、vibe coding 能/不能。
