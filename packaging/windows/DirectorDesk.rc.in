@@ -1,0 +1,4 @@
+// DirectorDesk: Windows resource script for the tentative application icon.
+// GLFW looks up the ICON named GLFW_ICON inside the executable.
+
+GLFW_ICON ICON "@DD_APP_ICON@"

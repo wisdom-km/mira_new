@@ -84,6 +84,20 @@ struct StoryboardCardView {
     std::uint16_t thumbTexture = 0xFFFFu;
 };
 
+struct ExportIssueView {
+    std::string shotId;
+    std::string shotTitle;
+    const char* reason = "";
+};
+
+struct ExportLogView {
+    std::string label;
+    std::string shotTitle;
+    std::string path;
+    bool ok = false;
+    std::string message;
+};
+
 struct AppViewState {
     // UI panels receive this immutable snapshot and communicate back only through commands.
     const char* appName = "DirectorDesk";
@@ -133,6 +147,14 @@ struct AppViewState {
     bool exportStalePrompt = false;
     int exportStaleCount = 0;
     const char* exportPendingPath = "";
+    const char* workspaceModeId = "shoot";
+    bool layoutRebuildRequested = false;
+    const char* selectionKind = "none";
+    const char* selectionId = "";
+    const char* selectionLabel = "";
+    const std::vector<ExportIssueView>* exportIssues = nullptr;
+    const std::vector<ExportLogView>* exportLog = nullptr;
+    const char* exportResolutionId = "1080p";
 };
 
 class IPanel {

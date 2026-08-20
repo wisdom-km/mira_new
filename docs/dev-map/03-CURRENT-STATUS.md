@@ -5,22 +5,24 @@
 ## 当前快照
 
 - **当前 Phase**：Phase 10 已完成
-- **当前状态**：视口滚轮闪屏已修；`07`/`08` 已生效。知识库入口：`AGENTS.md`、GitHub Pages 目录页
-- **最后更新**：2026-08-19
+- **当前版本工作**：**UI-PRO（UI 专业化升级）** 已随 **0.1.2** 打包。见 [`ui-pro-upgrade/`](ui-pro-upgrade/README.md)，进度以 [`ui-pro-upgrade/26-UI-PRO-STATUS.md`](ui-pro-upgrade/26-UI-PRO-STATUS.md) 为准
+- **最后更新**：2026-08-21
 - **更新者**：Cursor AI
 - **当前分支**：`main`
-- **最近完成 tag**：`phase-10-p1`
-- **下一个允许执行的工作**：按 `07` 在现有名词上加删功能。不得新建 CMake 模块、不得接线真实 AI、暂不拆 `Application.cpp`
+- **最近完成 tag**：`v0.1.2`
+- **下一个允许执行的工作**：0.1.2 已发布后，后续功能只填进现有名词。不得新建 CMake 模块、不得接线真实 AI、暂不拆 `Application.cpp`
 
 ## 已完成
 
 - [x] Phase 0–10：从骨架到 P0 发布准备
-- [x] tag `phase-10-p0`、`phase-10-p1`
+- [x] tag `phase-10-p0`、`phase-10-p1`、`v0.1.2`
 - [x] Windows 安装包脚本：`packaging/windows/`
 
 ## 进行中
 
-无。P0 路线图已完成；此后加删功能以 `07` 为准。
+**UI-PRO 0.1.2**：W1–W3 已写入并打 Windows 安装包。设计与进度见 [`ui-pro-upgrade/`](ui-pro-upgrade/README.md)。
+
+P0 路线图已完成；UI-PRO 之外的加删功能仍以 `07` 为准。
 
 ## 阻塞项
 
@@ -59,7 +61,10 @@
 | 官方地址 | 仓库 https://github.com/wisdom-km/obj-3d-models ；清单 `https://raw.githubusercontent.com/wisdom-km/obj-3d-models/main/manifest.json` ；资源基地址 `https://raw.githubusercontent.com/wisdom-km/obj-3d-models/main/` ；批准者 Wisdom |
 | AI 接口 | 供应商无关；参考图只接受本地路径或 RGBA；P0 无密钥 UI、无真实调用 |
 | Windows 分发 | Inno Setup 安装包，发布到 GitHub Releases；批准者 Wisdom |
+| 应用 logo | 暂定 `img/dog.png`；Windows 图标为 `img/directordesk.ico`；批准者 Wisdom |
 | Demo 迭代策略 | 部分模块化：控制面保留，模块数锁定，AI 冻结为空岛；加删按 `07` 落点；原理见 `08`；暂不拆 `Application.cpp`；批准者 Wisdom |
+| 当前画面镜头与关联 | 镜头检查器可选已有相机或新建机位；相机面孔不把当前画面镜头列入占用关联；删镜头/删相机都在左侧右键；批准者 Wisdom |
+| 资源库缺失条目 | 网格不显示；可删索引记录，不删磁盘源文件；批准者 Wisdom |
 
 ## 已知风险
 
@@ -74,16 +79,58 @@
 
 ## 本次验证
 
-- Windows Debug 测试：104 cases / 564 assertions
-- Windows 安装包随本 tag 发布
+- Windows Debug 测试：109 cases / 590 assertions
+- 产品版本 **0.1.2**：UI-PRO 工作台 + 镜头可选已有相机 / 建新机位 + 左侧右键删镜头与相机 + 资源库清理缺失
 
 ## 下一步清单
 
-1. 确认 GitHub Actions Windows + macOS 全绿
-2. 有 Mac 时按 `docs/RELEASE-CHECKLIST.md` 补实机回归
-3. 后续功能只填进现有名词；不拆 `Application.cpp`，除非编排痛到无法安全改 visit
+1. 确认 GitHub Release `v0.1.2` 安装包可下载、安装后能打开咖啡馆示例
+2. 确认 GitHub Actions Windows + macOS 全绿
+3. 有 Mac 时按 `docs/RELEASE-CHECKLIST.md` 补实机回归
+4. 后续功能只填进现有名词；不拆 `Application.cpp`，除非编排痛到无法安全改 visit
 
 ## 工作日志
+
+### 2026-08-21：0.1.2 Windows 发布
+
+- 产品版本升到 0.1.2：UI-PRO 四模式工作台、镜头/相机左侧右键删除、镜头检查器可选已有相机或建新机位、资源库隐藏并清理缺失条目、关闭弹窗文字对比度。
+- 打包 `DirectorDesk-0.1.2-windows-x64.exe` / `.zip`，发布到 GitHub Releases tag `v0.1.2`。
+
+### 2026-08-21：镜头可选已有相机、左侧删相机
+
+- 镜头检查器增加已有相机下拉，并保留「为该镜头建机位」；当前选中镜头可以 `LinkShotToCameraCommand`。
+- 左侧相机表右键删除；检查器不再删相机。相机面孔占用列表仍不把当前画面镜头列为关联目标。
+
+### 2026-08-21：镜头关联、左侧删镜头、资源库清理缺失
+
+- 当前画面镜头不再走 `LinkShotToCameraCommand`；检查器去掉「关联到当前相机」；相机面孔只让其他镜头关联。
+- 删除镜头改到左侧镜头表右键菜单，检查器不再删镜头。
+- 资源库不展示源文件缺失的本地条目；右键删除 +「清理缺失」去掉索引记录。Wisdom 批准追加 `DeleteShotCommand` / `RemoveLibraryAssetCommand`。
+- Windows Debug：109 cases / 590 assertions。
+
+### 2026-08-21：关闭确认弹窗文字对比度
+
+- `WorkspacePanel` 三个 `BeginPopupModal` 的正文和按钮改为与标题相同的浅色 `#e9edf4`；ImGui 样式补齐 1.92 颜色并把弹窗背景设为不透明。
+- 根因：自定义 ImGui 后端按命令顺序累计索引，忽略 `ImDrawCmd::IdxOffset`。模态变暗层会把 draw command 挪到列表前面，正文/按钮因此画错成暗色。
+
+### 2026-08-21：UI-PRO W1–W3 代码落地
+
+- 四个新 Command、统一选择快照、工作区模式 dock 重建、状态栏/工具条/层级/检查器/镜头条。
+- 导演台九职责面板停用 `Begin`；空工程中央改为开始板。
+- 未新建 CMake 模块、AI 仍冻结、未拆 `Application.cpp`。
+- 测试当时 106 cases / 570 assertions。
+
+### 2026-08-21：UI-PRO 设计集落地
+
+- 新增 `docs/dev-map/ui-pro-upgrade/`（README + `20`–`26`）：UI 专业化升级版的范围、新主路径、区域契约、契约增量、任务表、停手清单与状态页。
+- 依据 Phase 10 基线代码审计：`导演台###Workspace` 一栏九职责、三份互不相关的选择、`statusText` 藏在左栏底部、分镜总览只占中央下方三成。
+- 定下八个稳定区域 ID、四个工作区模式（默认 `shoot`）、统一选择模型、15 个任务、4 个新 Command 与 6 组新快照字段。
+- 仅文档改动：未改业务代码、未新建 CMake 模块、AI 仍冻结、未拆 `Application.cpp`。
+
+### 2026-08-20：暂定应用 logo
+
+- 源图 `img/dog.png`，Windows 多尺寸图标 `img/directordesk.ico`。
+- `DirectorDesk.exe` 嵌入 `GLFW_ICON`；Inno Setup 使用同一图标和向导小图。
 
 ### 2026-08-19：Pages 目录按 00–08 正序
 

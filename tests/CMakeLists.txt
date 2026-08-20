@@ -6,6 +6,7 @@ find_package(Catch2 CONFIG REQUIRED)
 add_executable(DirectorDeskTests
     Core/ResultTests.cpp
     Core/LogTests.cpp
+    Core/CommandTests.cpp
     Platform/PathTests.cpp
     Camera/OrbitCameraTests.cpp
     Camera/PresetTests.cpp

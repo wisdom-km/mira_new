@@ -125,6 +125,22 @@ TEST_CASE("Insert scene and shot write stable IDs", "[script][document]") {
     REQUIRE(document.SelectedShotId() == document.PublishedSnapshot().scenes[0].shots[0].id);
 }
 
+TEST_CASE("RemoveShot drops the heading and keeps the other shot", "[script][document]") {
+    DirectorDesk::Script::Document document;
+    REQUIRE(document
+                .LoadFromText("## [scene:scene-a] 场\n### [shot:shot-a] 一\n窗边。\n"
+                              "### [shot:shot-b] 二\n特写。\n")
+                .IsOk());
+    document.SelectShot("shot-a");
+    REQUIRE(document.RemoveShot("shot-a"));
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots.size() == 1);
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots[0].id == "shot-b");
+    REQUIRE(document.Text().find("[shot:shot-a]") == std::string::npos);
+    REQUIRE(document.Text().find("特写") != std::string::npos);
+    REQUIRE(document.SelectedShotId() == "shot-b");
+    REQUIRE_FALSE(document.RemoveShot("shot-a"));
+}
+
 TEST_CASE("Selecting a shot is reflected on the document", "[script][document]") {
     DirectorDesk::Script::Document document;
     REQUIRE(document

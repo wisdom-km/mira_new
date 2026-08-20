@@ -542,7 +542,7 @@ Core::Result<std::string> ProjectFile::Serialize(const ProjectSnapshot& snapshot
     nlohmann::json root;
     root["format"] = "DirectorDeskProject";
     root["formatVersion"] = 1;
-    root["createdBy"] = "DirectorDesk 0.1.1";
+    root["createdBy"] = "DirectorDesk 0.1.2";
     root["projectId"] = snapshot.projectId;
     root["name"] = snapshot.name;
     if (!snapshot.script.value.empty()) {

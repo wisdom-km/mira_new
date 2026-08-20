@@ -6,7 +6,7 @@ if(NOT DEFINED CMAKE_TOOLCHAIN_FILE AND DEFINED ENV{VCPKG_ROOT})
         CACHE FILEPATH "vcpkg toolchain")
 endif()
 
-project(DirectorDesk VERSION 0.1.1 LANGUAGES CXX)
+project(DirectorDesk VERSION 0.1.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -109,6 +109,18 @@ add_executable(DirectorDesk src/App/main.cpp)
 target_link_libraries(DirectorDesk PRIVATE dd_app)
 dd_set_strict_warnings(DirectorDesk)
 add_dependencies(DirectorDesk dd_shaders)
+
+if(WIN32)
+    # GLFW loads the first ICON named GLFW_ICON from the executable.
+    file(TO_NATIVE_PATH "${PROJECT_SOURCE_DIR}/img/directordesk.ico" DD_APP_ICON)
+    string(REPLACE "\\" "\\\\" DD_APP_ICON "${DD_APP_ICON}")
+    configure_file(
+        "${PROJECT_SOURCE_DIR}/packaging/windows/DirectorDesk.rc.in"
+        "${CMAKE_BINARY_DIR}/DirectorDesk.rc"
+        @ONLY
+    )
+    target_sources(DirectorDesk PRIVATE "${CMAKE_BINARY_DIR}/DirectorDesk.rc")
+endif()
 
 add_custom_command(TARGET DirectorDesk POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_directory

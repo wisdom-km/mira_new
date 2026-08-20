@@ -42,6 +42,56 @@ bool ShotExists(const Snapshot& snapshot, const std::string& shotId) {
     return false;
 }
 
+std::string FirstShotId(const Snapshot& snapshot) {
+    for (const Scene& scene : snapshot.scenes) {
+        if (!scene.shots.empty()) {
+            return scene.shots.front().id;
+        }
+    }
+    return {};
+}
+
+bool IsMarkdownHeading(const std::string& line) {
+    return line.size() >= 2 && line[0] == '#' && line[1] == '#';
+}
+
+bool RemoveShotSection(std::string& text, const std::string& shotId) {
+    const std::string marker = "### [shot:" + shotId + "]";
+    std::size_t start = std::string::npos;
+    std::size_t search = 0;
+    while (search < text.size()) {
+        const std::size_t found = text.find(marker, search);
+        if (found == std::string::npos) {
+            break;
+        }
+        if (found == 0 || text[found - 1] == '\n') {
+            start = found;
+            break;
+        }
+        search = found + marker.size();
+    }
+    if (start == std::string::npos) {
+        return false;
+    }
+    std::size_t end = text.find('\n', start);
+    if (end == std::string::npos) {
+        text.erase(start);
+        return true;
+    }
+    end += 1;
+    while (end < text.size()) {
+        const std::size_t lineEnd = text.find('\n', end);
+        const std::size_t lineLen = (lineEnd == std::string::npos ? text.size() : lineEnd) - end;
+        const std::string line = text.substr(end, lineLen);
+        if (IsMarkdownHeading(line)) {
+            break;
+        }
+        end = lineEnd == std::string::npos ? text.size() : lineEnd + 1;
+    }
+    text.erase(start, end - start);
+    return true;
+}
+
 } // namespace
 
 Document::Document() {
@@ -192,6 +242,21 @@ void Document::InsertShot() {
     m_dirty = true;
     ApplyParse(Parser::Parse(m_text), true);
     SelectShot(id);
+}
+
+bool Document::RemoveShot(const std::string& shotId) {
+    if (shotId.empty() || !ShotExists(m_snapshot, shotId)) {
+        return false;
+    }
+    if (!RemoveShotSection(m_text, shotId)) {
+        return false;
+    }
+    m_dirty = true;
+    ApplyParse(Parser::Parse(m_text), true);
+    if (m_selectedShotId.empty()) {
+        SelectShot(FirstShotId(m_snapshot));
+    }
+    return true;
 }
 
 void Document::SelectShot(const std::string& shotId) {

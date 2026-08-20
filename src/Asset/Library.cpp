@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <sstream>
+#include <cstddef>
 
 namespace DirectorDesk::Asset {
 namespace {
@@ -298,6 +299,30 @@ Core::Result<LibraryAsset> Library::Upsert(LibraryAsset asset) {
         return Core::Result<LibraryAsset>::Fail(saved.GetError());
     }
     return Core::Result<LibraryAsset>::Ok(std::move(asset));
+}
+
+bool Library::Remove(const std::string& assetId) {
+    if (assetId.empty()) {
+        return false;
+    }
+    std::size_t index = m_assets.size();
+    for (std::size_t i = 0; i < m_assets.size(); ++i) {
+        if (m_assets[i].id == assetId) {
+            index = i;
+            break;
+        }
+    }
+    if (index >= m_assets.size()) {
+        return false;
+    }
+    LibraryAsset removed = m_assets[index];
+    m_assets.erase(m_assets.begin() + static_cast<std::ptrdiff_t>(index));
+    auto saved = Save();
+    if (!saved.IsOk()) {
+        m_assets.insert(m_assets.begin() + static_cast<std::ptrdiff_t>(index), std::move(removed));
+        return false;
+    }
+    return true;
 }
 
 bool Library::SetPreviewPath(const std::string& assetId, std::string previewPath) {

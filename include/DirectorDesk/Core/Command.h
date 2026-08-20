@@ -188,6 +188,28 @@ struct ConfirmStoryboardStaleExportCommand {};
 
 struct CancelStoryboardStaleExportCommand {};
 
+struct SetWorkspaceModeCommand {
+    std::string modeId = "shoot";
+};
+
+struct ResetLayoutCommand {};
+
+struct BindShotToNewCameraCommand {
+    std::string shotId;
+};
+
+struct SelectExportResolutionCommand {
+    std::string resolutionId = "1080p";
+};
+
+struct DeleteShotCommand {
+    std::string shotId;
+};
+
+struct RemoveLibraryAssetCommand {
+    std::string assetId;
+};
+
 using Command = std::variant<
     QuitCommand, ViewportResizeCommand, OrbitDeltaCommand, ExportTestPngCommand, ImportModelCommand,
     ImportModelFromPathCommand, SelectNodeCommand, SetNodeTransformCommand, LoadScriptCommand,
@@ -197,13 +219,15 @@ using Command = std::variant<
     AddLibraryAssetToSceneCommand, SetLibrarySearchCommand, SetLibraryOriginFilterCommand,
     SetLibraryViewModeCommand, SelectLibraryAssetCommand, RefreshLibraryCommand,
     RefreshOfficialCatalogCommand, DownloadOfficialAssetCommand, CancelOfficialDownloadCommand,
-    SetOfficialCategoryCommand, NewProjectCommand,
-    OpenProjectCommand, OpenProjectFromPathCommand, SaveProjectCommand, SaveProjectAsCommand,
-    LinkShotToCameraCommand, UnlinkShotCommand, ConfirmSaveProjectCommand, DiscardProjectCommand,
-    CancelProjectPromptCommand, SetStoryboardSceneCollapsedCommand, FocusStoryboardSelectionCommand,
-    FitStoryboardCommand, RefreshStoryboardThumbnailCommand, ExportCurrentShotCommand,
-    ExportStoryboardBoardCommand, SetExportTransparentCommand, ConfirmExportOverwriteCommand,
-    CancelExportOverwriteCommand, ReportStoryboardViewCommand, ConfirmStoryboardStaleExportCommand,
-    CancelStoryboardStaleExportCommand>;
+    SetOfficialCategoryCommand, NewProjectCommand, OpenProjectCommand, OpenProjectFromPathCommand,
+    SaveProjectCommand, SaveProjectAsCommand, LinkShotToCameraCommand, UnlinkShotCommand,
+    ConfirmSaveProjectCommand, DiscardProjectCommand, CancelProjectPromptCommand,
+    SetStoryboardSceneCollapsedCommand, FocusStoryboardSelectionCommand, FitStoryboardCommand,
+    RefreshStoryboardThumbnailCommand, ExportCurrentShotCommand, ExportStoryboardBoardCommand,
+    SetExportTransparentCommand, ConfirmExportOverwriteCommand, CancelExportOverwriteCommand,
+    ReportStoryboardViewCommand, ConfirmStoryboardStaleExportCommand,
+    CancelStoryboardStaleExportCommand, SetWorkspaceModeCommand, ResetLayoutCommand,
+    BindShotToNewCameraCommand, SelectExportResolutionCommand, DeleteShotCommand,
+    RemoveLibraryAssetCommand>;
 
 } // namespace DirectorDesk::Core

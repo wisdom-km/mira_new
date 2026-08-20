@@ -21,6 +21,114 @@
 namespace DirectorDesk::Backends {
 namespace {
 
+ImVec4 Color(unsigned int hex, float alpha = 1.0f) {
+    return ImVec4(static_cast<float>((hex >> 16u) & 0xffu) / 255.0f,
+                  static_cast<float>((hex >> 8u) & 0xffu) / 255.0f,
+                  static_cast<float>(hex & 0xffu) / 255.0f, alpha);
+}
+
+void ApplyDirectorDeskStyle() {
+    ImGuiStyle& style = ImGui::GetStyle();
+
+    // Compact, editor-like geometry: dense controls, restrained rounding, clear grouping.
+    style.WindowPadding = ImVec2(10.0f, 10.0f);
+    style.FramePadding = ImVec2(8.0f, 5.0f);
+    style.CellPadding = ImVec2(7.0f, 4.0f);
+    style.ItemSpacing = ImVec2(7.0f, 6.0f);
+    style.ItemInnerSpacing = ImVec2(6.0f, 4.0f);
+    style.IndentSpacing = 18.0f;
+    style.ScrollbarSize = 12.0f;
+    style.GrabMinSize = 10.0f;
+
+    style.WindowRounding = 4.0f;
+    style.ChildRounding = 4.0f;
+    style.FrameRounding = 3.0f;
+    style.PopupRounding = 4.0f;
+    style.ScrollbarRounding = 6.0f;
+    style.GrabRounding = 3.0f;
+    style.TabRounding = 3.0f;
+
+    style.WindowBorderSize = 1.0f;
+    style.ChildBorderSize = 1.0f;
+    style.PopupBorderSize = 1.0f;
+    style.FrameBorderSize = 0.0f;
+    style.TabBorderSize = 0.0f;
+
+    constexpr unsigned int kCanvas = 0x0b0d12;
+    constexpr unsigned int kWindow = 0x101319;
+    constexpr unsigned int kSurface = 0x151922;
+    constexpr unsigned int kRaised = 0x1c222d;
+    constexpr unsigned int kBorder = 0x2b3340;
+    constexpr unsigned int kBorderHot = 0x465265;
+    constexpr unsigned int kText = 0xe9edf4;
+    constexpr unsigned int kMuted = 0x8f9baa;
+    constexpr unsigned int kAccent = 0xd89a4a;
+    constexpr unsigned int kAccentHot = 0xebb25f;
+    constexpr unsigned int kSelection = 0x31547d;
+
+    ImVec4* colors = style.Colors;
+    colors[ImGuiCol_Text] = Color(kText);
+    colors[ImGuiCol_TextDisabled] = Color(kMuted);
+    colors[ImGuiCol_WindowBg] = Color(kWindow);
+    colors[ImGuiCol_ChildBg] = Color(kSurface, 0.78f);
+    colors[ImGuiCol_PopupBg] = Color(kWindow, 1.0f);
+    colors[ImGuiCol_Border] = Color(kBorder);
+    colors[ImGuiCol_BorderShadow] = Color(kCanvas, 0.0f);
+    colors[ImGuiCol_FrameBg] = Color(kRaised);
+    colors[ImGuiCol_FrameBgHovered] = Color(0x27313f);
+    colors[ImGuiCol_FrameBgActive] = Color(0x303b4b);
+    colors[ImGuiCol_TitleBg] = Color(kCanvas);
+    colors[ImGuiCol_TitleBgActive] = Color(kCanvas);
+    colors[ImGuiCol_TitleBgCollapsed] = Color(kCanvas);
+    colors[ImGuiCol_MenuBarBg] = Color(kCanvas);
+    colors[ImGuiCol_ScrollbarBg] = Color(kCanvas, 0.62f);
+    colors[ImGuiCol_ScrollbarGrab] = Color(kBorder);
+    colors[ImGuiCol_ScrollbarGrabHovered] = Color(kBorderHot);
+    colors[ImGuiCol_ScrollbarGrabActive] = Color(kAccent);
+    colors[ImGuiCol_CheckMark] = Color(kAccentHot);
+    colors[ImGuiCol_CheckboxSelectedBg] = Color(kSelection);
+    colors[ImGuiCol_SliderGrab] = Color(kAccent);
+    colors[ImGuiCol_SliderGrabActive] = Color(kAccentHot);
+    colors[ImGuiCol_Button] = Color(kBorder);
+    colors[ImGuiCol_ButtonHovered] = Color(kBorderHot);
+    colors[ImGuiCol_ButtonActive] = Color(kSelection);
+    colors[ImGuiCol_Header] = Color(kSelection, 0.72f);
+    colors[ImGuiCol_HeaderHovered] = Color(0x3b6595, 0.82f);
+    colors[ImGuiCol_HeaderActive] = Color(0x4776aa);
+    colors[ImGuiCol_Separator] = Color(kBorder);
+    colors[ImGuiCol_SeparatorHovered] = Color(kAccent, 0.78f);
+    colors[ImGuiCol_SeparatorActive] = Color(kAccentHot);
+    colors[ImGuiCol_ResizeGrip] = Color(kBorder, 0.35f);
+    colors[ImGuiCol_ResizeGripHovered] = Color(kAccent, 0.72f);
+    colors[ImGuiCol_ResizeGripActive] = Color(kAccentHot);
+    colors[ImGuiCol_InputTextCursor] = Color(kText);
+    colors[ImGuiCol_Tab] = Color(kSurface);
+    colors[ImGuiCol_TabHovered] = Color(0x283342);
+    colors[ImGuiCol_TabSelected] = Color(kRaised);
+    colors[ImGuiCol_TabSelectedOverline] = Color(kAccent);
+    colors[ImGuiCol_TabDimmed] = Color(kCanvas);
+    colors[ImGuiCol_TabDimmedSelected] = Color(kSurface);
+    colors[ImGuiCol_DockingPreview] = Color(kAccent, 0.62f);
+    colors[ImGuiCol_DockingEmptyBg] = Color(kCanvas);
+    colors[ImGuiCol_PlotLines] = Color(kMuted);
+    colors[ImGuiCol_PlotHistogram] = Color(kAccent);
+    colors[ImGuiCol_TableHeaderBg] = Color(kRaised);
+    colors[ImGuiCol_TableBorderStrong] = Color(kBorderHot);
+    colors[ImGuiCol_TableBorderLight] = Color(kBorder);
+    colors[ImGuiCol_TableRowBg] = Color(kWindow, 0.0f);
+    colors[ImGuiCol_TableRowBgAlt] = Color(kRaised, 0.34f);
+    colors[ImGuiCol_TextLink] = Color(kAccentHot);
+    colors[ImGuiCol_TextSelectedBg] = Color(kSelection);
+    colors[ImGuiCol_TreeLines] = Color(kBorder);
+    colors[ImGuiCol_DragDropTarget] = Color(kAccentHot);
+    colors[ImGuiCol_DragDropTargetBg] = Color(kAccent, 0.22f);
+    colors[ImGuiCol_UnsavedMarker] = Color(kAccent);
+    colors[ImGuiCol_NavCursor] = Color(kAccentHot);
+    colors[ImGuiCol_NavWindowingHighlight] = Color(kAccentHot, 0.70f);
+    colors[ImGuiCol_NavWindowingDimBg] = Color(kCanvas, 0.65f);
+    colors[ImGuiCol_ModalWindowDimBg] = Color(kCanvas, 0.62f);
+}
+
 struct ImGuiVertex {
     float x, y;
     float u, v;
@@ -211,6 +319,7 @@ Core::Result<void> ImGuiGlfwBackend::Init(Platform::Window& window,
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
     io.IniFilename = nullptr;
     ImGui::StyleColorsDark();
+    ApplyDirectorDeskStyle();
     LoadUiFont();
 
     if (!ImGui_ImplGlfw_InitForOther(glfwWindow, true)) {
@@ -333,12 +442,10 @@ void ImGuiGlfwBackend::Submit(std::uint32_t framebufferWidth, std::uint32_t fram
         std::memcpy(indexBuffer.data, cmdList->IdxBuffer.Data,
                     sizeof(ImDrawIdx) * cmdList->IdxBuffer.Size);
 
-        std::uint32_t indexOffset = 0;
         for (int commandIndex = 0; commandIndex < cmdList->CmdBuffer.Size; ++commandIndex) {
             const ImDrawCmd& command = cmdList->CmdBuffer[commandIndex];
             if (command.UserCallback != nullptr) {
                 command.UserCallback(cmdList, &command);
-                indexOffset += command.ElemCount;
                 continue;
             }
 
@@ -360,21 +467,22 @@ void ImGuiGlfwBackend::Submit(std::uint32_t framebufferWidth, std::uint32_t fram
             if (texId != ImTextureID_Invalid) {
                 texture.idx = static_cast<std::uint16_t>(texId);
             }
-            if (!bgfx::isValid(texture)) {
-                indexOffset += command.ElemCount;
+            if (!bgfx::isValid(texture) || command.ElemCount == 0) {
                 continue;
             }
 
+            const std::uint32_t vtxOffset = command.VtxOffset;
+            const std::uint32_t vtxCount =
+                static_cast<std::uint32_t>(cmdList->VtxBuffer.Size) - vtxOffset;
             bgfx::setScissor(xx, yy, ww, hh);
             bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_MSAA |
                            BGFX_STATE_BLEND_FUNC_SEPARATE(
                                BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA,
                                BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_INV_SRC_ALPHA));
             bgfx::setTexture(0, sampler, texture);
-            bgfx::setVertexBuffer(0, &vertexBuffer);
-            bgfx::setIndexBuffer(&indexBuffer, indexOffset, command.ElemCount);
+            bgfx::setVertexBuffer(0, &vertexBuffer, vtxOffset, vtxCount);
+            bgfx::setIndexBuffer(&indexBuffer, command.IdxOffset, command.ElemCount);
             bgfx::submit(m_viewId, program);
-            indexOffset += command.ElemCount;
         }
     }
 }

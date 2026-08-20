@@ -1,12 +1,14 @@
 # DirectorDesk
 
+<p align="center"><img src="img/dog.png" width="160" alt="DirectorDesk"></p>
+
 3D 导演台：用剧本、资源库和预设机位，帮助非 3D 专业用户制作可控的 AI 视频分镜。
 
 P0 已走通：**Markdown 剧本 → 本地/官方资源 → 预设机位 → 镜头关联 → 分镜画布 → PNG 导出**。权威需求与架构见 [`docs/dev-map/`](docs/dev-map/)。给 AI 的入口是根目录 [`AGENTS.md`](AGENTS.md)。
 
 核心不是预埋未来所有功能，而是先画接缝：哪一块可以独立加、独立删、独立坏。原理见 [08 接缝与 Vibe Coding](docs/dev-map/08-SEAMS-AND-VIBE-CODING.md)。
 
-Windows 用户可直接从 [Releases](https://github.com/wisdom-km/mira_new/releases) 下载 `DirectorDesk-0.1.1-windows-x64.exe` 安装包。
+Windows 用户可直接从 [Releases](https://github.com/wisdom-km/mira_new/releases) 下载 `DirectorDesk-0.1.2-windows-x64.exe` 安装包。
 
 ## 架构
 

@@ -5,17 +5,17 @@
 
 #include "DirectorDesk/App/ProjectBinding.h"
 #include "DirectorDesk/App/ProjectFile.h"
-#include "DirectorDesk/Export/ShotExport.h"
 #include "DirectorDesk/Asset/Library.h"
 #include "DirectorDesk/Asset/LoaderRegistry.h"
-#include "DirectorDesk/Asset/OfficialCatalog.h"
 #include "DirectorDesk/Asset/ModelLoadResult.h"
+#include "DirectorDesk/Asset/OfficialCatalog.h"
 #include "DirectorDesk/Camera/CameraManager.h"
 #include "DirectorDesk/Camera/OrbitCamera.h"
 #include "DirectorDesk/Core/Command.h"
 #include "DirectorDesk/Core/CommandQueue.h"
 #include "DirectorDesk/Core/Log.h"
 #include "DirectorDesk/Core/ResultQueue.h"
+#include "DirectorDesk/Export/ShotExport.h"
 #include "DirectorDesk/Link/ShotLink.h"
 #include "DirectorDesk/Platform/FileDialog.h"
 #include "DirectorDesk/Platform/Paths.h"
@@ -260,8 +260,7 @@ void WriteLibraryPlaceholder(Asset::Library& library, const Asset::LibraryAsset&
     }
 }
 
-void IndexLibraryPath(Asset::Library& library, const std::string& path,
-                      Asset::AssetOrigin origin) {
+void IndexLibraryPath(Asset::Library& library, const std::string& path, Asset::AssetOrigin origin) {
     if (path.empty() || !Platform::Paths::Exists(path)) {
         return;
     }
@@ -463,10 +462,9 @@ bool OpenProjectAt(const std::string& path, Scene::Document& scene, Camera::Came
 }
 
 std::uint64_t NowMs() {
-    return static_cast<std::uint64_t>(
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now().time_since_epoch())
-            .count());
+    return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                          std::chrono::steady_clock::now().time_since_epoch())
+                                          .count());
 }
 
 Storyboard::StoryboardSourceSnapshot MakeBoardSource(const Script::Document& script,
@@ -536,29 +534,66 @@ Asset::OfficialEndpoints MakeOfficialEndpoints() {
 
 const char* PreviewText(Storyboard::PreviewStatus status) {
     switch (status) {
-    case Storyboard::PreviewStatus::Ready:
-        return "就绪";
-    case Storyboard::PreviewStatus::Stale:
-        return "过期";
-    case Storyboard::PreviewStatus::Rendering:
-        return "渲染中";
-    case Storyboard::PreviewStatus::Failed:
-        return "失败";
-    case Storyboard::PreviewStatus::Missing:
-    default:
-        return "缺失";
+        case Storyboard::PreviewStatus::Ready:
+            return "就绪";
+        case Storyboard::PreviewStatus::Stale:
+            return "过期";
+        case Storyboard::PreviewStatus::Rendering:
+            return "渲染中";
+        case Storyboard::PreviewStatus::Failed:
+            return "失败";
+        case Storyboard::PreviewStatus::Missing:
+        default:
+            return "缺失";
     }
 }
 
+const char* WorkspaceModeLabel(const std::string& modeId) {
+    if (modeId == "script") {
+        return "编剧模式";
+    }
+    if (modeId == "set") {
+        return "置景模式";
+    }
+    if (modeId == "review") {
+        return "审片模式";
+    }
+    return "掌机模式";
+}
+
+bool IsWorkspaceModeId(const std::string& modeId) {
+    return modeId == "script" || modeId == "set" || modeId == "shoot" || modeId == "review";
+}
+
+std::string FindShotTitle(const Script::Document& script, const std::string& shotId) {
+    if (!script.HasPublishedSnapshot()) {
+        return shotId;
+    }
+    for (const Script::Scene& sceneItem : script.PublishedSnapshot().scenes) {
+        for (const Script::Shot& shot : sceneItem.shots) {
+            if (shot.id == shotId) {
+                return shot.title.empty() ? shot.id : shot.title;
+            }
+        }
+    }
+    return shotId;
+}
+
+void PushExportLog(std::vector<UI::ExportLogView>& log, UI::ExportLogView entry) {
+    log.push_back(std::move(entry));
+    if (log.size() > 20) {
+        log.erase(log.begin());
+    }
+}
 
 const char* DiagnosticSeverityText(Script::DiagnosticSeverity severity) {
     switch (severity) {
-    case Script::DiagnosticSeverity::Error:
-        return "错误";
-    case Script::DiagnosticSeverity::Warning:
-        return "警告";
-    case Script::DiagnosticSeverity::Hint:
-        return "提示";
+        case Script::DiagnosticSeverity::Error:
+            return "错误";
+        case Script::DiagnosticSeverity::Warning:
+            return "警告";
+        case Script::DiagnosticSeverity::Hint:
+            return "提示";
     }
     return "提示";
 }
@@ -690,8 +725,7 @@ int Application::Run(int argc, char** argv) {
     }
     std::unique_ptr<Platform::IHttpClient> http = Backends::CreateCurlHttpClient();
     auto officialRoot = Platform::Paths::OfficialAssetsDirectory();
-    const std::string officialCache =
-        officialRoot.IsOk() ? officialRoot.Value() : std::string();
+    const std::string officialCache = officialRoot.IsOk() ? officialRoot.Value() : std::string();
     if (!officialCache.empty()) {
         Platform::Paths::CreateDirectories(officialCache);
     }
@@ -701,10 +735,9 @@ int Application::Run(int argc, char** argv) {
     if (options.exportAndQuit && options.importPath.empty()) {
         std::string status;
         const auto startupSize = window.GetFramebufferSize();
-        const bool ok = HandleExportTestPng(
-            *renderer, cameras.Selected()->orbit,
-            BuildSceneView(scene, cameras.CurrentLight(), false), startupSize.width,
-            startupSize.height, status);
+        const bool ok = HandleExportTestPng(*renderer, cameras.Selected()->orbit,
+                                            BuildSceneView(scene, cameras.CurrentLight(), false),
+                                            startupSize.width, startupSize.height, status);
         renderer->Shutdown();
         window.Destroy();
         DD_LOG_INFO("DirectorDesk exiting");
@@ -791,6 +824,14 @@ int Application::Run(int argc, char** argv) {
     std::string pendingThumbShotId;
     std::uint64_t frameIndex = 1;
     std::vector<UI::StoryboardCardView> storyboardViews;
+    std::string workspaceModeId = "shoot";
+    bool layoutRebuildRequested = false;
+    std::string selectionKind = "none";
+    std::string selectionId;
+    std::string selectionLabel;
+    std::string exportResolutionId = "1080p";
+    std::vector<UI::ExportIssueView> exportIssueViews;
+    std::vector<UI::ExportLogView> exportLogViews;
 
     const auto submitOfficialRefresh = [&]() {
         if (officialRefreshInFlight) {
@@ -882,8 +923,14 @@ int Application::Run(int argc, char** argv) {
     };
 
     const auto exportShotTo = [&](const std::string& path, Export::ShotResolution resolution) {
+        UI::ExportLogView log;
+        log.label = Export::ResolutionId(resolution);
+        log.shotTitle = FindShotTitle(script, script.SelectedShotId());
+        log.path = path;
         if (cameras.Selected() == nullptr) {
             status = "没有可导出的相机";
+            log.message = status;
+            PushExportLog(exportLogViews, std::move(log));
             return false;
         }
         const auto target = Export::MakeOffscreenTarget(resolution, exportTransparent);
@@ -895,19 +942,28 @@ int Application::Run(int argc, char** argv) {
         auto pixels = renderer->ReadbackTarget(target);
         if (!pixels.IsOk()) {
             status = pixels.GetError().userMessage;
+            log.message = status;
+            PushExportLog(exportLogViews, std::move(log));
             return false;
         }
         auto written = Renderer::WritePng(pixels.Value(), path);
         if (!written.IsOk()) {
             status = written.GetError().userMessage;
+            log.message = status;
+            PushExportLog(exportLogViews, std::move(log));
             return false;
         }
         storyboard.MarkShotExported(script.SelectedShotId());
         status = "已导出 " + Platform::Paths::FileName(path);
+        log.ok = true;
+        PushExportLog(exportLogViews, std::move(log));
         return true;
     };
 
     const auto exportBoardTo = [&](const std::string& path) {
+        UI::ExportLogView log;
+        log.label = "board";
+        log.path = path;
         Storyboard::BoardComposeRequest request;
         request.layout = storyboard.ExportLayout();
         for (const Storyboard::LayoutCard& card : request.layout.cards) {
@@ -925,6 +981,8 @@ int Application::Run(int argc, char** argv) {
         auto composed = Storyboard::ComposeBoard(request);
         if (!composed.IsOk()) {
             status = composed.GetError().userMessage;
+            log.message = status;
+            PushExportLog(exportLogViews, std::move(log));
             return false;
         }
         Renderer::PixelBuffer pixels;
@@ -934,10 +992,13 @@ int Application::Run(int argc, char** argv) {
         auto written = Renderer::WritePng(pixels, path);
         if (!written.IsOk()) {
             status = written.GetError().userMessage;
+            log.message = status;
+            PushExportLog(exportLogViews, std::move(log));
             return false;
         }
-        status = composed.Value().scaledToMax ? "已导出分镜总览（已缩放）"
-                                              : "已导出分镜总览";
+        status = composed.Value().scaledToMax ? "已导出分镜总览（已缩放）" : "已导出分镜总览";
+        log.ok = true;
+        PushExportLog(exportLogViews, std::move(log));
         return true;
     };
 
@@ -1004,9 +1065,8 @@ int Application::Run(int argc, char** argv) {
                 }
             } else {
                 officialCatalog.LoadCache();
-                officialCatalogStatus =
-                    officialRefresh.message.empty() ? "清单刷新失败，已使用缓存"
-                                                    : officialRefresh.message;
+                officialCatalogStatus = officialRefresh.message.empty() ? "清单刷新失败，已使用缓存"
+                                                                        : officialRefresh.message;
             }
         }
         OfficialProgressUpdate officialProgress;
@@ -1078,6 +1138,12 @@ int Application::Run(int argc, char** argv) {
                                      importInProgress, status);
                     } else if constexpr (std::is_same_v<T, Core::SelectNodeCommand>) {
                         scene.SetSelectedId(typed.nodeId);
+                        selectionKind = "node";
+                        selectionId = typed.nodeId;
+                        selectionLabel = typed.nodeId;
+                        if (const Scene::Node* node = scene.Find(typed.nodeId)) {
+                            selectionLabel = node->name;
+                        }
                     } else if constexpr (std::is_same_v<T, Core::SetNodeTransformCommand>) {
                         if (Scene::Node* node = scene.Find(typed.nodeId)) {
                             node->transform.position =
@@ -1112,10 +1178,36 @@ int Application::Run(int argc, char** argv) {
                         status = "已添加场次";
                     } else if constexpr (std::is_same_v<T, Core::InsertShotCommand>) {
                         script.InsertShot();
+                        projectDirty = true;
                         status = "已添加镜头";
+                    } else if constexpr (std::is_same_v<T, Core::DeleteShotCommand>) {
+                        const std::string shotId =
+                            typed.shotId.empty() ? script.SelectedShotId() : typed.shotId;
+                        if (shotId.empty() || !script.RemoveShot(shotId)) {
+                            status = "无法删除该镜头";
+                        } else {
+                            links.ClearShot(shotId);
+                            projectDirty = true;
+                            storyboard.SetSelectedShot(script.SelectedShotId());
+                            if (selectionId == shotId) {
+                                if (script.SelectedShotId().empty()) {
+                                    selectionKind = "none";
+                                    selectionId.clear();
+                                    selectionLabel.clear();
+                                } else {
+                                    selectionKind = "shot";
+                                    selectionId = script.SelectedShotId();
+                                    selectionLabel = FindShotTitle(script, selectionId);
+                                }
+                            }
+                            status = "已删除镜头";
+                        }
                     } else if constexpr (std::is_same_v<T, Core::SelectShotCommand>) {
                         script.SelectShot(typed.shotId);
                         storyboard.SetSelectedShot(typed.shotId);
+                        selectionKind = "shot";
+                        selectionId = typed.shotId;
+                        selectionLabel = FindShotTitle(script, typed.shotId);
                         if (const std::string* cameraId = links.CameraForShot(typed.shotId)) {
                             if (cameras.Find(*cameraId) != nullptr) {
                                 cameras.Select(*cameraId);
@@ -1149,6 +1241,12 @@ int Application::Run(int argc, char** argv) {
                         projectDirty = true;
                     } else if constexpr (std::is_same_v<T, Core::SelectCameraCommand>) {
                         cameras.Select(typed.cameraId);
+                        selectionKind = "camera";
+                        selectionId = typed.cameraId;
+                        selectionLabel = typed.cameraId;
+                        if (const Camera::CameraRig* rig = cameras.Find(typed.cameraId)) {
+                            selectionLabel = rig->name;
+                        }
                     } else if constexpr (std::is_same_v<T, Core::SetLightPresetCommand>) {
                         Camera::LightPresetKind kind = Camera::LightPresetKind::Neutral;
                         if (Camera::TryParseLightPreset(typed.presetId, kind)) {
@@ -1162,7 +1260,8 @@ int Application::Run(int argc, char** argv) {
                         const Asset::LibraryAsset* asset = library.Find(typed.assetId);
                         if (asset == nullptr) {
                             status = "找不到该资产";
-                        } else if (!asset->sourceExists || !Platform::Paths::Exists(asset->sourcePath)) {
+                        } else if (!asset->sourceExists ||
+                                   !Platform::Paths::Exists(asset->sourcePath)) {
                             status = "源文件已丢失";
                         } else {
                             selectedLibraryAssetId = asset->id;
@@ -1177,6 +1276,16 @@ int Application::Run(int argc, char** argv) {
                         libraryViewMode = typed.viewMode;
                     } else if constexpr (std::is_same_v<T, Core::SelectLibraryAssetCommand>) {
                         selectedLibraryAssetId = typed.assetId;
+                    } else if constexpr (std::is_same_v<T, Core::RemoveLibraryAssetCommand>) {
+                        if (!library.Remove(typed.assetId)) {
+                            status = "无法从资源库删除";
+                        } else {
+                            if (selectedLibraryAssetId == typed.assetId) {
+                                selectedLibraryAssetId.clear();
+                            }
+                            projectDirty = true;
+                            status = "已从资源库删除";
+                        }
                     } else if constexpr (std::is_same_v<T, Core::RefreshLibraryCommand>) {
                         library.Refresh();
                         status = "已刷新资源库";
@@ -1185,7 +1294,8 @@ int Application::Run(int argc, char** argv) {
                     } else if constexpr (std::is_same_v<T, Core::SetOfficialCategoryCommand>) {
                         officialCategory = typed.categoryId;
                     } else if constexpr (std::is_same_v<T, Core::DownloadOfficialAssetCommand>) {
-                        const Asset::ManifestAsset* asset = officialCatalog.FindAsset(typed.assetId);
+                        const Asset::ManifestAsset* asset =
+                            officialCatalog.FindAsset(typed.assetId);
                         if (asset == nullptr || http == nullptr || officialCache.empty()) {
                             status = "无法下载官方资产";
                         } else {
@@ -1313,7 +1423,8 @@ int Application::Run(int argc, char** argv) {
                     } else if constexpr (std::is_same_v<T, Core::CancelProjectPromptCommand>) {
                         pendingAction = PendingProjectAction::None;
                         pendingOpenPath.clear();
-                    } else if constexpr (std::is_same_v<T, Core::SetStoryboardSceneCollapsedCommand>) {
+                    } else if constexpr (std::is_same_v<T,
+                                                        Core::SetStoryboardSceneCollapsedCommand>) {
                         storyboard.SetCollapsed(typed.sceneId, typed.collapsed);
                         collapsedScenes = storyboard.CollapsedScenes();
                         projectDirty = true;
@@ -1321,7 +1432,8 @@ int Application::Run(int argc, char** argv) {
                         status = "已聚焦当前镜头";
                     } else if constexpr (std::is_same_v<T, Core::FitStoryboardCommand>) {
                         status = "已适配分镜画布";
-                    } else if constexpr (std::is_same_v<T, Core::RefreshStoryboardThumbnailCommand>) {
+                    } else if constexpr (std::is_same_v<T,
+                                                        Core::RefreshStoryboardThumbnailCommand>) {
                         const std::string shotId =
                             typed.shotId.empty() ? script.SelectedShotId() : typed.shotId;
                         if (!shotId.empty()) {
@@ -1330,7 +1442,9 @@ int Application::Run(int argc, char** argv) {
                         }
                     } else if constexpr (std::is_same_v<T, Core::ExportCurrentShotCommand>) {
                         Export::ShotResolution resolution = Export::ShotResolution::Hd1080;
-                        if (!Export::TryParseResolution(typed.resolutionId, resolution)) {
+                        const std::string resolutionId =
+                            typed.resolutionId.empty() ? exportResolutionId : typed.resolutionId;
+                        if (!Export::TryParseResolution(resolutionId, resolution)) {
                             status = "未知导出分辨率";
                         } else {
                             requestExportPath(false, resolution);
@@ -1344,11 +1458,13 @@ int Application::Run(int argc, char** argv) {
                         } else {
                             requestExportPath(true, Export::ShotResolution::Hd1080);
                         }
-                    } else if constexpr (std::is_same_v<T, Core::ConfirmStoryboardStaleExportCommand>) {
+                    } else if constexpr (std::is_same_v<
+                                             T, Core::ConfirmStoryboardStaleExportCommand>) {
                         exportStalePrompt = false;
                         exportStaleCount = 0;
                         requestExportPath(true, Export::ShotResolution::Hd1080);
-                    } else if constexpr (std::is_same_v<T, Core::CancelStoryboardStaleExportCommand>) {
+                    } else if constexpr (std::is_same_v<T,
+                                                        Core::CancelStoryboardStaleExportCommand>) {
                         exportStalePrompt = false;
                         exportStaleCount = 0;
                     } else if constexpr (std::is_same_v<T, Core::ReportStoryboardViewCommand>) {
@@ -1370,6 +1486,43 @@ int Application::Run(int argc, char** argv) {
                     } else if constexpr (std::is_same_v<T, Core::CancelExportOverwriteCommand>) {
                         exportOverwritePrompt = false;
                         exportPendingPath.clear();
+                    } else if constexpr (std::is_same_v<T, Core::SetWorkspaceModeCommand>) {
+                        if (!IsWorkspaceModeId(typed.modeId)) {
+                            status = "未知工作区模式";
+                        } else {
+                            workspaceModeId = typed.modeId;
+                            layoutRebuildRequested = true;
+                            status = std::string("已切换到") + WorkspaceModeLabel(workspaceModeId);
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::ResetLayoutCommand>) {
+                        layoutRebuildRequested = true;
+                        status = "已重置布局";
+                    } else if constexpr (std::is_same_v<T, Core::BindShotToNewCameraCommand>) {
+                        const std::string shotId =
+                            typed.shotId.empty() ? script.SelectedShotId() : typed.shotId;
+                        if (shotId.empty()) {
+                            status = "请先选择镜头";
+                        } else {
+                            Camera::CameraRig& camera = cameras.Add();
+                            links.Set(shotId, camera.id);
+                            projectDirty = true;
+                            storyboard.MarkShotStale(shotId);
+                            thumbScheduler.NotifyBusy(NowMs());
+                            script.SelectShot(shotId);
+                            storyboard.SetSelectedShot(shotId);
+                            selectionKind = "shot";
+                            selectionId = shotId;
+                            selectionLabel = FindShotTitle(script, shotId);
+                            status = "已为 " + selectionLabel + " 新建并绑定 " + camera.name;
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::SelectExportResolutionCommand>) {
+                        Export::ShotResolution parsed = Export::ShotResolution::Hd1080;
+                        if (!Export::TryParseResolution(typed.resolutionId, parsed)) {
+                            status = "未知导出分辨率";
+                        } else {
+                            exportResolutionId = typed.resolutionId;
+                            status = std::string("导出分辨率 ") + exportResolutionId;
+                        }
                     }
                 },
                 command);
@@ -1623,6 +1776,67 @@ int Application::Run(int argc, char** argv) {
             viewState.selectedShotLinkedCamera = "";
         }
 
+        if (selectionKind == "shot") {
+            selectionLabel = FindShotTitle(script, selectionId);
+            if (selectionLabel.empty()) {
+                selectionKind = "none";
+                selectionId.clear();
+            }
+        } else if (selectionKind == "node") {
+            selectionLabel.clear();
+            if (const Scene::Node* node = scene.Find(selectionId)) {
+                selectionLabel = node->name;
+            } else {
+                selectionKind = "none";
+                selectionId.clear();
+            }
+        } else if (selectionKind == "camera") {
+            selectionLabel.clear();
+            if (const Camera::CameraRig* rig = cameras.Find(selectionId)) {
+                selectionLabel = rig->name;
+            } else {
+                selectionKind = "none";
+                selectionId.clear();
+            }
+        }
+        if (selectionKind == "none") {
+            selectionLabel.clear();
+        }
+
+        exportIssueViews.clear();
+        for (const UI::StoryboardCardView& card : storyboardViews) {
+            if (card.kind != "shot") {
+                continue;
+            }
+            const char* reason = nullptr;
+            if (card.link != nullptr && std::strcmp(card.link, "未关联") == 0) {
+                reason = "未关联相机";
+            } else if (card.preview != nullptr && std::strcmp(card.preview, "过期") == 0) {
+                reason = "缩略图过期";
+            } else if (card.preview != nullptr && std::strcmp(card.preview, "失败") == 0) {
+                reason = "渲染失败";
+            } else if (card.preview != nullptr && std::strcmp(card.preview, "缺失") == 0) {
+                reason = "缺少缩略图";
+            }
+            if (reason == nullptr) {
+                continue;
+            }
+            UI::ExportIssueView issue;
+            issue.shotId = card.shotId;
+            issue.shotTitle = card.title;
+            issue.reason = reason;
+            exportIssueViews.push_back(std::move(issue));
+        }
+
+        viewState.workspaceModeId = workspaceModeId.c_str();
+        viewState.layoutRebuildRequested = layoutRebuildRequested;
+        viewState.selectionKind = selectionKind.c_str();
+        viewState.selectionId = selectionId.c_str();
+        viewState.selectionLabel = selectionLabel.c_str();
+        viewState.exportIssues = &exportIssueViews;
+        viewState.exportLog = &exportLogViews;
+        viewState.exportResolutionId = exportResolutionId.c_str();
+
         const float aspect = renderer->ViewportHeight() == 0
                                  ? 1.0f
                                  : static_cast<float>(renderer->ViewportWidth()) /
@@ -1675,6 +1889,7 @@ int Application::Run(int argc, char** argv) {
         storyboardPanel.Draw(viewState, commands);
         imgui.Submit(size.width, size.height);
         renderer->EndFrame();
+        layoutRebuildRequested = false;
     }
 
     worker.Shutdown();

@@ -84,6 +84,25 @@ TEST_CASE("Missing source is marked without dropping the index", "[asset][librar
     REQUIRE(found.size() == 1);
 }
 
+TEST_CASE("Remove drops a missing asset from the index", "[asset][library]") {
+    const std::string root = MakeCaseDir("remove-missing");
+    const std::string model = WriteTinyObj(root, "gone.obj");
+    const std::string libraryDir = DirectorDesk::Platform::Paths::Join(root, "library");
+    DirectorDesk::Asset::Library library;
+    REQUIRE(library.Open(libraryDir).IsOk());
+    auto imported = library.Import(model, DirectorDesk::Asset::AssetOrigin::User);
+    REQUIRE(imported.IsOk());
+    std::filesystem::remove(std::filesystem::u8path(model));
+    library.Refresh();
+    REQUIRE_FALSE(library.Find(imported.Value().id)->sourceExists);
+    REQUIRE(library.Remove(imported.Value().id));
+    REQUIRE(library.Find(imported.Value().id) == nullptr);
+
+    DirectorDesk::Asset::Library reopened;
+    REQUIRE(reopened.Open(libraryDir).IsOk());
+    REQUIRE(reopened.Find(imported.Value().id) == nullptr);
+}
+
 TEST_CASE("Corrupt index recovers and stays usable", "[asset][library]") {
     const std::string root = MakeCaseDir("corrupt");
     const std::string libraryDir = DirectorDesk::Platform::Paths::Join(root, "library");

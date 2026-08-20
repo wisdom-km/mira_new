@@ -57,8 +57,10 @@ Copy-Item (Join-Path $Root "LICENSE") $StageDir
 Copy-Item (Join-Path $Root "README.md") $StageDir
 Copy-Item (Join-Path $Root "docs\USER-GUIDE.md") $StageDir
 Copy-Item (Join-Path $Root "docs\THIRD_PARTY.md") $StageDir
+New-Item -ItemType Directory -Path (Join-Path $StageDir "img") | Out-Null
+Copy-Item (Join-Path $Root "img\dog.png") (Join-Path $StageDir "img\dog.png")
 
-$zip = Join-Path $DistDir "DirectorDesk-0.1.1-windows-x64.zip"
+$zip = Join-Path $DistDir "DirectorDesk-0.1.2-windows-x64.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $StageDir "*") -DestinationPath $zip -Force
 
