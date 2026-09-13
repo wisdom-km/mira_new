@@ -6,12 +6,12 @@
 
 - **当前 Phase**：Phase 10 已完成
 - **上一版本**：**UI-PRO（UI 专业化升级）** 已随 **0.1.2** 打包。见 [`ui-pro-upgrade/`](ui-pro-upgrade/README.md)
-- **当前版本工作**：**FOUNDATION（地基、镜头包与 Skills 融合）**，F0 止血进行中（FND-01–06 / 08 / 09 已写入，FND-07 缺截图）。见 [`foundation-upgrade/`](foundation-upgrade/README.md)，进度以 [`foundation-upgrade/36-FOUNDATION-STATUS.md`](foundation-upgrade/36-FOUNDATION-STATUS.md) 为准
+- **当前版本工作**：**FOUNDATION（地基、镜头包与 Skills 融合）**，F0 任务已齐，待 Windows CI 绿后打 `v0.1.3`。见 [`foundation-upgrade/`](foundation-upgrade/README.md)，进度以 [`foundation-upgrade/36-FOUNDATION-STATUS.md`](foundation-upgrade/36-FOUNDATION-STATUS.md) 为准
 - **最后更新**：2026-09-13
 - **更新者**：Cursor AI
 - **当前分支**：`main`
 - **最近完成 tag**：`v0.1.2`
-- **下一个允许执行的工作**：补 **FND-07** 产品截图 / GIF。macOS CI job 已暂停（Wisdom）。F0 未齐之前不开 F1。不得新建 CMake 模块、不得接线真实 AI；`Application.cpp` 允许在 App 目标内分文件（FOUNDATION 版改写，见 foundation-upgrade/35 第四节）
+- **下一个允许执行的工作**：确认 Windows CI 绿，由 Wisdom 打 **`v0.1.3`**。未打 tag 之前不开 F1。不得新建 CMake 模块、不得接线真实 AI；`Application.cpp` 允许在 App 目标内分文件（FOUNDATION 版改写，见 foundation-upgrade/35 第四节）
 
 ## 已完成
 
@@ -29,7 +29,7 @@ P0 路线图已完成；两个升级版之外的加删功能仍以 `07` 为准�
 
 ## 阻塞项
 
-- **FND-07**：README 英文与 30 秒上手已写，缺产品截图 / GIF
+- **F0 → F1**：等 Windows CI 绿并由 Wisdom 打 `v0.1.3`
 - **macOS CI / 实机**：云上 macOS job 已关；实机回归待有 Mac 时再开（Wisdom 2026-09-13）
 
 ## 已确认决策
@@ -98,6 +98,11 @@ P0 路线图已完成；两个升级版之外的加删功能仍以 `07` 为准�
 4. 有 Mac 时按 `docs/RELEASE-CHECKLIST.md` 补实机回归
 
 ## 工作日志
+
+### 2026-09-13：FND-07 产品截图
+
+- `README.md` 补掌机 / 审片两张静图，以及编剧→置景→掌机→审片→文件导出菜单的 GIF。
+- 启动参数 `--workspace-mode` 仅用于复拍；抓图脚本 `tools/capture-readme-shots.ps1`。
 
 ### 2026-09-13：暂停云上 macOS CI
 

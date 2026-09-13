@@ -15,6 +15,10 @@ P0 已走通：**Markdown 剧本 → 本地/官方资源 → 预设机位 → �
 
 Windows 用户可直接从 [Releases](https://github.com/wisdom-km/mira_new/releases) 下载最新 `DirectorDesk-*-windows-x64.exe` 安装包。
 
+<p align="center"><img src="img/readme-shoot.png" width="900" alt="DirectorDesk shoot mode: cafe example with viewport, shot list, and camera strip"></p>
+<p align="center"><img src="img/readme-review.png" width="900" alt="DirectorDesk review mode: storyboard canvas and export inspector"></p>
+<p align="center"><img src="img/readme-walkthrough.gif" width="900" alt="Walkthrough: script, set, shoot, review, and the File export menu"></p>
+
 ## 30 秒上手
 
 1. 安装 [最新 Windows 包](https://github.com/wisdom-km/mira_new/releases)，或按下面「构建」从源码编译。

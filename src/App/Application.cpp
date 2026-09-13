@@ -66,6 +66,7 @@ struct LaunchOptions {
     std::string importPath;
     std::string scriptPath;
     std::string projectPath;
+    std::string workspaceMode;
 };
 
 enum class PendingProjectAction {
@@ -92,6 +93,9 @@ LaunchOptions ParseOptions(int argc, char** argv) {
         } else if (std::strcmp(argv[i], "--project") == 0 && i + 1 < argc &&
                    argv[i + 1] != nullptr) {
             options.projectPath = argv[++i];
+        } else if (std::strcmp(argv[i], "--workspace-mode") == 0 && i + 1 < argc &&
+                   argv[i + 1] != nullptr) {
+            options.workspaceMode = argv[++i];
         }
     }
     return options;
@@ -882,6 +886,10 @@ int Application::Run(int argc, char** argv) {
         OpenProjectAt(options.projectPath, scene, cameras, links, script, library, *renderer,
                       registry, projectId, projectName, projectPath, collapsedScenes, projectDirty,
                       status);
+    }
+    if (IsWorkspaceModeId(options.workspaceMode)) {
+        workspaceModeId = options.workspaceMode;
+        layoutRebuildRequested = true;
     }
 
     const auto refreshBoard = [&]() {

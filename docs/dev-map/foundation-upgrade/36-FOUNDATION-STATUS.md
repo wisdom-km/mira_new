@@ -8,11 +8,11 @@
 | 项 | 值 |
 |----|----|
 | 版本 | FOUNDATION（地基 + 镜头包 + Skills 融合） |
-| 阶段 | **F0 止血进行中** |
+| 阶段 | **F0 任务已齐，待 Windows CI 绿后打 v0.1.3** |
 | 代码基线 | 产品 tag `v0.1.2`（UI-PRO W1–W3 已在内） |
 | 最后更新 | 2026-09-13 |
 | 更新者 | Cursor AI |
-| 下一个允许执行的工作 | **FND-07** 产品截图 / GIF。macOS CI 已暂停（Wisdom）。F0 未齐之前不开 F1 |
+| 下一个允许执行的工作 | 确认 Windows CI 绿，由 Wisdom 打 **`v0.1.3`**。未打 tag 之前不开 F1 |
 | 当前波次 | F0 · 止血 |
 
 ## 任务进度
@@ -24,12 +24,12 @@
 | ID | 任务 | 状态 | 验证记录 |
 |----|------|------|----------|
 | FND-01 | Windows CI 生成器 | 已完成 | `ci.yml` `os: windows-2022`；已 push `81a25af` |
-| FND-02 | shader 按平台裁剪 | 已完成 | CI metal 已过。macOS 另因 FileDialog 弃用失败；Windows 构建过、`External file change` 因 mtime 同刻失败。补丁待推 |
+| FND-02 | shader 按平台裁剪 | 已完成 | Windows 产物无 `metal/`；macOS CI 已按 Wisdom 暂停 |
 | FND-03 | `Ctrl+E` 用当前分辨率 | 已完成 | 空 `resolutionId`；菜单置顶「按当前选择导出」；`ExportCurrentShotCommand` 默认空 |
 | FND-04 | 删索引不标脏 | 已完成 | `RemoveLibraryAssetCommand` 不再写 `projectDirty` |
 | FND-05 | `ViewportResizeCommand` 只在变化时推 | 已完成 | Push 移进 2px / 首帧阈值 |
 | FND-06 | 统一 SHA-256 | 已完成 | `ProjectFile::Sha256File` 调 `Core::Sha256Hex`；手写块删除 |
-| FND-07 | README 英文摘要 / 截图 / 30 秒上手 | 进行中 | 英文摘要、徽章、30 秒上手已写；产品截图与 GIF 未拍 |
+| FND-07 | README 英文摘要 / 截图 / 30 秒上手 | 已完成 | 英文摘要、徽章、30 秒上手、掌机/审片静图、四模式+导出菜单 GIF |
 | FND-08 | Issue / PR 模板 | 已完成 | Bug / Feature / Asset + PR 勾选项 |
 | FND-09 | tag 触发 Release | 已完成 | `release.yml` + 安装脚本从 `CMakeLists.txt` 读版本；待打 `v*` 出草稿 |
 
@@ -120,6 +120,10 @@
 | 元数据引用块与用户原有正文里的引用块混淆 | 只识别紧跟标题、空行前的连续 `> k: v` 行；正文里的引用块保持不变 |
 
 ## 工作日志
+
+### 2026-09-13：FND-07 产品截图
+
+- `img/readme-shoot.png`、`img/readme-review.png`、`img/readme-walkthrough.gif`；`--workspace-mode` 仅用于复拍。
 
 ### 2026-09-13：暂停云上 macOS CI
 
