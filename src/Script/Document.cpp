@@ -117,15 +117,19 @@ void Document::RememberWriteTime() {
     if (m_path.empty() || !Platform::Paths::Exists(m_path)) {
         m_hasWriteTime = false;
         m_writeTime = 0;
+        m_writeSize = 0;
         return;
     }
     auto time = Platform::Paths::LastWriteTimeCount(m_path);
-    if (!time.IsOk()) {
+    auto size = Platform::Paths::FileSize(m_path);
+    if (!time.IsOk() || !size.IsOk()) {
         m_hasWriteTime = false;
         m_writeTime = 0;
+        m_writeSize = 0;
         return;
     }
     m_writeTime = time.Value();
+    m_writeSize = size.Value();
     m_hasWriteTime = true;
 }
 
@@ -134,7 +138,11 @@ bool Document::FileChangedOnDisk() const {
         return false;
     }
     auto time = Platform::Paths::LastWriteTimeCount(m_path);
-    return time.IsOk() && time.Value() != m_writeTime;
+    auto size = Platform::Paths::FileSize(m_path);
+    if (!time.IsOk() || !size.IsOk()) {
+        return false;
+    }
+    return time.Value() != m_writeTime || size.Value() != m_writeSize;
 }
 
 std::string Document::TextForDisk() const {
@@ -273,6 +281,7 @@ void Document::Reset() {
     m_dirty = false;
     m_hasWriteTime = false;
     m_writeTime = 0;
+    m_writeSize = 0;
     ApplyParse(Parser::Parse(""), true);
 }
 

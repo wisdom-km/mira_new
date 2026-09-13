@@ -24,7 +24,7 @@
 | ID | 任务 | 状态 | 验证记录 |
 |----|------|------|----------|
 | FND-01 | Windows CI 生成器 | 已完成 | `ci.yml` `os: windows-2022`；已 push `81a25af` |
-| FND-02 | shader 按平台裁剪 | 已完成 | WIN32=`dx11+spirv`，APPLE=`metal`；本机产物目录已无 `metal/` `glsl/` |
+| FND-02 | shader 按平台裁剪 | 已完成 | CI metal 已过。macOS 另因 FileDialog 弃用失败；Windows 构建过、`External file change` 因 mtime 同刻失败。补丁待推 |
 | FND-03 | `Ctrl+E` 用当前分辨率 | 已完成 | 空 `resolutionId`；菜单置顶「按当前选择导出」；`ExportCurrentShotCommand` 默认空 |
 | FND-04 | 删索引不标脏 | 已完成 | `RemoveLibraryAssetCommand` 不再写 `projectDirty` |
 | FND-05 | `ViewportResizeCommand` 只在变化时推 | 已完成 | Push 移进 2px / 首帧阈值 |
@@ -119,6 +119,10 @@
 | 元数据引用块与用户原有正文里的引用块混淆 | 只识别紧跟标题、空行前的连续 `> k: v` 行；正文里的引用块保持不变 |
 
 ## 工作日志
+
+### 2026-09-13：CI macOS FileDialog 弃用
+
+- `FileDialogMac.mm` 改 `allowedContentTypes` + `UniformTypeIdentifiers`，消掉 `-Werror` 下的弃用错误。metal shader 已通过。
 
 ### 2026-09-13：F0 FND-02–09 止血代码
 

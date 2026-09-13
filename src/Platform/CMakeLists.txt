@@ -28,7 +28,7 @@ if(WIN32)
     target_link_libraries(dd_platform PRIVATE ole32 shell32 uuid)
 elseif(APPLE)
     target_sources(dd_platform PRIVATE FileDialogMac.mm)
-    target_link_libraries(dd_platform PRIVATE "-framework AppKit")
+    target_link_libraries(dd_platform PRIVATE "-framework AppKit" "-framework UniformTypeIdentifiers")
 endif()
 
 target_compile_features(dd_platform PUBLIC cxx_std_17)

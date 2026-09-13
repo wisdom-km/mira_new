@@ -29,7 +29,7 @@ P0 路线图已完成；两个升级版之外的加删功能仍以 `07` 为准�
 
 ## 阻塞项
 
-- **GitHub Actions**：FND-01/02 已写入（`windows-2022` + shader 按平台裁剪），待本轮 push 后确认双绿
+- **GitHub Actions**：run `34755900905` 曾双红。本机 Windows Debug 已绿（磁盘变更比大小）。Mac 源码对话框修复已写入，本机不编 macOS，待实机再编
 - **FND-07**：README 英文与 30 秒上手已写，缺产品截图 / GIF
 - **macOS 实机回归**：本机无 Mac。以 GitHub Actions `macOS` job 为门禁
 
@@ -98,6 +98,10 @@ P0 路线图已完成；两个升级版之外的加删功能仍以 `07` 为准�
 4. 有 Mac 时按 `docs/RELEASE-CHECKLIST.md` 补实机回归
 
 ## 工作日志
+
+### 2026-09-13：CI macOS FileDialog 弃用
+
+- macOS job 编过 metal 后死在 `FileDialogMac.mm` 的 `allowedFileTypes`（`-Werror`）。改为 `allowedContentTypes`。
 
 ### 2026-09-13：F0 FND-02–09
 

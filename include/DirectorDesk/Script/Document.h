@@ -68,6 +68,7 @@ private:
     bool m_dirty = false;
     bool m_hasWriteTime = false;
     std::uint64_t m_writeTime = 0;
+    std::uint64_t m_writeSize = 0;
     std::uint64_t m_externalRevision = 1;
 };
 

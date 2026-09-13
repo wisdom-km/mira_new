@@ -6,11 +6,23 @@
 #include "DirectorDesk/Core/Error.h"
 
 #import <AppKit/AppKit.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #include <string>
 
 namespace DirectorDesk::Platform {
 namespace {
+
+void SetAllowedExtensions(NSSavePanel* panel, NSArray<NSString*>* extensions) {
+    NSMutableArray<UTType*>* types = [NSMutableArray arrayWithCapacity:extensions.count];
+    for (NSString* ext in extensions) {
+        UTType* type = [UTType typeWithFilenameExtension:ext];
+        if (type != nil) {
+            [types addObject:type];
+        }
+    }
+    panel.allowedContentTypes = types;
+}
 
 Core::Result<std::string> PathFromUrl(NSURL* url) {
     if (url == nil || url.path == nil) {
@@ -28,7 +40,7 @@ Core::Result<std::string> FileDialog::OpenModelFile() {
         panel.canChooseFiles = YES;
         panel.canChooseDirectories = NO;
         panel.allowsMultipleSelection = NO;
-        panel.allowedFileTypes = @[ @"glb", @"obj" ];
+        SetAllowedExtensions(panel, @[ @"glb", @"obj" ]);
         panel.title = @"Import Model";
         const NSModalResponse response = [panel runModal];
         if (response != NSModalResponseOK) {
@@ -44,7 +56,7 @@ Core::Result<std::string> FileDialog::OpenMarkdownFile() {
         panel.canChooseFiles = YES;
         panel.canChooseDirectories = NO;
         panel.allowsMultipleSelection = NO;
-        panel.allowedFileTypes = @[ @"md" ];
+        SetAllowedExtensions(panel, @[ @"md" ]);
         panel.title = @"Open Script";
         const NSModalResponse response = [panel runModal];
         if (response != NSModalResponseOK) {
@@ -57,7 +69,7 @@ Core::Result<std::string> FileDialog::OpenMarkdownFile() {
 Core::Result<std::string> FileDialog::SaveMarkdownFile() {
     @autoreleasepool {
         NSSavePanel* panel = [NSSavePanel savePanel];
-        panel.allowedFileTypes = @[ @"md" ];
+        SetAllowedExtensions(panel, @[ @"md" ]);
         panel.title = @"Save Script";
         panel.nameFieldStringValue = @"script.md";
         const NSModalResponse response = [panel runModal];
@@ -74,7 +86,7 @@ Core::Result<std::string> FileDialog::OpenProjectFile() {
         panel.canChooseFiles = YES;
         panel.canChooseDirectories = NO;
         panel.allowsMultipleSelection = NO;
-        panel.allowedFileTypes = @[ @"ddproj" ];
+        SetAllowedExtensions(panel, @[ @"ddproj" ]);
         panel.title = @"Open Project";
         const NSModalResponse response = [panel runModal];
         if (response != NSModalResponseOK) {
@@ -87,7 +99,7 @@ Core::Result<std::string> FileDialog::OpenProjectFile() {
 Core::Result<std::string> FileDialog::SavePngFile(const std::string& defaultName) {
     @autoreleasepool {
         NSSavePanel* panel = [NSSavePanel savePanel];
-        panel.allowedFileTypes = @[ @"png" ];
+        SetAllowedExtensions(panel, @[ @"png" ]);
         panel.title = @"Export PNG";
         if (!defaultName.empty()) {
             panel.nameFieldStringValue = [NSString stringWithUTF8String:defaultName.c_str()];
@@ -105,7 +117,7 @@ Core::Result<std::string> FileDialog::SavePngFile(const std::string& defaultName
 Core::Result<std::string> FileDialog::SaveProjectFile() {
     @autoreleasepool {
         NSSavePanel* panel = [NSSavePanel savePanel];
-        panel.allowedFileTypes = @[ @"ddproj" ];
+        SetAllowedExtensions(panel, @[ @"ddproj" ]);
         panel.title = @"Save Project";
         panel.nameFieldStringValue = @"project.ddproj";
         const NSModalResponse response = [panel runModal];
