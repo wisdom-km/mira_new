@@ -12,7 +12,7 @@
 | 代码基线 | 产品 tag `v0.1.2`（UI-PRO W1–W3 已在内） |
 | 最后更新 | 2026-09-13 |
 | 更新者 | Cursor AI |
-| 下一个允许执行的工作 | 确认 CI 双绿；**FND-07** 产品截图 / GIF 待补。F0 未齐且 CI 未双绿之前不开 F1 |
+| 下一个允许执行的工作 | **FND-07** 产品截图 / GIF。macOS CI 已暂停（Wisdom）。F0 未齐之前不开 F1 |
 | 当前波次 | F0 · 止血 |
 
 ## 任务进度
@@ -97,6 +97,7 @@
 
 | 决策 | 结论 | 批准者 |
 |------|------|--------|
+| macOS CI job | 暂停，待有 Mac 再开 | Wisdom 2026-09-13 |
 | Skill 的角色 | DirectorDesk 只**消费产出**与**分发**，不运行 | Wisdom |
 | Skill 的分发方式 | 作为官方资产（`format: skill`），复用 `OfficialCatalog` | Wisdom |
 | 导入格式 | DirectorDesk 自有 `storyboard-import 1`，不追随上游 schema | Wisdom |
@@ -119,6 +120,10 @@
 | 元数据引用块与用户原有正文里的引用块混淆 | 只识别紧跟标题、空行前的连续 `> k: v` 行；正文里的引用块保持不变 |
 
 ## 工作日志
+
+### 2026-09-13：暂停云上 macOS CI
+
+- `ci.yml` 去掉 macOS 矩阵项；Windows 仍是门禁。
 
 ### 2026-09-13：CI macOS FileDialog 弃用
 

@@ -11,7 +11,7 @@
 - **更新者**：Cursor AI
 - **当前分支**：`main`
 - **最近完成 tag**：`v0.1.2`
-- **下一个允许执行的工作**：确认 CI 双绿；补 FND-07 产品截图 / GIF。F0 未齐之前不开 F1。不得新建 CMake 模块、不得接线真实 AI；`Application.cpp` 允许在 App 目标内分文件（FOUNDATION 版改写，见 foundation-upgrade/35 第四节）
+- **下一个允许执行的工作**：补 **FND-07** 产品截图 / GIF。macOS CI job 已暂停（Wisdom）。F0 未齐之前不开 F1。不得新建 CMake 模块、不得接线真实 AI；`Application.cpp` 允许在 App 目标内分文件（FOUNDATION 版改写，见 foundation-upgrade/35 第四节）
 
 ## 已完成
 
@@ -29,15 +29,15 @@ P0 路线图已完成；两个升级版之外的加删功能仍以 `07` 为准�
 
 ## 阻塞项
 
-- **GitHub Actions**：run `34755900905` 曾双红。本机 Windows Debug 已绿（磁盘变更比大小）。Mac 源码对话框修复已写入，本机不编 macOS，待实机再编
 - **FND-07**：README 英文与 30 秒上手已写，缺产品截图 / GIF
-- **macOS 实机回归**：本机无 Mac。以 GitHub Actions `macOS` job 为门禁
+- **macOS CI / 实机**：云上 macOS job 已关；实机回归待有 Mac 时再开（Wisdom 2026-09-13）
 
 ## 已确认决策
 
 | 决策 | 结论 |
 |------|------|
 | P0 平台 | Windows + macOS；先开发、验证 Windows |
+| macOS CI job | 暂停云上 macOS job，待有 Mac 再开；批准者 Wisdom 2026-09-13 |
 | Linux | P0 不支持，后续演进 |
 | 代码许可证 | MIT |
 | 官方资产许可证 | 优先 CC0，允许明确标注的 CC-BY |
@@ -98,6 +98,10 @@ P0 路线图已完成；两个升级版之外的加删功能仍以 `07` 为准�
 4. 有 Mac 时按 `docs/RELEASE-CHECKLIST.md` 补实机回归
 
 ## 工作日志
+
+### 2026-09-13：暂停云上 macOS CI
+
+- Wisdom：先只跑 Windows job；Mac 实机再编。`ci.yml` 矩阵去掉 `macos-latest`。
 
 ### 2026-09-13：CI macOS FileDialog 弃用
 

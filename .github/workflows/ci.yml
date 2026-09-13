@@ -25,9 +25,11 @@ jobs:
           - name: Windows
             os: windows-2022
             preset: ci-windows
-          - name: macOS
-            os: macos-latest
-            preset: ci-macos
+          # macOS job paused by Wisdom 2026-09-13 until a Mac is available.
+          # Restore the two lines below to re-enable:
+          # - name: macOS
+          #   os: macos-latest
+          #   preset: ci-macos
     env:
       VCPKG_ROOT: ${{ github.workspace }}/vcpkg
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-binary-cache
