@@ -247,8 +247,21 @@ TEST_CASE("Shipped cafe example project opens with Chinese paths nearby", "[proj
                 .IsOk());
     REQUIRE(scene.Find("node-cube-01") != nullptr);
     REQUIRE_FALSE(scene.Find("node-cube-01")->assetMissing);
+    REQUIRE(scene.Find("node-table-01") != nullptr);
+    REQUIRE(scene.Find("node-cup-01") != nullptr);
     REQUIRE(cameras.Find("cam-main") != nullptr);
-    REQUIRE(*links.CameraForShot("shot-cafe-001") == "cam-main");
+    REQUIRE(cameras.Find("cam-over-shoulder") != nullptr);
+    REQUIRE(cameras.Find("cam-closeup") != nullptr);
+    REQUIRE(*links.CameraForShot("shot-cafe-001") == "cam-over-shoulder");
+    REQUIRE(*links.CameraForShot("shot-cafe-002") == "cam-closeup");
+    REQUIRE(*links.CameraForShot("shot-counter-001") == "cam-main");
+    REQUIRE(script.HasPublishedSnapshot());
+    REQUIRE(script.PublishedSnapshot().scenes.size() == 3);
+    REQUIRE(script.SelectedShotId().empty());
+    REQUIRE(script.FirstShotId() == "shot-cafe-001");
+    script.SelectShot(script.FirstShotId());
+    REQUIRE(script.SelectedShotId() == "shot-cafe-001");
+    REQUIRE(*links.CameraForShot(script.SelectedShotId()) == "cam-over-shoulder");
     REQUIRE(script.Text().find("咖啡馆") != std::string::npos);
 }
 #endif

@@ -78,6 +78,18 @@ TEST_CASE("Top is steeper and close-up is nearer than front", "[camera][preset]"
     REQUIRE(FinitePose(closeUp));
 }
 
+TEST_CASE("Eye-level is flatter than front at the same distance", "[camera][preset]") {
+    const auto subject = DirectorDesk::Camera::FallbackSubject();
+    const auto front = DirectorDesk::Camera::ResolveCameraPreset(
+        DirectorDesk::Camera::CameraPresetKind::Front, subject);
+    const auto eye = DirectorDesk::Camera::ResolveCameraPreset(
+        DirectorDesk::Camera::CameraPresetKind::EyeLevel, subject);
+    REQUIRE(FinitePose(eye));
+    REQUIRE(eye.pitchDegrees == Catch::Approx(0.0f));
+    REQUIRE(eye.distance == Catch::Approx(front.distance));
+    REQUIRE(eye.pitchDegrees < front.pitchDegrees);
+}
+
 TEST_CASE("Missing subject still yields a valid composition", "[camera][preset]") {
     const auto pose = DirectorDesk::Camera::ResolveCameraPreset(
         DirectorDesk::Camera::CameraPresetKind::OverShoulder,
@@ -103,6 +115,9 @@ TEST_CASE("Preset ids round-trip", "[camera][preset]") {
     REQUIRE(DirectorDesk::Camera::TryParseCameraPreset("over-shoulder", cameraKind));
     REQUIRE(cameraKind == DirectorDesk::Camera::CameraPresetKind::OverShoulder);
     REQUIRE(std::string(DirectorDesk::Camera::CameraPresetId(cameraKind)) == "over-shoulder");
+    REQUIRE(DirectorDesk::Camera::TryParseCameraPreset("eye-level", cameraKind));
+    REQUIRE(cameraKind == DirectorDesk::Camera::CameraPresetKind::EyeLevel);
+    REQUIRE(std::string(DirectorDesk::Camera::CameraPresetId(cameraKind)) == "eye-level");
 
     DirectorDesk::Camera::LightPresetKind lightKind = DirectorDesk::Camera::LightPresetKind::Neutral;
     REQUIRE(DirectorDesk::Camera::TryParseLightPreset("cool", lightKind));

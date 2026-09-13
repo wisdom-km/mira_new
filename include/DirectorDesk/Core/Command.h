@@ -63,6 +63,15 @@ struct SelectShotCommand {
     std::string shotId;
 };
 
+struct SelectAdjacentShotCommand {
+    int delta = 1;
+};
+
+struct RevealPathCommand {
+    std::string utf8Path;
+    bool folder = false;
+};
+
 struct ApplyCameraPresetCommand {
     std::string presetId;
 };
@@ -214,7 +223,8 @@ using Command = std::variant<
     QuitCommand, ViewportResizeCommand, OrbitDeltaCommand, ExportTestPngCommand, ImportModelCommand,
     ImportModelFromPathCommand, SelectNodeCommand, SetNodeTransformCommand, LoadScriptCommand,
     LoadScriptFromPathCommand, SaveScriptCommand, SetScriptTextCommand, InsertSceneCommand,
-    InsertShotCommand, SelectShotCommand, ApplyCameraPresetCommand, AddCameraCommand,
+    InsertShotCommand, SelectShotCommand, SelectAdjacentShotCommand, ApplyCameraPresetCommand,
+    AddCameraCommand,
     RemoveCameraCommand, RenameCameraCommand, SelectCameraCommand, SetLightPresetCommand,
     AddLibraryAssetToSceneCommand, SetLibrarySearchCommand, SetLibraryOriginFilterCommand,
     SetLibraryViewModeCommand, SelectLibraryAssetCommand, RefreshLibraryCommand,
@@ -228,6 +238,6 @@ using Command = std::variant<
     ReportStoryboardViewCommand, ConfirmStoryboardStaleExportCommand,
     CancelStoryboardStaleExportCommand, SetWorkspaceModeCommand, ResetLayoutCommand,
     BindShotToNewCameraCommand, SelectExportResolutionCommand, DeleteShotCommand,
-    RemoveLibraryAssetCommand>;
+    RemoveLibraryAssetCommand, RevealPathCommand>;
 
 } // namespace DirectorDesk::Core

@@ -4,15 +4,19 @@
 #include "DirectorDesk/UI/LibraryPanel.h"
 
 #include "DirectorDesk/Core/Command.h"
+#include "UiChrome.h"
+#include "UiIcons.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <imgui.h>
+#include <imgui_internal.h>
 
 namespace DirectorDesk::UI {
 namespace {
 
-constexpr ImVec4 kMuted(0.56f, 0.61f, 0.68f, 1.0f);
+constexpr ImVec4 kMuted(0.604f, 0.604f, 0.635f, 1.0f);
 
 bool IsIndexMissing(const LibraryAssetView& asset) {
     return asset.missing && !asset.canDownload;
@@ -33,9 +37,15 @@ void DrawAssetContextMenu(const LibraryAssetView& asset, Core::CommandQueue& com
 void DrawAssetRow(const LibraryAssetView& asset, Core::CommandQueue& commands, bool grid) {
     const std::string label = asset.name + "##" + asset.id;
     if (grid) {
+        constexpr ImVec2 kThumb(96.0f, 72.0f);
+        constexpr ImU32 kCellBg = IM_COL32(0x2A, 0x2A, 0x2F, 255);
+        constexpr ImU32 kCellBorder = IM_COL32(0x36, 0x36, 0x3C, 255);
+        constexpr ImU32 kAccent = IM_COL32(216, 154, 74, 255);
+
         ImGui::PushID(asset.id.c_str());
         ImGui::BeginGroup();
-        if (ImGui::Button(asset.missing ? "缺失" : asset.format.c_str(), ImVec2(72.0f, 48.0f))) {
+        const ImVec2 pos = ImGui::GetCursorScreenPos();
+        if (ImGui::InvisibleButton("##thumb", kThumb)) {
             commands.Push(Core::SelectLibraryAssetCommand{asset.id});
         }
         DrawAssetContextMenu(asset, commands);
@@ -44,7 +54,22 @@ void DrawAssetRow(const LibraryAssetView& asset, Core::CommandQueue& commands, b
             ImGui::TextUnformatted(asset.name.c_str());
             ImGui::EndDragDropSource();
         }
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImVec2 max(pos.x + kThumb.x, pos.y + kThumb.y);
+        if (asset.previewTexture != 0xFFFFu) {
+            draw->AddImage(ImTextureRef(static_cast<ImTextureID>(asset.previewTexture)), pos, max);
+        } else {
+            draw->AddRectFilled(pos, max, kCellBg);
+            const char* cellLabel = asset.missing ? "缺失" : asset.format.c_str();
+            const ImVec2 textSize = ImGui::CalcTextSize(cellLabel);
+            draw->AddText(ImVec2(pos.x + (kThumb.x - textSize.x) * 0.5f,
+                                 pos.y + (kThumb.y - textSize.y) * 0.5f),
+                          ImGui::GetColorU32(ImGuiCol_TextDisabled), cellLabel);
+        }
+        draw->AddRect(pos, max, asset.selected ? kAccent : kCellBorder);
+        ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + kThumb.x);
         ImGui::TextUnformatted(asset.name.c_str());
+        ImGui::PopTextWrapPos();
         ImGui::TextColored(kMuted, "%s", asset.origin.c_str());
         ImGui::EndGroup();
         ImGui::PopID();
@@ -64,13 +89,31 @@ void DrawAssetRow(const LibraryAssetView& asset, Core::CommandQueue& commands, b
     ImGui::TextDisabled("%s  ·  %s", asset.format.c_str(), asset.status.c_str());
 }
 
+bool DrawSegment(const char* label, bool selected) {
+    if (selected) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetColorU32(ImGuiCol_ButtonActive));
+    }
+    const bool pressed = ImGui::SmallButton(label);
+    if (selected) {
+        ImGui::PopStyleColor();
+    }
+    return pressed;
+}
+
 } // namespace
 
 void LibraryPanel::Draw(const AppViewState& state, Core::CommandQueue& commands) {
     const char* mode = state.workspaceModeId != nullptr && state.workspaceModeId[0] != '\0'
                            ? state.workspaceModeId
                            : "shoot";
-    if (std::strcmp(mode, "script") == 0 || std::strcmp(mode, "review") == 0) {
+    const bool noProject = state.projectPath == nullptr || state.projectPath[0] == '\0';
+    const bool noNodes = state.nodes == nullptr || state.nodes->empty();
+    const bool empty = noProject && !state.scriptHasSnapshot && noNodes;
+    LeftRailState& rail = CurrentLeftRail();
+    if (empty || std::strcmp(mode, "script") == 0 || std::strcmp(mode, "review") == 0) {
+        return;
+    }
+    if (rail.iconBar && rail.overlay != LeftRailOverlay::Library) {
         return;
     }
 
@@ -78,60 +121,73 @@ void LibraryPanel::Draw(const AppViewState& state, Core::CommandQueue& commands)
         m_search = state.librarySearch;
     }
 
-    ImGui::Begin("资源库###Library");
+    if (rail.iconBar) {
+        ImGui::SetNextWindowPos(rail.overlayPos);
+        ImGui::SetNextWindowSize(rail.overlaySize);
+        ImGui::Begin("资源库###Library", nullptr,
+                     ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse |
+                         ImGuiWindowFlags_NoTitleBar);
+    } else {
+        ImGui::Begin("资源库###Library");
+    }
+    DrawPanelCaption("资源库");
     const char* origin = state.libraryOriginFilter != nullptr ? state.libraryOriginFilter : "all";
     const bool online = std::strcmp(origin, "online") == 0;
-    if (ImGui::SmallButton("本地")) {
+    const char* viewMode = state.libraryViewMode != nullptr ? state.libraryViewMode : "list";
+    const bool grid = std::strcmp(viewMode, "grid") == 0;
+
+    if (DrawSegment("本地", !online)) {
         if (online) {
             commands.Push(Core::SetLibraryOriginFilterCommand{"all"});
         }
     }
-    ImGui::SameLine();
-    if (ImGui::SmallButton("在线")) {
+    ImGui::SameLine(0.0f, 4.0f);
+    if (DrawSegment("在线", online)) {
         if (!online) {
             commands.Push(Core::SetLibraryOriginFilterCommand{"online"});
         }
     }
-    ImGui::SameLine();
-    if (ImGui::SmallButton("+")) {
-        commands.Push(Core::ImportModelCommand{});
-    }
-    ImGui::SameLine();
-    if (ImGui::SmallButton("刷新")) {
-        if (online) {
-            commands.Push(Core::RefreshOfficialCatalogCommand{});
-        } else {
-            commands.Push(Core::RefreshLibraryCommand{});
-        }
-    }
-    ImGui::SameLine();
+    ImGui::SameLine(0.0f, 8.0f);
     char searchBuffer[128];
     const std::size_t copy =
         m_search.size() < sizeof(searchBuffer) - 1 ? m_search.size() : sizeof(searchBuffer) - 1;
     std::memcpy(searchBuffer, m_search.data(), copy);
     searchBuffer[copy] = '\0';
-    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 72.0f);
+    const float overflowW = ImGui::GetFrameHeight() + 8.0f;
+    ImGui::SetNextItemWidth(std::max(48.0f, ImGui::GetContentRegionAvail().x - overflowW));
     if (ImGui::InputTextWithHint("##library-search", "搜索...", searchBuffer,
                                  sizeof(searchBuffer))) {
         m_search = searchBuffer;
         commands.Push(Core::SetLibrarySearchCommand{m_search});
     }
     ImGui::SameLine();
-    const char* viewMode = state.libraryViewMode != nullptr ? state.libraryViewMode : "list";
-    const bool grid = std::strcmp(viewMode, "grid") == 0;
-    if (ImGui::SmallButton(grid ? "▦" : "▤")) {
-        commands.Push(Core::SetLibraryViewModeCommand{grid ? "list" : "grid"});
+    char moreLabel[24];
+    std::snprintf(moreLabel, sizeof(moreLabel), "%s##library-more", Icon::Ellipsis);
+    if (ImGui::SmallButton(moreLabel)) {
+        ImGui::OpenPopup("##library-overflow");
     }
-    if (!online && state.libraryAssets != nullptr) {
-        int missingCount = 0;
-        for (const LibraryAssetView& asset : *state.libraryAssets) {
-            if (IsIndexMissing(asset)) {
-                ++missingCount;
+    if (ImGui::BeginPopup("##library-overflow")) {
+        if (ImGui::MenuItem("导入")) {
+            commands.Push(Core::ImportModelCommand{});
+        }
+        if (ImGui::MenuItem("刷新")) {
+            if (online) {
+                commands.Push(Core::RefreshOfficialCatalogCommand{});
+            } else {
+                commands.Push(Core::RefreshLibraryCommand{});
             }
         }
-        if (missingCount > 0) {
-            ImGui::SameLine();
-            if (ImGui::SmallButton("清理缺失")) {
+        if (ImGui::MenuItem(grid ? "列表" : "网格")) {
+            commands.Push(Core::SetLibraryViewModeCommand{grid ? "list" : "grid"});
+        }
+        if (!online && state.libraryAssets != nullptr) {
+            int missingCount = 0;
+            for (const LibraryAssetView& asset : *state.libraryAssets) {
+                if (IsIndexMissing(asset)) {
+                    ++missingCount;
+                }
+            }
+            if (missingCount > 0 && ImGui::MenuItem("清理缺失")) {
                 for (const LibraryAssetView& asset : *state.libraryAssets) {
                     if (IsIndexMissing(asset)) {
                         commands.Push(Core::RemoveLibraryAssetCommand{asset.id});
@@ -139,45 +195,53 @@ void LibraryPanel::Draw(const AppViewState& state, Core::CommandQueue& commands)
                 }
             }
         }
+        ImGui::EndPopup();
     }
 
+    ImGui::BeginChild("##library-chips", ImVec2(0.0f, ImGui::GetFrameHeight() + 6.0f),
+                      ImGuiChildFlags_None,
+                      ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    auto chip = [](const char* label, bool selected) {
+        if (selected) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetColorU32(ImGuiCol_ButtonActive));
+        }
+        const bool pressed = ImGui::SmallButton(label);
+        if (selected) {
+            ImGui::PopStyleColor();
+        }
+        return pressed;
+    };
     if (!online) {
-        if (ImGui::SmallButton("全部")) {
+        if (chip("全部", std::strcmp(origin, "all") == 0)) {
             commands.Push(Core::SetLibraryOriginFilterCommand{"all"});
         }
         ImGui::SameLine();
-        if (ImGui::SmallButton("内置")) {
+        if (chip("内置", std::strcmp(origin, "builtin") == 0)) {
             commands.Push(Core::SetLibraryOriginFilterCommand{"builtin"});
         }
         ImGui::SameLine();
-        if (ImGui::SmallButton("用户")) {
+        if (chip("用户", std::strcmp(origin, "user") == 0)) {
             commands.Push(Core::SetLibraryOriginFilterCommand{"user"});
         }
-    } else if (state.officialCategories != nullptr && !state.officialCategories->empty()) {
-        const char* current = state.officialCategory != nullptr && state.officialCategory[0] != '\0'
-                                  ? state.officialCategory
-                                  : "全部分类";
-        ImGui::SetNextItemWidth(-1.0f);
-        if (ImGui::BeginCombo("##official-cat", current)) {
-            if (ImGui::Selectable("全部分类", state.officialCategory == nullptr ||
-                                                  state.officialCategory[0] == '\0')) {
-                commands.Push(Core::SetOfficialCategoryCommand{});
+    } else if (state.officialCategories != nullptr) {
+        if (chip("全部", state.officialCategory == nullptr || state.officialCategory[0] == '\0')) {
+            commands.Push(Core::SetOfficialCategoryCommand{});
+        }
+        for (const std::string& category : *state.officialCategories) {
+            ImGui::SameLine();
+            if (chip(category.c_str(),
+                     state.officialCategory != nullptr && category == state.officialCategory)) {
+                commands.Push(Core::SetOfficialCategoryCommand{category});
             }
-            for (const std::string& category : *state.officialCategories) {
-                if (ImGui::Selectable(category.c_str(), state.officialCategory != nullptr &&
-                                                            category == state.officialCategory)) {
-                    commands.Push(Core::SetOfficialCategoryCommand{category});
-                }
-            }
-            ImGui::EndCombo();
         }
     }
+    ImGui::EndChild();
 
     if (state.libraryAssets != nullptr) {
         int column = 0;
         int visible = 0;
         const int gridColumns =
-            std::max(2, static_cast<int>(ImGui::GetContentRegionAvail().x / 84.0f));
+            std::max(2, static_cast<int>(ImGui::GetContentRegionAvail().x / 104.0f));
         for (const LibraryAssetView& asset : *state.libraryAssets) {
             if (IsIndexMissing(asset)) {
                 continue;

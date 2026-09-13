@@ -64,6 +64,7 @@ struct LibraryAssetView {
     bool canDownload = false;
     bool canCancel = false;
     bool canAddToScene = false;
+    std::uint16_t previewTexture = 0xFFFFu;
 };
 
 struct StoryboardCardView {

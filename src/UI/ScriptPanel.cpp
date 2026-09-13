@@ -4,14 +4,18 @@
 #include "DirectorDesk/UI/ScriptPanel.h"
 
 #include "DirectorDesk/Core/Command.h"
+#include "UiChrome.h"
+#include "UiFonts.h"
+#include "UiIcons.h"
 
+#include <cstdio>
 #include <cstring>
 #include <imgui.h>
 
 namespace DirectorDesk::UI {
 namespace {
 
-constexpr ImVec4 kMuted(0.56f, 0.61f, 0.68f, 1.0f);
+constexpr ImVec4 kMuted(0.604f, 0.604f, 0.635f, 1.0f);
 
 int ScriptResizeCallback(ImGuiInputTextCallbackData* data) {
     if (data->EventFlag == ImGuiInputTextFlags_CallbackResize) {
@@ -20,6 +24,15 @@ int ScriptResizeCallback(ImGuiInputTextCallbackData* data) {
         data->Buf = text->data();
     }
     return 0;
+}
+
+bool DrawScriptEditor(std::string& text, const ImVec2& size) {
+    if (text.capacity() < text.size() + 16) {
+        text.reserve(text.size() + 256);
+    }
+    return ImGui::InputTextMultiline("##script-editor", text.data(), text.capacity() + 1, size,
+                                     ImGuiInputTextFlags_CallbackResize, ScriptResizeCallback,
+                                     &text);
 }
 
 } // namespace
@@ -38,11 +51,16 @@ void ScriptPanel::Draw(const AppViewState& state, Core::CommandQueue& commands) 
     }
 
     ImGui::Begin("剧本###Script");
-    if (ImGui::SmallButton("打开...")) {
+    DrawPanelCaption("剧本");
+    char openScript[32];
+    char saveScript[32];
+    std::snprintf(openScript, sizeof(openScript), "%s 打开...", Icon::FileInput);
+    std::snprintf(saveScript, sizeof(saveScript), "%s 保存", Icon::Save);
+    if (ImGui::SmallButton(openScript)) {
         commands.Push(Core::LoadScriptCommand{});
     }
     ImGui::SameLine();
-    if (ImGui::SmallButton("保存")) {
+    if (ImGui::SmallButton(saveScript)) {
         commands.Push(Core::SaveScriptCommand{});
     }
     const char* path =
@@ -54,15 +72,19 @@ void ScriptPanel::Draw(const AppViewState& state, Core::CommandQueue& commands) 
         ImGui::TextUnformatted("*");
     }
 
-    if (m_editorText.capacity() < m_editorText.size() + 16) {
-        m_editorText.reserve(m_editorText.size() + 256);
+    ImVec2 editorSize = ImGui::GetContentRegionAvail();
+    if (editorSize.x < 8.0f) {
+        editorSize.x = 8.0f;
     }
-    const ImVec2 editorSize = ImVec2(-1.0f, ImGui::GetContentRegionAvail().y);
-    if (ImGui::InputTextMultiline(
-            "##script-editor", m_editorText.data(), m_editorText.capacity() + 1, editorSize,
-            ImGuiInputTextFlags_CallbackResize, ScriptResizeCallback, &m_editorText)) {
+    if (editorSize.y < 8.0f) {
+        ImGui::End();
+        return;
+    }
+    PushUiFont(kUiEditor);
+    if (DrawScriptEditor(m_editorText, editorSize)) {
         commands.Push(Core::SetScriptTextCommand{m_editorText});
     }
+    PopUiFont();
     ImGui::End();
 }
 

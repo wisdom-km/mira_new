@@ -3,6 +3,8 @@
 
 #include "ImGuiGlfwBackend.h"
 
+#include "LucideDdRanges.h"
+
 #include "DirectorDesk/Core/Log.h"
 #include "DirectorDesk/Platform/Paths.h"
 #include "DirectorDesk/Platform/Window.h"
@@ -30,23 +32,22 @@ ImVec4 Color(unsigned int hex, float alpha = 1.0f) {
 void ApplyDirectorDeskStyle() {
     ImGuiStyle& style = ImGui::GetStyle();
 
-    // Compact, editor-like geometry: dense controls, restrained rounding, clear grouping.
-    style.WindowPadding = ImVec2(10.0f, 10.0f);
-    style.FramePadding = ImVec2(8.0f, 5.0f);
-    style.CellPadding = ImVec2(7.0f, 4.0f);
-    style.ItemSpacing = ImVec2(7.0f, 6.0f);
-    style.ItemInnerSpacing = ImVec2(6.0f, 4.0f);
-    style.IndentSpacing = 18.0f;
+    style.WindowPadding = ImVec2(12.0f, 12.0f);
+    style.FramePadding = ImVec2(8.0f, 4.0f);
+    style.CellPadding = ImVec2(8.0f, 4.0f);
+    style.ItemSpacing = ImVec2(8.0f, 6.0f);
+    style.ItemInnerSpacing = ImVec2(8.0f, 4.0f);
+    style.IndentSpacing = 16.0f;
     style.ScrollbarSize = 12.0f;
     style.GrabMinSize = 10.0f;
 
     style.WindowRounding = 4.0f;
     style.ChildRounding = 4.0f;
-    style.FrameRounding = 3.0f;
+    style.FrameRounding = 4.0f;
     style.PopupRounding = 4.0f;
-    style.ScrollbarRounding = 6.0f;
-    style.GrabRounding = 3.0f;
-    style.TabRounding = 3.0f;
+    style.ScrollbarRounding = 4.0f;
+    style.GrabRounding = 4.0f;
+    style.TabRounding = 4.0f;
 
     style.WindowBorderSize = 1.0f;
     style.ChildBorderSize = 1.0f;
@@ -54,29 +55,31 @@ void ApplyDirectorDeskStyle() {
     style.FrameBorderSize = 0.0f;
     style.TabBorderSize = 0.0f;
 
-    constexpr unsigned int kCanvas = 0x0b0d12;
-    constexpr unsigned int kWindow = 0x101319;
-    constexpr unsigned int kSurface = 0x151922;
-    constexpr unsigned int kRaised = 0x1c222d;
-    constexpr unsigned int kBorder = 0x2b3340;
-    constexpr unsigned int kBorderHot = 0x465265;
-    constexpr unsigned int kText = 0xe9edf4;
-    constexpr unsigned int kMuted = 0x8f9baa;
+    constexpr unsigned int kCanvas = 0x121214;
+    constexpr unsigned int kWindow = 0x1a1a1d;
+    constexpr unsigned int kSurface = 0x202024;
+    constexpr unsigned int kRaised = 0x2a2a2f;
+    constexpr unsigned int kBorder = 0x36363c;
+    constexpr unsigned int kBorderHot = 0x4a4a52;
+    constexpr unsigned int kHover = 0x323238;
+    constexpr unsigned int kPress = 0x3a3a42;
+    constexpr unsigned int kText = 0xe6e6e6;
+    constexpr unsigned int kMuted = 0x9a9aa2;
     constexpr unsigned int kAccent = 0xd89a4a;
     constexpr unsigned int kAccentHot = 0xebb25f;
-    constexpr unsigned int kSelection = 0x31547d;
+    const ImVec4 selection = Color(kAccent, 0.18f);
 
     ImVec4* colors = style.Colors;
     colors[ImGuiCol_Text] = Color(kText);
     colors[ImGuiCol_TextDisabled] = Color(kMuted);
     colors[ImGuiCol_WindowBg] = Color(kWindow);
     colors[ImGuiCol_ChildBg] = Color(kSurface, 0.78f);
-    colors[ImGuiCol_PopupBg] = Color(kWindow, 1.0f);
+    colors[ImGuiCol_PopupBg] = Color(kWindow);
     colors[ImGuiCol_Border] = Color(kBorder);
     colors[ImGuiCol_BorderShadow] = Color(kCanvas, 0.0f);
     colors[ImGuiCol_FrameBg] = Color(kRaised);
-    colors[ImGuiCol_FrameBgHovered] = Color(0x27313f);
-    colors[ImGuiCol_FrameBgActive] = Color(0x303b4b);
+    colors[ImGuiCol_FrameBgHovered] = Color(kHover);
+    colors[ImGuiCol_FrameBgActive] = Color(kPress);
     colors[ImGuiCol_TitleBg] = Color(kCanvas);
     colors[ImGuiCol_TitleBgActive] = Color(kCanvas);
     colors[ImGuiCol_TitleBgCollapsed] = Color(kCanvas);
@@ -86,15 +89,15 @@ void ApplyDirectorDeskStyle() {
     colors[ImGuiCol_ScrollbarGrabHovered] = Color(kBorderHot);
     colors[ImGuiCol_ScrollbarGrabActive] = Color(kAccent);
     colors[ImGuiCol_CheckMark] = Color(kAccentHot);
-    colors[ImGuiCol_CheckboxSelectedBg] = Color(kSelection);
+    colors[ImGuiCol_CheckboxSelectedBg] = selection;
     colors[ImGuiCol_SliderGrab] = Color(kAccent);
     colors[ImGuiCol_SliderGrabActive] = Color(kAccentHot);
-    colors[ImGuiCol_Button] = Color(kBorder);
-    colors[ImGuiCol_ButtonHovered] = Color(kBorderHot);
-    colors[ImGuiCol_ButtonActive] = Color(kSelection);
-    colors[ImGuiCol_Header] = Color(kSelection, 0.72f);
-    colors[ImGuiCol_HeaderHovered] = Color(0x3b6595, 0.82f);
-    colors[ImGuiCol_HeaderActive] = Color(0x4776aa);
+    colors[ImGuiCol_Button] = Color(kRaised);
+    colors[ImGuiCol_ButtonHovered] = Color(kBorder);
+    colors[ImGuiCol_ButtonActive] = selection;
+    colors[ImGuiCol_Header] = selection;
+    colors[ImGuiCol_HeaderHovered] = Color(kAccent, 0.28f);
+    colors[ImGuiCol_HeaderActive] = Color(kAccent, 0.40f);
     colors[ImGuiCol_Separator] = Color(kBorder);
     colors[ImGuiCol_SeparatorHovered] = Color(kAccent, 0.78f);
     colors[ImGuiCol_SeparatorActive] = Color(kAccentHot);
@@ -103,7 +106,7 @@ void ApplyDirectorDeskStyle() {
     colors[ImGuiCol_ResizeGripActive] = Color(kAccentHot);
     colors[ImGuiCol_InputTextCursor] = Color(kText);
     colors[ImGuiCol_Tab] = Color(kSurface);
-    colors[ImGuiCol_TabHovered] = Color(0x283342);
+    colors[ImGuiCol_TabHovered] = Color(kHover);
     colors[ImGuiCol_TabSelected] = Color(kRaised);
     colors[ImGuiCol_TabSelectedOverline] = Color(kAccent);
     colors[ImGuiCol_TabDimmed] = Color(kCanvas);
@@ -118,7 +121,7 @@ void ApplyDirectorDeskStyle() {
     colors[ImGuiCol_TableRowBg] = Color(kWindow, 0.0f);
     colors[ImGuiCol_TableRowBgAlt] = Color(kRaised, 0.34f);
     colors[ImGuiCol_TextLink] = Color(kAccentHot);
-    colors[ImGuiCol_TextSelectedBg] = Color(kSelection);
+    colors[ImGuiCol_TextSelectedBg] = selection;
     colors[ImGuiCol_TreeLines] = Color(kBorder);
     colors[ImGuiCol_DragDropTarget] = Color(kAccentHot);
     colors[ImGuiCol_DragDropTargetBg] = Color(kAccent, 0.22f);
@@ -145,7 +148,15 @@ struct ImGuiVertex {
     }
 };
 
-void LoadUiFont() {
+void LoadUiFont(GLFWwindow* window) {
+    float xScale = 1.0f;
+    float yScale = 1.0f;
+    if (window != nullptr) {
+        glfwGetWindowContentScale(window, &xScale, &yScale);
+    }
+    const float scale = xScale > 0.05f ? xScale : 1.0f;
+    ImGui::GetStyle().ScaleAllSizes(scale);
+
     auto fontPath = Platform::Paths::UiFontFile();
     if (!fontPath.IsOk()) {
         DD_LOG_WARN("{}", fontPath.GetError().technicalMessage);
@@ -169,19 +180,88 @@ void LoadUiFont() {
     config.OversampleV = 1;
     config.PixelSnapH = true;
     config.FontDataOwnedByAtlas = true;
+    constexpr float kBodyPx = 14.0f;
+    const float bodyPx = kBodyPx * scale;
     ImFont* font = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(
-        copy, static_cast<int>(bytes.Value().size()), 18.0f, &config);
+        copy, static_cast<int>(bytes.Value().size()), bodyPx, &config);
     if (font == nullptr) {
         DD_LOG_WARN("Failed to load UI font {}", fontPath.Value());
         return;
     }
-    DD_LOG_INFO("Loaded UI font {}", fontPath.Value());
+    ImGui::GetStyle().FontSizeBase = bodyPx;
+    DD_LOG_INFO("Loaded UI font {} at {:.1f}px (DPI scale {:.2f}x{:.2f})", fontPath.Value(),
+                bodyPx, xScale, yScale);
+
+    auto iconPath = Platform::Paths::UiIconFontFile();
+    if (!iconPath.IsOk()) {
+        DD_LOG_WARN("{}", iconPath.GetError().technicalMessage);
+        return;
+    }
+    auto iconBytes = Platform::Paths::ReadBinaryFile(iconPath.Value());
+    if (!iconBytes.IsOk() || iconBytes.Value().empty()) {
+        DD_LOG_WARN("Failed to read UI icon font {}", iconPath.Value());
+        return;
+    }
+    void* iconCopy = IM_ALLOC(iconBytes.Value().size());
+    if (iconCopy == nullptr) {
+        DD_LOG_WARN("Failed to allocate UI icon font {}", iconPath.Value());
+        return;
+    }
+    std::memcpy(iconCopy, iconBytes.Value().data(), iconBytes.Value().size());
+    ImFontConfig merge;
+    merge.MergeMode = true;
+    merge.PixelSnapH = true;
+    merge.OversampleH = 1;
+    merge.OversampleV = 1;
+    merge.FontDataOwnedByAtlas = true;
+    merge.GlyphMinAdvanceX = bodyPx;
+    ImFont* icons = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(
+        iconCopy, static_cast<int>(iconBytes.Value().size()), bodyPx, &merge, kLucideDdRanges);
+    if (icons == nullptr) {
+        DD_LOG_WARN("Failed to merge UI icon font {}", iconPath.Value());
+        return;
+    }
+    DD_LOG_INFO("Merged UI icon font {}", iconPath.Value());
+}
+
+const void* RgbaPixels(ImTextureData* texture, int x, int y, int w, int h,
+                       std::vector<unsigned char>& rgba) {
+    if (texture->Format == ImTextureFormat_RGBA32) {
+        if (x == 0 && y == 0 && w == texture->Width && h == texture->Height) {
+            return texture->GetPixels();
+        }
+        rgba.resize(static_cast<std::size_t>(w) * static_cast<std::size_t>(h) * 4);
+        for (int row = 0; row < h; ++row) {
+            std::memcpy(rgba.data() + static_cast<std::size_t>(row) * w * 4,
+                        texture->GetPixelsAt(x, y + row),
+                        static_cast<std::size_t>(w) * 4);
+        }
+        return rgba.data();
+    }
+    rgba.resize(static_cast<std::size_t>(w) * static_cast<std::size_t>(h) * 4);
+    for (int row = 0; row < h; ++row) {
+        const auto* src = static_cast<const unsigned char*>(texture->GetPixelsAt(x, y + row));
+        unsigned char* dst = rgba.data() + static_cast<std::size_t>(row) * w * 4;
+        for (int col = 0; col < w; ++col) {
+            dst[col * 4 + 0] = 255;
+            dst[col * 4 + 1] = 255;
+            dst[col * 4 + 2] = 255;
+            dst[col * 4 + 3] = src[col];
+        }
+    }
+    return rgba.data();
 }
 
 void UpdateImGuiTexture(ImTextureData* texture) {
     if (texture->Status == ImTextureStatus_WantCreate) {
-        if (texture->Format != ImTextureFormat_RGBA32) {
-            DD_LOG_ERROR("ImGui texture format is not RGBA32");
+        if (texture->Width <= 0 || texture->Height <= 0 || texture->Pixels == nullptr) {
+            DD_LOG_ERROR("ImGui WantCreate skipped ({}x{} pixels={})", texture->Width,
+                         texture->Height, texture->Pixels != nullptr);
+            return;
+        }
+        if (texture->Format != ImTextureFormat_RGBA32 &&
+            texture->Format != ImTextureFormat_Alpha8) {
+            DD_LOG_ERROR("ImGui texture format is not RGBA32 or Alpha8");
             return;
         }
         const bgfx::TextureHandle handle = bgfx::createTexture2D(
@@ -189,34 +269,39 @@ void UpdateImGuiTexture(ImTextureData* texture) {
             false, 1, bgfx::TextureFormat::RGBA8, BGFX_TEXTURE_NONE | BGFX_SAMPLER_U_CLAMP |
                                                       BGFX_SAMPLER_V_CLAMP,
             nullptr);
+        if (!bgfx::isValid(handle)) {
+            DD_LOG_ERROR("Failed to create ImGui texture {}x{}", texture->Width, texture->Height);
+            return;
+        }
+        std::vector<unsigned char> rgba;
+        const void* pixels = RgbaPixels(texture, 0, 0, texture->Width, texture->Height, rgba);
+        const std::uint32_t bytes = rgba.empty()
+                                        ? static_cast<std::uint32_t>(texture->GetSizeInBytes())
+                                        : static_cast<std::uint32_t>(rgba.size());
         bgfx::updateTexture2D(handle, 0, 0, 0, 0, static_cast<std::uint16_t>(texture->Width),
                               static_cast<std::uint16_t>(texture->Height),
-                              bgfx::copy(texture->GetPixels(),
-                                         static_cast<std::uint32_t>(texture->GetSizeInBytes())));
+                              bgfx::copy(pixels, bytes));
         texture->SetTexID(static_cast<ImTextureID>(handle.idx));
         texture->SetStatus(ImTextureStatus_OK);
         return;
     }
 
     if (texture->Status == ImTextureStatus_WantUpdates) {
+        if (texture->Pixels == nullptr) {
+            return;
+        }
         const bgfx::TextureHandle handle = {static_cast<std::uint16_t>(texture->GetTexID())};
         if (!bgfx::isValid(handle)) {
             return;
         }
         for (const ImTextureRect& rect : texture->Updates) {
-            const int bytesPerPixel = texture->BytesPerPixel;
-            std::vector<unsigned char> packed(
-                static_cast<std::size_t>(rect.w) * static_cast<std::size_t>(rect.h) *
-                static_cast<std::size_t>(bytesPerPixel));
-            for (int row = 0; row < rect.h; ++row) {
-                std::memcpy(packed.data() + static_cast<std::size_t>(row) * rect.w * bytesPerPixel,
-                            texture->GetPixelsAt(rect.x, rect.y + row),
-                            static_cast<std::size_t>(rect.w) * bytesPerPixel);
-            }
-            bgfx::updateTexture2D(
-                handle, 0, 0, rect.x, rect.y, rect.w, rect.h,
-                bgfx::copy(packed.data(), static_cast<std::uint32_t>(packed.size())),
-                static_cast<std::uint16_t>(rect.w * bytesPerPixel));
+            std::vector<unsigned char> packed;
+            const void* pixels = RgbaPixels(texture, rect.x, rect.y, rect.w, rect.h, packed);
+            bgfx::updateTexture2D(handle, 0, 0, rect.x, rect.y, rect.w, rect.h,
+                                  bgfx::copy(pixels, static_cast<std::uint32_t>(
+                                                         packed.empty() ? rect.w * rect.h * 4
+                                                                        : packed.size())),
+                                  static_cast<std::uint16_t>(rect.w * 4));
         }
         texture->SetStatus(ImTextureStatus_OK);
         return;
@@ -233,13 +318,18 @@ void UpdateImGuiTexture(ImTextureData* texture) {
 }
 
 void UpdateImGuiTextures(ImDrawData* drawData) {
-    if (drawData == nullptr || drawData->Textures == nullptr) {
-        return;
-    }
-    for (ImTextureData* texture : *drawData->Textures) {
+    auto upload = [](ImTextureData* texture) {
         if (texture != nullptr && texture->Status != ImTextureStatus_OK) {
             UpdateImGuiTexture(texture);
         }
+    };
+    if (drawData != nullptr && drawData->Textures != nullptr) {
+        for (ImTextureData* texture : *drawData->Textures) {
+            upload(texture);
+        }
+    }
+    for (ImTextureData* texture : ImGui::GetPlatformIO().Textures) {
+        upload(texture);
     }
 }
 
@@ -320,7 +410,7 @@ Core::Result<void> ImGuiGlfwBackend::Init(Platform::Window& window,
     io.IniFilename = nullptr;
     ImGui::StyleColorsDark();
     ApplyDirectorDeskStyle();
-    LoadUiFont();
+    LoadUiFont(glfwWindow);
 
     if (!ImGui_ImplGlfw_InitForOther(glfwWindow, true)) {
         ImGui::DestroyContext();
@@ -463,9 +553,12 @@ void ImGuiGlfwBackend::Submit(std::uint32_t framebufferWidth, std::uint32_t fram
                                                : 0.0f);
 
             bgfx::TextureHandle texture = BGFX_INVALID_HANDLE;
-            const ImTextureID texId = command.GetTexID();
-            if (texId != ImTextureID_Invalid) {
-                texture.idx = static_cast<std::uint16_t>(texId);
+            if (command.TexRef._TexData != nullptr) {
+                if (command.TexRef._TexData->Status == ImTextureStatus_OK) {
+                    texture.idx = static_cast<std::uint16_t>(command.TexRef._TexData->TexID);
+                }
+            } else if (command.TexRef._TexID != ImTextureID_Invalid) {
+                texture.idx = static_cast<std::uint16_t>(command.TexRef._TexID);
             }
             if (!bgfx::isValid(texture) || command.ElemCount == 0) {
                 continue;

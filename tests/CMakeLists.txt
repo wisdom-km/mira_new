@@ -8,11 +8,13 @@ add_executable(DirectorDeskTests
     Core/LogTests.cpp
     Core/CommandTests.cpp
     Platform/PathTests.cpp
+    Platform/RevealPathTests.cpp
     Camera/OrbitCameraTests.cpp
     Camera/PresetTests.cpp
     Camera/CameraManagerTests.cpp
     Renderer/PngWriterTests.cpp
     Asset/ModelLoaderTests.cpp
+    Asset/ImageDecodeTests.cpp
     Asset/LibraryTests.cpp
     Asset/ManifestTests.cpp
     Asset/OfficialCatalogTests.cpp
@@ -21,6 +23,7 @@ add_executable(DirectorDeskTests
     Script/DocumentTests.cpp
     Link/ShotLinkTests.cpp
     App/ProjectFileTests.cpp
+    App/UserSettingsTests.cpp
     Storyboard/LayoutTests.cpp
     Export/ShotExportTests.cpp
     AI/ServiceTests.cpp

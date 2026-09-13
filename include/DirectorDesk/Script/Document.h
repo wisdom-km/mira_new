@@ -48,6 +48,8 @@ public:
     [[nodiscard]] const std::string& SelectedShotId() const {
         return m_selectedShotId;
     }
+    [[nodiscard]] std::string FirstShotId() const;
+    [[nodiscard]] std::string AdjacentShotId(int delta) const;
     [[nodiscard]] std::uint64_t ExternalRevision() const {
         return m_externalRevision;
     }

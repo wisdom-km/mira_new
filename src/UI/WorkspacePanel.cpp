@@ -3,9 +3,13 @@
 
 #include "DirectorDesk/UI/WorkspacePanel.h"
 
+#include "UiChrome.h"
+#include "UiFonts.h"
+
 #include "DirectorDesk/Core/Command.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -16,11 +20,12 @@
 namespace DirectorDesk::UI {
 namespace {
 
-constexpr ImVec4 kAccent(0.85f, 0.60f, 0.29f, 1.0f);
-constexpr ImVec4 kLive(0.31f, 0.82f, 0.58f, 1.0f);
-constexpr ImVec4 kMuted(0.56f, 0.61f, 0.68f, 1.0f);
-constexpr ImVec4 kText(0.914f, 0.929f, 0.957f, 1.0f);
-constexpr ImU32 kModalTextU32 = IM_COL32(0xE9, 0xED, 0xF4, 0xFF);
+constexpr ImVec4 kAccent(0.847f, 0.604f, 0.290f, 1.0f);
+constexpr ImVec4 kSuccess(0.310f, 0.749f, 0.498f, 1.0f);
+constexpr ImVec4 kWarning(0.878f, 0.537f, 0.290f, 1.0f);
+constexpr ImVec4 kMuted(0.604f, 0.604f, 0.635f, 1.0f);
+constexpr ImVec4 kText(0.902f, 0.902f, 0.902f, 1.0f);
+constexpr ImU32 kModalTextU32 = IM_COL32(0xE6, 0xE6, 0xE6, 0xFF);
 
 const char* ModeId(const AppViewState& state) {
     return state.workspaceModeId != nullptr && state.workspaceModeId[0] != '\0'
@@ -135,9 +140,12 @@ void CountShots(const AppViewState& state, int& shotCount, int& readyCount) {
 }
 
 void DrawStatusDots(const StoryboardCardView* card) {
-    auto dot = [](bool on) {
+    auto icon = [](bool on, const char* glyph, const char* tip) {
         ImGui::SameLine();
-        ImGui::TextColored(on ? kLive : kMuted, "%s", on ? "●" : "○");
+        ImGui::TextColored(on ? kSuccess : kMuted, "%s", glyph);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", tip);
+        }
     };
     const bool linked =
         card != nullptr && card->link != nullptr && std::strcmp(card->link, "已关联") == 0;
@@ -145,21 +153,21 @@ void DrawStatusDots(const StoryboardCardView* card) {
         card != nullptr && card->preview != nullptr && std::strcmp(card->preview, "就绪") == 0;
     const bool exported =
         card != nullptr && card->exported != nullptr && std::strcmp(card->exported, "已导出") == 0;
-    dot(linked);
-    dot(preview);
-    dot(exported);
+    icon(linked, Icon::Camera, linked ? "已关联机位" : "无机位");
+    icon(preview, Icon::Image, preview ? "预览就绪" : "预览未就绪");
+    icon(exported, Icon::Download, exported ? "已导出" : "未导出");
 }
 
 void PushModalColors() {
     ImGui::PushStyleColor(ImGuiCol_Text, kText);
     ImGui::PushStyleColor(ImGuiCol_TextDisabled, kText);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.063f, 0.075f, 0.098f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(0.082f, 0.094f, 0.118f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_TitleBg, ImVec4(0.043f, 0.051f, 0.071f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImVec4(0.043f, 0.051f, 0.071f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.169f, 0.200f, 0.251f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.275f, 0.322f, 0.396f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.192f, 0.329f, 0.490f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.102f, 0.102f, 0.114f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(0.102f, 0.102f, 0.114f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBg, ImVec4(0.071f, 0.071f, 0.078f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImVec4(0.071f, 0.071f, 0.078f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.165f, 0.165f, 0.184f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.212f, 0.212f, 0.235f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.847f, 0.604f, 0.290f, 0.18f));
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 1.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
 }
@@ -195,14 +203,15 @@ bool ModalButton(const char* label) {
     ImDrawList* draw = ImGui::GetWindowDrawList();
     const ImVec2 max(pos.x + size.x, pos.y + size.y);
     draw->AddRectFilled(pos, max, bg, style.FrameRounding);
-    draw->AddRect(pos, max, IM_COL32(0x46, 0x52, 0x65, 0xFF), style.FrameRounding);
+    draw->AddRect(pos, max, IM_COL32(0x4A, 0x4A, 0x52, 0xFF), style.FrameRounding);
     draw->AddText(ImVec2(pos.x + style.FramePadding.x, pos.y + style.FramePadding.y), kModalTextU32,
                   label);
     ImGui::PopID();
     return pressed;
 }
 
-void ApplyDockLayout(ImGuiID dockspaceId, const ImVec2& size, const char* modeId, bool force) {
+void ApplyDockLayout(ImGuiID dockspaceId, const ImVec2& size, const char* modeId, bool force,
+                    bool leftCollapsed, bool empty, bool iconBar) {
     if (!force && ImGui::DockBuilderGetNode(dockspaceId) != nullptr) {
         return;
     }
@@ -218,16 +227,15 @@ void ApplyDockLayout(ImGuiID dockspaceId, const ImVec2& size, const char* modeId
     ImGuiID dockCenter = dockspaceId;
     ImGuiID dockLeft = 0;
     ImGuiID dockRight = 0;
-    ImGuiID dockBottom = 0;
-    if (!review) {
-        ImGui::DockBuilderSplitNode(dockCenter, ImGuiDir_Left, 0.20f, &dockLeft, &dockCenter);
+    if (!empty && !iconBar) {
+        const float leftRatio =
+            leftCollapsed ? std::min(0.08f, 72.0f / std::max(size.x, 1.0f)) : 0.18f;
+        ImGui::DockBuilderSplitNode(dockCenter, ImGuiDir_Left, leftRatio, &dockLeft, &dockCenter);
     }
-    ImGui::DockBuilderSplitNode(dockCenter, ImGuiDir_Right, 0.24f, &dockRight, &dockCenter);
-    const float bottomRatio = set ? 0.12f : (script ? 0.16f : 0.22f);
-    ImGui::DockBuilderSplitNode(dockCenter, ImGuiDir_Down, bottomRatio, &dockBottom, &dockCenter);
+    ImGui::DockBuilderSplitNode(dockCenter, ImGuiDir_Right, 0.22f, &dockRight, &dockCenter);
 
     if (dockLeft != 0) {
-        if (script) {
+        if (script || review) {
             ImGui::DockBuilderDockWindow("Hierarchy", dockLeft);
         } else {
             ImGuiID dockLibrary = 0;
@@ -238,7 +246,6 @@ void ApplyDockLayout(ImGuiID dockspaceId, const ImVec2& size, const char* modeId
         }
     }
     ImGui::DockBuilderDockWindow("Inspector", dockRight);
-    ImGui::DockBuilderDockWindow("ShotStrip", dockBottom);
     if (script) {
         ImGui::DockBuilderDockWindow("Script", dockCenter);
     } else if (review) {
@@ -249,62 +256,189 @@ void ApplyDockLayout(ImGuiID dockspaceId, const ImVec2& size, const char* modeId
     ImGui::DockBuilderFinish(dockspaceId);
 }
 
+ImVec2 FitExportFrame(const ImVec2& available, const char* resolutionId) {
+    if (available.x <= 1.0f || available.y <= 1.0f) {
+        return ImVec2(1.0f, 1.0f);
+    }
+    const float aspect = (resolutionId != nullptr && std::strcmp(resolutionId, "2k") == 0)
+                             ? (2560.0f / 1440.0f)
+                             : (1920.0f / 1080.0f);
+    const float availAspect = available.x / available.y;
+    if (availAspect > aspect) {
+        return ImVec2(available.y * aspect, available.y);
+    }
+    return ImVec2(available.x, available.x / aspect);
+}
+
+void ApplyLeftColumnWidth(ImGuiID dockspaceId, float columnWidth, bool collapsed) {
+    ImGuiDockNode* root = ImGui::DockBuilderGetNode(dockspaceId);
+    if (root == nullptr || !root->IsSplitNode() || root->ChildNodes[0] == nullptr) {
+        return;
+    }
+    ImGuiDockNode* left = root->ChildNodes[0];
+    const float target = collapsed ? 72.0f : std::max(220.0f, columnWidth * 0.18f);
+    if (std::abs(left->Size.x - target) < 8.0f) {
+        return;
+    }
+    ImGui::DockBuilderSetNodeSize(left->ID, ImVec2(target, left->Size.y));
+}
+
+void ApplyAutoHideTabBar(ImGuiDockNode* node) {
+    if (node == nullptr) {
+        return;
+    }
+    node->SetLocalFlags(node->LocalFlags | ImGuiDockNodeFlags_AutoHideTabBar);
+    if (node->IsSplitNode()) {
+        ApplyAutoHideTabBar(node->ChildNodes[0]);
+        ApplyAutoHideTabBar(node->ChildNodes[1]);
+    }
+}
+
 void DrawModeButton(const AppViewState& state, Core::CommandQueue& commands, const char* id,
                     const char* label, bool enabled) {
     const bool current = ModeIs(state, id);
     if (!enabled) {
         ImGui::BeginDisabled();
     }
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f);
     if (current) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetColorU32(ImGuiCol_ButtonActive));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.165f, 0.165f, 0.184f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.165f, 0.165f, 0.184f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.165f, 0.165f, 0.184f, 1.0f));
     }
-    if (ImGui::SmallButton(label) && !current && enabled) {
+    if (ImGui::Button(label, ImVec2(0.0f, 28.0f)) && !current && enabled) {
         commands.Push(Core::SetWorkspaceModeCommand{id});
     }
     if (current) {
-        ImGui::PopStyleColor();
+        const ImVec2 min = ImGui::GetItemRectMin();
+        const ImVec2 max = ImGui::GetItemRectMax();
+        ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(min.x, max.y - 2.0f), max,
+                                                  ImGui::GetColorU32(kAccent));
+        ImGui::PopStyleColor(3);
     }
+    ImGui::PopStyleVar();
     if (!enabled) {
         ImGui::EndDisabled();
     }
 }
 
+bool DrawPrimaryButton(const char* label) {
+    ImGui::PushStyleColor(ImGuiCol_Button, kAccent);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.922f, 0.698f, 0.373f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, kAccent);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.071f, 0.071f, 0.078f, 1.0f));
+    const bool pressed = ImGui::Button(label, ImVec2(0.0f, 32.0f));
+    ImGui::PopStyleColor(4);
+    return pressed;
+}
+
+const ExportLogView* LastOkExport(const AppViewState& state) {
+    if (state.exportLog == nullptr) {
+        return nullptr;
+    }
+    for (int i = static_cast<int>(state.exportLog->size()) - 1; i >= 0; --i) {
+        const ExportLogView& entry = (*state.exportLog)[static_cast<std::size_t>(i)];
+        if (entry.ok && !entry.path.empty()) {
+            return &entry;
+        }
+    }
+    return nullptr;
+}
+
+void CountSelectedShotOrdinal(const AppViewState& state, int& ordinal, int& total) {
+    ordinal = 0;
+    total = 0;
+    if (state.scriptScenes == nullptr) {
+        return;
+    }
+    for (const ScriptSceneView& scene : *state.scriptScenes) {
+        for (const ScriptShotView& shot : scene.shots) {
+            ++total;
+            if (shot.selected) {
+                ordinal = total;
+            }
+        }
+    }
+}
+
+void DrawOnboardingStep(bool done, const char* label) {
+    bool checked = done;
+    ImGui::BeginDisabled();
+    ImGui::Checkbox(label, &checked);
+    ImGui::EndDisabled();
+}
+
 void DrawOnboarding(const AppViewState& state, Core::CommandQueue& commands) {
     ImGui::TextUnformatted("无选择");
-    ImGui::TextDisabled("上手三步");
-    ImGui::Separator();
+    ImGui::SeparatorText("上手三步");
     const bool step1 = state.scriptHasSnapshot;
     const bool step2 = state.nodes != nullptr && !state.nodes->empty();
     const bool step3 =
         state.selectedShotLinkedCamera != nullptr && state.selectedShotLinkedCamera[0] != '\0';
-    ImGui::Text("%s 打开剧本", step1 ? "[x]" : "[ ]");
-    ImGui::SameLine();
-    if (ImGui::SmallButton("打开剧本...")) {
+
+    DrawOnboardingStep(step1, "打开剧本");
+    if (ImGui::Button("打开剧本...", ImVec2(-1.0f, 0.0f))) {
         commands.Push(Core::LoadScriptCommand{});
     }
     if (state.exampleScriptPath != nullptr && state.exampleScriptPath[0] != '\0') {
-        ImGui::SameLine();
-        if (ImGui::SmallButton("示例剧本")) {
+        if (ImGui::Button("示例剧本", ImVec2(-1.0f, 0.0f))) {
             commands.Push(Core::LoadScriptFromPathCommand{state.exampleScriptPath});
         }
     }
-    ImGui::Text("%s 放一个场景对象", step2 ? "[x]" : "[ ]");
-    ImGui::SameLine();
-    if (ImGui::SmallButton("导入模型...")) {
+
+    DrawOnboardingStep(step2, "放一个对象");
+    if (ImGui::Button("导入模型...", ImVec2(-1.0f, 0.0f))) {
         commands.Push(Core::ImportModelCommand{});
     }
-    ImGui::Text("%s 给镜头绑机位", step3 ? "[x]" : "[ ]");
-    ImGui::SameLine();
-    if (ImGui::SmallButton("为该镜头建机位")) {
+
+    DrawOnboardingStep(step3, "给镜头绑机位");
+    if (ImGui::Button("新建机位", ImVec2(-1.0f, 0.0f))) {
         commands.Push(Core::BindShotToNewCameraCommand{});
     }
-    ImGui::Separator();
-    ImGui::TextDisabled("Ctrl+N 新建  Ctrl+O 打开  Ctrl+S 保存");
-    ImGui::TextDisabled("Ctrl+I 导入  Ctrl+E 导出  视口：左键旋转");
+
+    ImGui::SeparatorText("快捷键");
+    if (ImGui::BeginTable("OnboardingKeys", 2, ImGuiTableFlags_SizingStretchProp)) {
+        ImGui::TableSetupColumn("key", ImGuiTableColumnFlags_WidthFixed, 88.0f);
+        ImGui::TableSetupColumn("action", ImGuiTableColumnFlags_WidthStretch);
+        const char* rows[][2] = {{"Ctrl+N", "新建"}, {"Ctrl+O", "打开"},   {"Ctrl+S", "保存"},
+                                 {"Ctrl+I", "导入"}, {"Ctrl+E", "导出"},   {"[ ] / ↑↓", "切镜"},
+                                 {"左键", "旋转视口"}};
+        for (const auto& row : rows) {
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::TextDisabled("%s", row[0]);
+            ImGui::TableSetColumnIndex(1);
+            ImGui::TextUnformatted(row[1]);
+        }
+        ImGui::EndTable();
+    }
+}
+
+void DrawLightPresets(const AppViewState& state, Core::CommandQueue& commands) {
+    if (ImGui::RadioButton("中性", state.lightPresetId != nullptr &&
+                                       std::strcmp(state.lightPresetId, "neutral") == 0)) {
+        commands.Push(Core::SetLightPresetCommand{"neutral"});
+    }
+    ImGui::SameLine();
+    if (ImGui::RadioButton("暖光", state.lightPresetId != nullptr &&
+                                       std::strcmp(state.lightPresetId, "warm") == 0)) {
+        commands.Push(Core::SetLightPresetCommand{"warm"});
+    }
+    ImGui::SameLine();
+    if (ImGui::RadioButton("冷光", state.lightPresetId != nullptr &&
+                                       std::strcmp(state.lightPresetId, "cool") == 0)) {
+        commands.Push(Core::SetLightPresetCommand{"cool"});
+    }
+}
+
+void DrawSceneInspector(const AppViewState& state, Core::CommandQueue& commands) {
+    ImGui::SeparatorText("灯光");
+    DrawLightPresets(state, commands);
+    ImGui::SeparatorText("背景");
+    ImGui::TextDisabled("中性灰");
 }
 
 void DrawAssetInspector(const LibraryAssetView& asset, Core::CommandQueue& commands) {
-    ImGui::SeparatorText("资产");
     ImGui::TextUnformatted(asset.name.c_str());
     ImGui::TextDisabled("%s  ·  %s", asset.format.c_str(), asset.origin.c_str());
     if (!asset.description.empty()) {
@@ -326,7 +460,7 @@ void DrawAssetInspector(const LibraryAssetView& asset, Core::CommandQueue& comma
             commands.Push(Core::CancelOfficialDownloadCommand{asset.id});
         }
     }
-    if (asset.canAddToScene && ImGui::Button("加入场景")) {
+    if (asset.canAddToScene && ImGui::Button("加入场景", ImVec2(-1.0f, 0.0f))) {
         commands.Push(Core::AddLibraryAssetToSceneCommand{asset.id});
     }
     if (!asset.canDownload && !asset.canCancel && asset.origin != "online" &&
@@ -344,10 +478,10 @@ void DrawShotInspector(const AppViewState& state, Core::CommandQueue& commands,
     }
     ImGui::SeparatorText("相机");
     if (!shot.linkedCameraName.empty()) {
-        ImGui::TextColored(kLive, "● %s%s", shot.linkedCameraName.c_str(),
+        ImGui::TextColored(kSuccess, "● %s%s", shot.linkedCameraName.c_str(),
                            shot.linkedMissing ? " (缺失)" : "");
     } else {
-        ImGui::TextDisabled("未关联");
+        ImGui::TextDisabled("无机位");
     }
     const char* cameraPreview =
         shot.linkedCameraName.empty() ? "选择已有相机" : shot.linkedCameraName.c_str();
@@ -368,76 +502,49 @@ void DrawShotInspector(const AppViewState& state, Core::CommandQueue& commands,
     } else {
         ImGui::TextDisabled("还没有相机，可先建机位");
     }
-    if (ImGui::Button("为该镜头建机位")) {
+    if (ImGui::Button("新建机位")) {
         commands.Push(Core::BindShotToNewCameraCommand{shot.id});
     }
     if (!shot.linkedCameraName.empty()) {
         ImGui::SameLine();
-        if (ImGui::Button("取消关联")) {
+        if (ImGui::Button("解绑")) {
             commands.Push(Core::UnlinkShotCommand{shot.id});
         }
     }
     ImGui::TextDisabled("机位预设");
     const float spacing = ImGui::GetStyle().ItemSpacing.x;
     const float presetWidth = (ImGui::GetContentRegionAvail().x - spacing * 2.0f) / 3.0f;
-    if (ImGui::Button("正视", ImVec2(presetWidth, 0.0f))) {
-        commands.Push(Core::ApplyCameraPresetCommand{"front"});
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("侧面", ImVec2(presetWidth, 0.0f))) {
-        commands.Push(Core::ApplyCameraPresetCommand{"side"});
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("过肩", ImVec2(presetWidth, 0.0f))) {
-        commands.Push(Core::ApplyCameraPresetCommand{"over-shoulder"});
-    }
-    if (ImGui::Button("俯视", ImVec2(presetWidth, 0.0f))) {
-        commands.Push(Core::ApplyCameraPresetCommand{"top"});
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("特写", ImVec2(presetWidth, 0.0f))) {
-        commands.Push(Core::ApplyCameraPresetCommand{"close-up"});
-    }
-    ImGui::SeparatorText("画面");
-    if (ImGui::RadioButton("中性", state.lightPresetId != nullptr &&
-                                       std::strcmp(state.lightPresetId, "neutral") == 0)) {
-        commands.Push(Core::SetLightPresetCommand{"neutral"});
-    }
-    ImGui::SameLine();
-    if (ImGui::RadioButton("暖光", state.lightPresetId != nullptr &&
-                                       std::strcmp(state.lightPresetId, "warm") == 0)) {
-        commands.Push(Core::SetLightPresetCommand{"warm"});
-    }
-    ImGui::SameLine();
-    if (ImGui::RadioButton("冷光", state.lightPresetId != nullptr &&
-                                       std::strcmp(state.lightPresetId, "cool") == 0)) {
-        commands.Push(Core::SetLightPresetCommand{"cool"});
+    static constexpr const char* kPresetIds[] = {"front",         "side",     "over-shoulder",
+                                                 "top",           "close-up", "eye-level"};
+    static constexpr const char* kPresetLabels[] = {"正视", "侧面", "过肩", "俯视", "特写", "平视"};
+    for (int i = 0; i < 6; ++i) {
+        if (i % 3 != 0) {
+            ImGui::SameLine();
+        }
+        if (ImGui::Button(kPresetLabels[i], ImVec2(presetWidth, 0.0f))) {
+            commands.Push(Core::ApplyCameraPresetCommand{kPresetIds[i]});
+        }
     }
     const StoryboardCardView* card = FindShotCard(state, shot.id);
-    ImGui::Text("缩略图: %s", card != nullptr && card->preview != nullptr ? card->preview : "—");
+    ImGui::SeparatorText("预览");
+    const char* previewLabel = "无";
+    if (card != nullptr && card->preview != nullptr) {
+        if (std::strcmp(card->preview, "就绪") == 0) {
+            previewLabel = "最新";
+        } else if (std::strcmp(card->preview, "过期") == 0) {
+            previewLabel = "需刷新";
+        } else if (std::strcmp(card->preview, "失败") == 0) {
+            previewLabel = "失败";
+        } else if (std::strcmp(card->preview, "缺失") == 0) {
+            previewLabel = "无";
+        } else {
+            previewLabel = card->preview;
+        }
+    }
+    ImGui::Text("预览: %s", previewLabel);
     ImGui::SameLine();
-    if (ImGui::SmallButton("重渲")) {
+    if (ImGui::SmallButton("刷新预览")) {
         commands.Push(Core::RefreshStoryboardThumbnailCommand{shot.id});
-    }
-    ImGui::SeparatorText("交付");
-    ImGui::Text("导出: %s",
-                card != nullptr && card->exported != nullptr ? card->exported : "未导出");
-    bool exportTransparent = state.exportTransparent;
-    if (ImGui::Checkbox("透明导出", &exportTransparent)) {
-        commands.Push(Core::SetExportTransparentCommand{exportTransparent});
-    }
-    const bool res1080 =
-        state.exportResolutionId != nullptr && std::strcmp(state.exportResolutionId, "2k") != 0;
-    if (ImGui::RadioButton("1080p", res1080)) {
-        commands.Push(Core::SelectExportResolutionCommand{"1080p"});
-    }
-    ImGui::SameLine();
-    if (ImGui::RadioButton("2K", !res1080)) {
-        commands.Push(Core::SelectExportResolutionCommand{"2k"});
-    }
-    if (ImGui::Button("导出当前镜头")) {
-        commands.Push(Core::ExportCurrentShotCommand{
-            state.exportResolutionId != nullptr ? state.exportResolutionId : "1080p"});
     }
     ImGui::PopID();
 }
@@ -445,7 +552,9 @@ void DrawShotInspector(const AppViewState& state, Core::CommandQueue& commands,
 void DrawNodeInspector(Core::CommandQueue& commands, const NodeView& node) {
     ImGui::PushID(node.id.c_str());
     ImGui::TextUnformatted(node.name.c_str());
-    ImGui::TextDisabled("场景对象为所有镜头共享");
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+        ImGui::SetTooltip("对象为所有镜头共享");
+    }
     float position[3] = {node.position[0], node.position[1], node.position[2]};
     float euler[3] = {node.eulerDegrees[0], node.eulerDegrees[1], node.eulerDegrees[2]};
     float scale[3] = {node.scale[0], node.scale[1], node.scale[2]};
@@ -557,54 +666,68 @@ void DrawCameraInspector(const AppViewState& state, Core::CommandQueue& commands
 void DrawDeliveryInspector(const AppViewState& state, Core::CommandQueue& commands) {
     if (state.viewportTextureIndex != 0xFFFFu) {
         const ImVec2 avail = ImGui::GetContentRegionAvail();
-        const float monitorH = std::min(avail.y * 0.26f, 160.0f);
+        const float monitorW = avail.x;
+        const float monitorH = std::min(monitorW * 9.0f / 16.0f, 160.0f);
         const ImVec2 cursor = ImGui::GetCursorScreenPos();
-        ImGui::Dummy(ImVec2(avail.x, monitorH));
+        ImGui::Dummy(ImVec2(monitorW, monitorH));
         ImDrawList* draw = ImGui::GetWindowDrawList();
         draw->AddImage(ImTextureRef(static_cast<ImTextureID>(state.viewportTextureIndex)), cursor,
-                       ImVec2(cursor.x + avail.x, cursor.y + monitorH));
-        draw->AddRect(cursor, ImVec2(cursor.x + avail.x, cursor.y + monitorH),
+                       ImVec2(cursor.x + monitorW, cursor.y + monitorH));
+        draw->AddRect(cursor, ImVec2(cursor.x + monitorW, cursor.y + monitorH),
                       ImGui::GetColorU32(ImGuiCol_Border));
     }
     ImGui::SeparatorText("交付");
     bool exportTransparent = state.exportTransparent;
-    if (ImGui::Checkbox("透明导出", &exportTransparent)) {
+    if (ImGui::Checkbox("透明背景", &exportTransparent)) {
         commands.Push(Core::SetExportTransparentCommand{exportTransparent});
     }
-    const bool res1080 =
-        state.exportResolutionId != nullptr && std::strcmp(state.exportResolutionId, "2k") != 0;
-    if (ImGui::RadioButton("1080p", res1080)) {
-        commands.Push(Core::SelectExportResolutionCommand{"1080p"});
-    }
-    ImGui::SameLine();
-    if (ImGui::RadioButton("2K", !res1080)) {
-        commands.Push(Core::SelectExportResolutionCommand{"2k"});
+    const bool res2k =
+        state.exportResolutionId != nullptr && std::strcmp(state.exportResolutionId, "2k") == 0;
+    const char* resolutionPreview = res2k ? "2K" : "1080p";
+    ImGui::SetNextItemWidth(-1.0f);
+    if (ImGui::BeginCombo("##export-resolution", resolutionPreview)) {
+        if (ImGui::Selectable("1080p", !res2k)) {
+            commands.Push(Core::SelectExportResolutionCommand{"1080p"});
+        }
+        if (ImGui::Selectable("2K", res2k)) {
+            commands.Push(Core::SelectExportResolutionCommand{"2k"});
+        }
+        ImGui::EndCombo();
     }
     if (state.exportIssues != nullptr && !state.exportIssues->empty()) {
         ImGui::SeparatorText("未就绪");
         for (const ExportIssueView& issue : *state.exportIssues) {
             ImGui::PushID(issue.shotId.c_str());
-            ImGui::TextWrapped("%s · %s", issue.shotTitle.c_str(),
-                               issue.reason != nullptr ? issue.reason : "");
+            const char* reasonText = "";
+            if (issue.reason != nullptr) {
+                if (std::strcmp(issue.reason, "未关联相机") == 0) {
+                    reasonText = "无机位";
+                } else if (std::strcmp(issue.reason, "缩略图过期") == 0) {
+                    reasonText = "预览需刷新";
+                } else if (std::strcmp(issue.reason, "缺少缩略图") == 0) {
+                    reasonText = "预览无";
+                } else if (std::strcmp(issue.reason, "渲染失败") == 0) {
+                    reasonText = "预览失败";
+                } else {
+                    reasonText = issue.reason;
+                }
+            }
+            ImGui::TextWrapped("%s · %s", issue.shotTitle.c_str(), reasonText);
             if (issue.reason != nullptr && std::strcmp(issue.reason, "未关联相机") == 0) {
-                if (ImGui::SmallButton("建机位")) {
+                if (ImGui::SmallButton("新建机位")) {
                     commands.Push(Core::BindShotToNewCameraCommand{issue.shotId});
                 }
                 ImGui::SameLine();
                 if (ImGui::SmallButton("关联当前")) {
                     commands.Push(Core::LinkShotToCameraCommand{issue.shotId, ""});
                 }
-            } else if (ImGui::SmallButton("重渲缩略图")) {
+            } else if (ImGui::SmallButton("刷新预览")) {
                 commands.Push(Core::RefreshStoryboardThumbnailCommand{issue.shotId});
             }
             ImGui::PopID();
         }
     }
-    if (ImGui::Button("导出当前镜头")) {
-        commands.Push(Core::ExportCurrentShotCommand{
-            state.exportResolutionId != nullptr ? state.exportResolutionId : "1080p"});
-    }
-    if (ImGui::Button("导出分镜总览")) {
+    if (ImGui::Button("导出总览", ImVec2(-1.0f, 0.0f))) {
         commands.Push(Core::ExportStoryboardBoardCommand{});
     }
 }
@@ -636,12 +759,229 @@ void DrawScriptInspector(const AppViewState& state) {
     }
 }
 
+bool ComputeLeftIconBar(const AppViewState& state, bool empty, bool foldExplicit, bool folded) {
+    if (empty) {
+        return false;
+    }
+    if (foldExplicit) {
+        return folded;
+    }
+    const float windowW = state.windowWidth > 0 ? static_cast<float>(state.windowWidth)
+                                                : ImGui::GetMainViewport()->Size.x;
+    return ModeIs(state, "review") || windowW < 1180.0f;
+}
+
+void DrawLeftIconBar(const AppViewState& state, LeftRailState& rail) {
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const ImGuiWindowFlags sideFlags =
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoDecoration;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(4.0f, 8.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 8.0f));
+    if (ImGui::BeginViewportSideBar("##LeftIconBar", viewport, ImGuiDir_Left, 48.0f, sideFlags)) {
+        const float btn = 40.0f;
+        auto railBtn = [&](const char* icon, const char* tip, LeftRailOverlay id) {
+            const bool on = rail.overlay == id;
+            if (on) {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.847f, 0.604f, 0.290f, 0.18f));
+            }
+            ImGui::PushID(tip);
+            if (ImGui::Button(icon, ImVec2(btn, btn))) {
+                rail.overlay = on ? LeftRailOverlay::None : id;
+            }
+            ImGui::PopID();
+            if (on) {
+                ImGui::PopStyleColor();
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s", tip);
+            }
+        };
+        railBtn(Icon::Clapperboard, "镜头表", LeftRailOverlay::Shots);
+        railBtn(Icon::Box, "场景", LeftRailOverlay::Scene);
+        if (ModeIs(state, "set") || ModeIs(state, "shoot")) {
+            railBtn(Icon::Package, "资源库", LeftRailOverlay::Library);
+        } else if (rail.overlay == LeftRailOverlay::Library) {
+            rail.overlay = LeftRailOverlay::None;
+        }
+        const ImVec2 barPos = ImGui::GetWindowPos();
+        const ImVec2 barSize = ImGui::GetWindowSize();
+        rail.overlayPos = ImVec2(barPos.x + barSize.x, viewport->WorkPos.y);
+        rail.overlaySize = ImVec2(280.0f, viewport->WorkSize.y);
+        ImGui::End();
+    }
+    ImGui::PopStyleVar(2);
+}
+
+void DrawHierarchyBody(const AppViewState& state, Core::CommandQueue& commands,
+                       bool* sceneHeaderClicked) {
+    bool shotAddClicked = false;
+    if (BeginSection("镜头表", true, nullptr, &shotAddClicked)) {
+        if (state.scriptScenes == nullptr || state.scriptScenes->empty()) {
+            ImGui::TextDisabled("还没有镜头。打开或新建剧本");
+            if (ImGui::SmallButton("打开剧本")) {
+                commands.Push(Core::LoadScriptCommand{});
+            }
+            if (state.exampleScriptPath != nullptr && state.exampleScriptPath[0] != '\0') {
+                ImGui::SameLine();
+                if (ImGui::SmallButton("示例")) {
+                    commands.Push(Core::LoadScriptFromPathCommand{state.exampleScriptPath});
+                }
+            }
+        } else {
+            for (const ScriptSceneView& scene : *state.scriptScenes) {
+                if (ImGui::TreeNodeEx(scene.id.c_str(), ImGuiTreeNodeFlags_DefaultOpen, "%s",
+                                      scene.title.c_str())) {
+                    for (const ScriptShotView& shot : scene.shots) {
+                        const std::string label = shot.title + "##" + shot.id;
+                        if (ImGui::Selectable(label.c_str(), shot.selected)) {
+                            commands.Push(Core::SelectShotCommand{shot.id});
+                        }
+                        if (ImGui::BeginPopupContextItem()) {
+                            if (ImGui::MenuItem("删除镜头")) {
+                                commands.Push(Core::DeleteShotCommand{shot.id});
+                            }
+                            ImGui::EndPopup();
+                        }
+                        DrawStatusDots(FindShotCard(state, shot.id));
+                    }
+                    ImGui::TreePop();
+                }
+            }
+        }
+    }
+    bool sceneAddClicked = false;
+    if (BeginSection("场景", !ModeIs(state, "script"), sceneHeaderClicked, &sceneAddClicked)) {
+        if (state.nodes == nullptr || state.nodes->empty()) {
+            ImGui::TextDisabled("场景是空的。把资源库里的模型拖到画面里");
+            if (ImGui::SmallButton("导入模型")) {
+                commands.Push(Core::ImportModelCommand{});
+            }
+        } else {
+            for (const NodeView& node : *state.nodes) {
+                const std::string nodeLabel =
+                    std::string(Icon::Box) + "  " + node.name + "##" + node.id;
+                if (ImGui::Selectable(nodeLabel.c_str(), node.selected)) {
+                    commands.Push(Core::SelectNodeCommand{node.id});
+                }
+            }
+        }
+        if (ImGui::TreeNodeEx("##cameras", ImGuiTreeNodeFlags_DefaultOpen, "相机")) {
+            if (state.cameras != nullptr) {
+                for (const CameraItemView& camera : *state.cameras) {
+                    const std::string label =
+                        std::string(Icon::Camera) + "  " + camera.name + "##" + camera.id;
+                    if (ImGui::Selectable(label.c_str(), camera.selected)) {
+                        commands.Push(Core::SelectCameraCommand{camera.id});
+                    }
+                    if (ImGui::BeginPopupContextItem()) {
+                        if (ImGui::MenuItem("删除相机")) {
+                            commands.Push(Core::RemoveCameraCommand{camera.id});
+                        }
+                        ImGui::EndPopup();
+                    }
+                }
+            }
+            ImGui::TreePop();
+        }
+    }
+    if (shotAddClicked) {
+        ImGui::OpenPopup("##hierarchy-shots-add");
+    }
+    if (ImGui::BeginPopup("##hierarchy-shots-add")) {
+        if (ImGui::MenuItem("场次")) {
+            commands.Push(Core::InsertSceneCommand{});
+        }
+        if (ImGui::MenuItem("镜头")) {
+            commands.Push(Core::InsertShotCommand{});
+        }
+        ImGui::EndPopup();
+    }
+    if (sceneAddClicked) {
+        ImGui::OpenPopup("##hierarchy-scene-add");
+    }
+    if (ImGui::BeginPopup("##hierarchy-scene-add")) {
+        if (ImGui::MenuItem("添加相机")) {
+            commands.Push(Core::AddCameraCommand{});
+        }
+        ImGui::EndPopup();
+    }
+}
+
+void DrawViewportGuides(const ImVec2& frameMin, const ImVec2& frameMax, bool thirds, bool safe) {
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    const ImU32 color = IM_COL32(0xE6, 0xE6, 0xE6, 48);
+    const float width = frameMax.x - frameMin.x;
+    const float height = frameMax.y - frameMin.y;
+    if (thirds && width > 2.0f && height > 2.0f) {
+        for (int i = 1; i <= 2; ++i) {
+            const float x = frameMin.x + width * (static_cast<float>(i) / 3.0f);
+            const float y = frameMin.y + height * (static_cast<float>(i) / 3.0f);
+            draw->AddLine(ImVec2(x, frameMin.y), ImVec2(x, frameMax.y), color);
+            draw->AddLine(ImVec2(frameMin.x, y), ImVec2(frameMax.x, y), color);
+        }
+    }
+    if (safe && width > 2.0f && height > 2.0f) {
+        const float insetX = width * 0.05f;
+        const float insetY = height * 0.05f;
+        draw->AddRect(ImVec2(frameMin.x + insetX, frameMin.y + insetY),
+                      ImVec2(frameMax.x - insetX, frameMax.y - insetY), color);
+    }
+}
+
 } // namespace
+
+void WorkspacePanel::ApplyPreferences(const UiPreferences& preferences) {
+    m_lockExportAspect = preferences.lockExportAspect;
+    m_leftFoldExplicit = preferences.leftFoldExplicit;
+    m_leftFolded = preferences.leftFolded;
+    m_leftFoldDirty = true;
+    m_showGroundGrid = preferences.showGroundGrid;
+    m_showGroundAxes = preferences.showGroundAxes;
+    m_showThirds = preferences.showThirds;
+    m_showSafeFrame = preferences.showSafeFrame;
+    m_viewportBackground =
+        preferences.viewportBackground == "dark" ? "dark" : "neutral";
+    m_preferencesDirty = false;
+}
+
+UiPreferences WorkspacePanel::Preferences() const {
+    UiPreferences preferences;
+    preferences.lockExportAspect = m_lockExportAspect;
+    preferences.leftFoldExplicit = m_leftFoldExplicit;
+    preferences.leftFolded = m_leftFolded;
+    preferences.showGroundGrid = m_showGroundGrid;
+    preferences.showGroundAxes = m_showGroundAxes;
+    preferences.showThirds = m_showThirds;
+    preferences.showSafeFrame = m_showSafeFrame;
+    preferences.viewportBackground = m_viewportBackground;
+    return preferences;
+}
+
+bool WorkspacePanel::ConsumePreferencesDirty() {
+    const bool dirty = m_preferencesDirty;
+    m_preferencesDirty = false;
+    return dirty;
+}
+
+void WorkspacePanel::MarkPreferencesDirty() {
+    m_preferencesDirty = true;
+}
 
 void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& commands) {
     ImGuiViewport* viewport = ImGui::GetMainViewport();
     const bool empty = ProjectIsEmpty(state);
     const char* modeId = ModeId(state);
+    bool sceneHeaderClicked = false;
+    LeftRailState& rail = CurrentLeftRail();
+    const bool iconBar = ComputeLeftIconBar(state, empty, m_leftFoldExplicit, m_leftFolded);
+    if (iconBar != m_lastIconBar) {
+        m_leftFoldDirty = true;
+        m_lastIconBar = iconBar;
+        if (!iconBar) {
+            rail.overlay = LeftRailOverlay::None;
+        }
+    }
+    rail.iconBar = iconBar;
 
     const ImGuiWindowFlags menuFlags =
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar;
@@ -674,13 +1014,13 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                 if (ImGui::MenuItem("按当前选择导出", "Ctrl+E")) {
                     commands.Push(Core::ExportCurrentShotCommand{});
                 }
-                if (ImGui::MenuItem("导出当前镜头 1080p")) {
+                if (ImGui::MenuItem("导出镜头 1080p")) {
                     commands.Push(Core::ExportCurrentShotCommand{"1080p"});
                 }
-                if (ImGui::MenuItem("导出当前镜头 2K")) {
+                if (ImGui::MenuItem("导出镜头 2K")) {
                     commands.Push(Core::ExportCurrentShotCommand{"2k"});
                 }
-                if (ImGui::MenuItem("导出分镜总览")) {
+                if (ImGui::MenuItem("导出总览")) {
                     commands.Push(Core::ExportStoryboardBoardCommand{});
                 }
                 ImGui::Separator();
@@ -703,6 +1043,45 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                     commands.Push(Core::SetWorkspaceModeCommand{"review"});
                 }
                 ImGui::Separator();
+                if (ImGui::MenuItem("锁定导出比例", nullptr, m_lockExportAspect)) {
+                    m_lockExportAspect = !m_lockExportAspect;
+                    MarkPreferencesDirty();
+                }
+                if (ImGui::MenuItem("地面网格", "G", m_showGroundGrid)) {
+                    m_showGroundGrid = !m_showGroundGrid;
+                    MarkPreferencesDirty();
+                }
+                if (ImGui::MenuItem("坐标轴", nullptr, m_showGroundAxes)) {
+                    m_showGroundAxes = !m_showGroundAxes;
+                    MarkPreferencesDirty();
+                }
+                if (ImGui::MenuItem("三分线", "Shift+G", m_showThirds)) {
+                    m_showThirds = !m_showThirds;
+                    MarkPreferencesDirty();
+                }
+                if (ImGui::MenuItem("安全框", nullptr, m_showSafeFrame)) {
+                    m_showSafeFrame = !m_showSafeFrame;
+                    MarkPreferencesDirty();
+                }
+                if (ImGui::BeginMenu("视口背景")) {
+                    if (ImGui::MenuItem("中性灰", nullptr, m_viewportBackground != "dark")) {
+                        m_viewportBackground = "neutral";
+                        MarkPreferencesDirty();
+                    }
+                    if (ImGui::MenuItem("深灰", nullptr, m_viewportBackground == "dark")) {
+                        m_viewportBackground = "dark";
+                        MarkPreferencesDirty();
+                    }
+                    ImGui::EndMenu();
+                }
+                const bool leftCollapsed =
+                    ComputeLeftIconBar(state, empty, m_leftFoldExplicit, m_leftFolded);
+                if (ImGui::MenuItem("折叠左栏", nullptr, leftCollapsed)) {
+                    m_leftFoldExplicit = true;
+                    m_leftFolded = !leftCollapsed;
+                    m_leftFoldDirty = true;
+                    MarkPreferencesDirty();
+                }
                 if (ImGui::MenuItem("重置布局")) {
                     commands.Push(Core::ResetLayoutCommand{});
                 }
@@ -724,8 +1103,11 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                 if (ImGui::MenuItem("特写机位")) {
                     commands.Push(Core::ApplyCameraPresetCommand{"close-up"});
                 }
+                if (ImGui::MenuItem("平视机位")) {
+                    commands.Push(Core::ApplyCameraPresetCommand{"eye-level"});
+                }
                 ImGui::Separator();
-                if (ImGui::MenuItem("为该镜头建机位")) {
+                if (ImGui::MenuItem("新建机位")) {
                     commands.Push(Core::BindShotToNewCameraCommand{});
                 }
                 ImGui::EndMenu();
@@ -737,8 +1119,10 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                 ImGui::TextUnformatted("Ctrl+Shift+S  工程另存为");
                 ImGui::TextUnformatted("Ctrl+I  导入模型");
                 ImGui::TextUnformatted("Ctrl+E  按当前选择导出");
+                ImGui::TextUnformatted("[ ] / ↑↓  上一镜 / 下一镜");
                 ImGui::Separator();
                 ImGui::TextUnformatted("视口：左键旋转  右键平移  滚轮缩放");
+                ImGui::TextUnformatted("G  地面网格    Shift+G  三分线");
                 ImGui::TextUnformatted("分镜：右键平移  滚轮缩放");
                 ImGui::EndMenu();
             }
@@ -753,6 +1137,10 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                 ImGui::SetCursorPosX(rightAligned);
             }
             ImGui::TextColored(state.projectDirty ? kAccent : kMuted, "%s", projectStatus.c_str());
+            if (ImGui::IsItemHovered() && state.projectPath != nullptr &&
+                state.projectPath[0] != '\0') {
+                ImGui::SetTooltip("%s", state.projectPath);
+            }
             ImGui::EndMenuBar();
         }
         ImGui::End();
@@ -760,85 +1148,192 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
 
     const ImGuiWindowFlags sideFlags =
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoDecoration;
-    if (ImGui::BeginViewportSideBar("##ToolStrip", viewport, ImGuiDir_Up, 34.0f, sideFlags)) {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 4.0f));
+    if (ImGui::BeginViewportSideBar("##ToolStrip", viewport, ImGuiDir_Up, 40.0f, sideFlags)) {
         ImGui::AlignTextToFramePadding();
-        DrawModeButton(state, commands, "script", "编剧", !empty);
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 4.0f));
+        char scriptMode[32];
+        char setMode[32];
+        char shootMode[32];
+        char reviewMode[32];
+        std::snprintf(scriptMode, sizeof(scriptMode), "%s  编剧", Icon::BookOpen);
+        std::snprintf(setMode, sizeof(setMode), "%s  置景", Icon::Box);
+        std::snprintf(shootMode, sizeof(shootMode), "%s  掌机", Icon::Video);
+        std::snprintf(reviewMode, sizeof(reviewMode), "%s  审片", Icon::LayoutGrid);
+        DrawModeButton(state, commands, "script", scriptMode, !empty);
         ImGui::SameLine();
-        DrawModeButton(state, commands, "set", "置景", !empty);
+        DrawModeButton(state, commands, "set", setMode, !empty);
         ImGui::SameLine();
-        DrawModeButton(state, commands, "shoot", "掌机", true);
+        DrawModeButton(state, commands, "shoot", shootMode, true);
         ImGui::SameLine();
-        DrawModeButton(state, commands, "review", "审片", !empty);
-        ImGui::SameLine(0.0f, 16.0f);
+        DrawModeButton(state, commands, "review", reviewMode, !empty);
+        ImGui::PopStyleVar();
+
         const ScriptSceneView* selectedScene = nullptr;
         const ScriptShotView* selectedShot = FindSelectedShot(state, &selectedScene);
-        if (selectedShot != nullptr) {
-            ImGui::TextColored(kAccent, "%s", selectedShot->title.c_str());
+        int shotOrdinal = 0;
+        int shotTotal = 0;
+        CountSelectedShotOrdinal(state, shotOrdinal, shotTotal);
+        char centerText[256];
+        if (selectedShot != nullptr && selectedScene != nullptr) {
+            std::snprintf(centerText, sizeof(centerText), "%s · %s (%d/%d)",
+                          selectedShot->title.c_str(), selectedScene->title.c_str(), shotOrdinal,
+                          shotTotal);
         } else {
-            ImGui::TextDisabled("未选镜头");
+            std::snprintf(centerText, sizeof(centerText), "%s", "未选镜头");
         }
-        int shotCount = 0;
-        int readyCount = 0;
-        CountShots(state, shotCount, readyCount);
-        ImGui::SameLine(0.0f, 12.0f);
-        ImGui::TextDisabled("%d 镜 / %d 已成镜", shotCount, readyCount);
-        float right = ImGui::GetWindowWidth() - 108.0f;
-        if (right > ImGui::GetCursorPosX()) {
-            ImGui::SameLine(right);
+        const float stepperW = ImGui::GetFrameHeight();
+        const float centerWidth = stepperW * 2.0f + ImGui::GetStyle().ItemSpacing.x * 2.0f +
+                                  ImGui::CalcTextSize(centerText).x;
+        const float centerX = (ImGui::GetWindowWidth() - centerWidth) * 0.5f;
+        if (centerX > ImGui::GetCursorPosX() + 16.0f) {
+            ImGui::SameLine(centerX);
+        } else {
+            ImGui::SameLine(0.0f, 16.0f);
+        }
+        ImGui::BeginDisabled(empty);
+        char prevShot[24];
+        std::snprintf(prevShot, sizeof(prevShot), "%s##prevShot", Icon::ChevronLeft);
+        if (ImGui::SmallButton(prevShot)) {
+            commands.Push(Core::SelectAdjacentShotCommand{-1});
+        }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+            ImGui::SetTooltip("上一镜  [  ↑");
+        }
+        ImGui::SameLine();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(centerText);
+        ImGui::SameLine();
+        char nextShot[24];
+        std::snprintf(nextShot, sizeof(nextShot), "%s##nextShot", Icon::ChevronRight);
+        if (ImGui::SmallButton(nextShot)) {
+            commands.Push(Core::SelectAdjacentShotCommand{1});
+        }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+            ImGui::SetTooltip("下一镜  ]  ↓");
+        }
+        ImGui::EndDisabled();
+
+        if (selectedShot != nullptr) {
+            ImGui::SameLine(0.0f, 12.0f);
+            ImGui::BeginGroup();
+            DrawStatusDots(FindShotCard(state, selectedShot->id));
+            ImGui::EndGroup();
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                ImGui::SetTooltip("机位 · 预览 · 导出");
+            }
+        }
+
+        const char* primaryLabel = "导出镜头 ▾";
+        if (ModeIs(state, "script")) {
+            primaryLabel = "保存剧本";
+        } else if (ModeIs(state, "set")) {
+            primaryLabel = "导入模型";
+        } else if (ModeIs(state, "review")) {
+            primaryLabel = "导出总览";
+        }
+        const float primaryWidth = ImGui::CalcTextSize(primaryLabel).x + 28.0f;
+        const float primaryX = ImGui::GetWindowWidth() - primaryWidth - 12.0f;
+        if (primaryX > ImGui::GetCursorPosX()) {
+            ImGui::SameLine(primaryX);
         } else {
             ImGui::SameLine();
         }
         if (ModeIs(state, "script")) {
-            if (ImGui::SmallButton("保存剧本")) {
+            if (DrawPrimaryButton(primaryLabel)) {
                 commands.Push(Core::SaveScriptCommand{});
             }
         } else if (ModeIs(state, "set")) {
-            if (ImGui::SmallButton("导入模型")) {
+            if (DrawPrimaryButton(primaryLabel)) {
                 commands.Push(Core::ImportModelCommand{});
             }
         } else if (ModeIs(state, "review")) {
-            if (ImGui::SmallButton("导出总览")) {
+            if (DrawPrimaryButton(primaryLabel)) {
                 commands.Push(Core::ExportStoryboardBoardCommand{});
             }
-        } else if (ImGui::SmallButton("导出镜头")) {
-            commands.Push(Core::ExportCurrentShotCommand{
-                state.exportResolutionId != nullptr ? state.exportResolutionId : "1080p"});
+        } else {
+            if (DrawPrimaryButton(primaryLabel)) {
+                ImGui::OpenPopup("##PrimaryExportShot");
+            }
+            if (ImGui::BeginPopup("##PrimaryExportShot")) {
+                if (ImGui::MenuItem("1080p")) {
+                    commands.Push(Core::ExportCurrentShotCommand{"1080p"});
+                }
+                if (ImGui::MenuItem("2K")) {
+                    commands.Push(Core::ExportCurrentShotCommand{"2k"});
+                }
+                ImGui::EndPopup();
+            }
         }
         ImGui::End();
     }
+    ImGui::PopStyleVar();
 
-    if (ImGui::BeginViewportSideBar("##StatusBar", viewport, ImGuiDir_Down, 22.0f, sideFlags)) {
+    if (ImGui::BeginViewportSideBar("##StatusBar", viewport, ImGuiDir_Down, 28.0f, sideFlags)) {
         ImGui::AlignTextToFramePadding();
-        const char* status =
-            state.statusText != nullptr && state.statusText[0] != '\0' ? state.statusText : "就绪";
-        ImGui::TextUnformatted(status);
+        const bool hasStatus = state.statusText != nullptr && state.statusText[0] != '\0';
+        const bool hasExportIssues = ModeIs(state, "review") && state.exportIssues != nullptr &&
+                                     !state.exportIssues->empty();
+        const bool warning = state.importInProgress || hasExportIssues;
+        const ImVec4& statusDot = warning ? kWarning : (hasStatus ? kMuted : kSuccess);
+        ImGui::TextColored(statusDot, "%s", warning ? Icon::TriangleAlert : Icon::CircleCheck);
+        ImGui::SameLine(0.0f, 6.0f);
+        ImGui::TextUnformatted(hasStatus ? state.statusText : "就绪");
+        if (const ExportLogView* exported = LastOkExport(state)) {
+            ImGui::SameLine(0.0f, 10.0f);
+            char openFile[32];
+            char openFolder[32];
+            std::snprintf(openFile, sizeof(openFile), "%s 打开", Icon::FileInput);
+            std::snprintf(openFolder, sizeof(openFolder), "%s 文件夹", Icon::FolderOpen);
+            if (ImGui::SmallButton(openFile)) {
+                commands.Push(Core::RevealPathCommand{exported->path, false});
+            }
+            ImGui::SameLine();
+            if (ImGui::SmallButton(openFolder)) {
+                commands.Push(Core::RevealPathCommand{exported->path, true});
+            }
+        }
         if (state.importInProgress) {
             ImGui::SameLine(0.0f, 16.0f);
-            ImGui::TextColored(kLive, "导入中");
+            ImGui::TextColored(kWarning, "导入中");
         }
         if (state.officialCatalogStatus != nullptr && state.officialCatalogStatus[0] != '\0') {
             ImGui::SameLine(0.0f, 16.0f);
             ImGui::TextDisabled("%s", state.officialCatalogStatus);
         }
-        if (ModeIs(state, "review") && state.exportIssues != nullptr &&
-            !state.exportIssues->empty()) {
+        if (hasExportIssues) {
             ImGui::SameLine(0.0f, 16.0f);
-            ImGui::TextColored(kAccent, "%d 项未就绪",
+            ImGui::TextColored(kWarning, "%d 项未就绪",
                                static_cast<int>(state.exportIssues->size()));
         }
-        const char* path = state.projectPath != nullptr && state.projectPath[0] != '\0'
-                               ? state.projectPath
-                               : "尚未保存";
-        char rightText[256];
-        std::snprintf(rightText, sizeof(rightText), "%s   VIEW %u×%u", path,
-                      state.viewportTextureWidth, state.viewportTextureHeight);
-        const float rightWidth = ImGui::CalcTextSize(rightText).x + 12.0f;
+        int shotCount = 0;
+        int readyCount = 0;
+        CountShots(state, shotCount, readyCount);
+        char rightText[64];
+        std::snprintf(rightText, sizeof(rightText), "%d 镜 · %d 就绪", shotCount, readyCount);
+        const float dirtyW = state.projectDirty ? ImGui::CalcTextSize("  ●").x : 0.0f;
+        const float rightWidth = ImGui::CalcTextSize(rightText).x + dirtyW + 12.0f;
         const float rightX = ImGui::GetWindowWidth() - rightWidth;
         if (rightX > ImGui::GetCursorPosX()) {
             ImGui::SameLine(rightX);
             ImGui::TextDisabled("%s", rightText);
+            if (state.projectDirty) {
+                ImGui::SameLine(0.0f, 8.0f);
+                ImGui::TextColored(kAccent, "●");
+            }
         }
         ImGui::End();
+    }
+
+    if (!empty && !ModeIs(state, "script")) {
+        if (ImGui::BeginViewportSideBar("镜头条###ShotStrip", viewport, ImGuiDir_Down, 132.0f,
+                                        sideFlags)) {
+            ImGui::End();
+        }
+    }
+
+    if (iconBar) {
+        DrawLeftIconBar(state, rail);
     }
 
     ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoDocking;
@@ -869,13 +1364,45 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
             commands.Push(Core::ImportModelCommand{});
         } else if (ctrl && ImGui::IsKeyPressed(ImGuiKey_E, false)) {
             commands.Push(Core::ExportCurrentShotCommand{});
+        } else if (!ctrl && !io.KeyAlt && !io.KeySuper) {
+            if (ImGui::IsKeyPressed(ImGuiKey_1, false) && !empty) {
+                commands.Push(Core::SetWorkspaceModeCommand{"script"});
+            } else if (ImGui::IsKeyPressed(ImGuiKey_2, false) && !empty) {
+                commands.Push(Core::SetWorkspaceModeCommand{"set"});
+            } else if (ImGui::IsKeyPressed(ImGuiKey_3, false)) {
+                commands.Push(Core::SetWorkspaceModeCommand{"shoot"});
+            } else if (ImGui::IsKeyPressed(ImGuiKey_4, false) && !empty) {
+                commands.Push(Core::SetWorkspaceModeCommand{"review"});
+            } else if (!empty && (ImGui::IsKeyPressed(ImGuiKey_LeftBracket, false) ||
+                                  ImGui::IsKeyPressed(ImGuiKey_UpArrow, false))) {
+                commands.Push(Core::SelectAdjacentShotCommand{-1});
+            } else if (!empty && (ImGui::IsKeyPressed(ImGuiKey_RightBracket, false) ||
+                                  ImGui::IsKeyPressed(ImGuiKey_DownArrow, false))) {
+                commands.Push(Core::SelectAdjacentShotCommand{1});
+            } else if (ImGui::IsKeyPressed(ImGuiKey_G, false)) {
+                if (io.KeyShift) {
+                    m_showThirds = !m_showThirds;
+                } else {
+                    m_showGroundGrid = !m_showGroundGrid;
+                }
+                MarkPreferencesDirty();
+            }
         }
     }
 
     const ImGuiID dockspaceId = ImGui::GetID("DirectorDeskMainDockSpace.uipro");
-    ApplyDockLayout(dockspaceId, ImGui::GetContentRegionAvail(), modeId,
-                    state.layoutRebuildRequested);
-    ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
+    const bool leftCollapsed = iconBar;
+    const ImVec2 dockSize = ImGui::GetContentRegionAvail();
+    const bool emptyChanged = empty != m_lastEmpty;
+    m_lastEmpty = empty;
+    const bool rebuildLeft = state.layoutRebuildRequested || m_leftFoldDirty || emptyChanged;
+    ApplyDockLayout(dockspaceId, dockSize, modeId, rebuildLeft, leftCollapsed, empty, iconBar);
+    m_leftFoldDirty = false;
+    ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_AutoHideTabBar);
+    ApplyAutoHideTabBar(ImGui::DockBuilderGetNode(dockspaceId));
+    if (rebuildLeft && !empty && !iconBar) {
+        ApplyLeftColumnWidth(dockspaceId, dockSize.x, leftCollapsed);
+    }
     ImGui::End();
 
     if (ModeIs(state, "set") || ModeIs(state, "shoot")) {
@@ -890,7 +1417,9 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
             ImGui::SetCursorPosX((ImGui::GetWindowWidth() - width) * 0.5f);
             ImGui::BeginGroup();
             ImGui::PushItemWidth(width);
+            PushUiFont(kUiDisplay);
             ImGui::TextColored(kAccent, "开始一块新的分镜");
+            PopUiFont();
             ImGui::TextDisabled("建档 → 编剧 → 置景 → 掌机 → 审片 → 交付");
             ImGui::Dummy(ImVec2(0.0f, 8.0f));
             if (state.exampleProjectPath != nullptr && state.exampleProjectPath[0] != '\0') {
@@ -907,32 +1436,13 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
             ImGui::PopItemWidth();
             ImGui::EndGroup();
         } else {
-            ImGui::BeginChild("ViewportHud", ImVec2(0.0f, 28.0f), ImGuiChildFlags_None,
-                              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-            ImGui::AlignTextToFramePadding();
-            ImGui::TextColored(kLive, "● LIVE");
-            ImGui::SameLine();
-            const ScriptSceneView* hudScene = nullptr;
-            if (const ScriptShotView* shot = FindSelectedShot(state, &hudScene)) {
-                ImGui::TextUnformatted(shot->title.c_str());
-                ImGui::SameLine();
-                ImGui::TextDisabled("·");
-                ImGui::SameLine();
-                ImGui::TextDisabled("%s", shot->linkedCameraName.empty()
-                                              ? "未关联"
-                                              : shot->linkedCameraName.c_str());
-            } else {
-                ImGui::TextDisabled("未选镜头");
-            }
-            ImGui::SameLine();
-            ImGui::TextDisabled("%u × %u", state.viewportTextureWidth, state.viewportTextureHeight);
-            ImGui::EndChild();
-
             const ImVec2 available = ImGui::GetContentRegionAvail();
+            const ImVec2 frame =
+                m_lockExportAspect ? FitExportFrame(available, state.exportResolutionId) : available;
             const std::uint32_t width =
-                available.x > 1.0f ? static_cast<std::uint32_t>(available.x) : 1;
+                frame.x > 1.0f ? static_cast<std::uint32_t>(frame.x) : 1;
             const std::uint32_t height =
-                available.y > 1.0f ? static_cast<std::uint32_t>(available.y) : 1;
+                frame.y > 1.0f ? static_cast<std::uint32_t>(frame.y) : 1;
             const int dw = static_cast<int>(width) - static_cast<int>(m_lastViewportW);
             const int dh = static_cast<int>(height) - static_cast<int>(m_lastViewportH);
             if (m_lastViewportW == 0 || m_lastViewportH == 0 || dw * dw + dh * dh >= 4) {
@@ -941,16 +1451,37 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                 commands.Push(Core::ViewportResizeCommand{m_lastViewportW, m_lastViewportH});
             }
             const ImVec2 cursor = ImGui::GetCursorScreenPos();
+            const ImVec2 frameMin(cursor.x + (available.x - frame.x) * 0.5f,
+                                  cursor.y + (available.y - frame.y) * 0.5f);
+            const ImVec2 frameMax(frameMin.x + frame.x, frameMin.y + frame.y);
             ImGui::InvisibleButton("viewport_input", available);
             const bool viewportHovered = ImGui::IsItemHovered();
             const bool viewportActive = ImGui::IsItemActive();
+            ImDrawList* draw = ImGui::GetWindowDrawList();
+            draw->AddRectFilled(cursor, ImVec2(cursor.x + available.x, cursor.y + available.y),
+                                IM_COL32(0x14, 0x14, 0x14, 230));
             if (state.viewportTextureIndex != 0xFFFFu) {
-                ImDrawList* draw = ImGui::GetWindowDrawList();
                 draw->AddImage(ImTextureRef(static_cast<ImTextureID>(state.viewportTextureIndex)),
-                               cursor, ImVec2(cursor.x + available.x, cursor.y + available.y));
-                draw->AddRect(cursor, ImVec2(cursor.x + available.x, cursor.y + available.y),
-                              ImGui::GetColorU32(ImGuiCol_Border));
+                               frameMin, frameMax);
+                draw->AddRect(frameMin, frameMax, ImGui::GetColorU32(ImGuiCol_Border));
+                DrawViewportGuides(frameMin, frameMax, m_showThirds, m_showSafeFrame);
             }
+            const ScriptShotView* hudShot = FindSelectedShot(state, nullptr);
+            char hud[256];
+            if (hudShot != nullptr) {
+                std::snprintf(hud, sizeof(hud), "%s · %s", hudShot->title.c_str(),
+                              hudShot->linkedCameraName.empty() ? "无机位"
+                                                                : hudShot->linkedCameraName.c_str());
+            } else {
+                std::snprintf(hud, sizeof(hud), "%s", "未选镜头");
+            }
+            PushUiFont(kUiCaption);
+            const ImVec2 hudSize = ImGui::CalcTextSize(hud);
+            const ImVec2 hudPos(frameMin.x + 10.0f,
+                                frameMax.y - hudSize.y - 8.0f);
+            draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(), hudPos,
+                          ImGui::GetColorU32(ImGuiCol_Text), hud);
+            PopUiFont();
             if (ImGui::BeginDragDropTarget()) {
                 if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DD_ASSET_ID")) {
                     const char* assetId = static_cast<const char*>(payload->Data);
@@ -985,85 +1516,49 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
         ImGui::End();
     }
 
-    if (!ModeIs(state, "review")) {
+    if (!empty && !iconBar) {
         ImGui::Begin("层级###Hierarchy");
-        if (!ModeIs(state, "set")) {
-            if (ImGui::CollapsingHeader("镜头表", ImGuiTreeNodeFlags_DefaultOpen)) {
-                if (ImGui::SmallButton("+ 场次")) {
-                    commands.Push(Core::InsertSceneCommand{});
-                }
-                ImGui::SameLine();
-                if (ImGui::SmallButton("+ 镜头")) {
-                    commands.Push(Core::InsertShotCommand{});
-                }
-                if (state.scriptScenes == nullptr || state.scriptScenes->empty()) {
-                    ImGui::TextDisabled("打开剧本后生成镜头表");
-                } else {
-                    for (const ScriptSceneView& scene : *state.scriptScenes) {
-                        if (ImGui::TreeNodeEx(scene.id.c_str(), ImGuiTreeNodeFlags_DefaultOpen,
-                                              "%s", scene.title.c_str())) {
-                            for (const ScriptShotView& shot : scene.shots) {
-                                const std::string label = shot.title + "##" + shot.id;
-                                if (ImGui::Selectable(label.c_str(), shot.selected)) {
-                                    commands.Push(Core::SelectShotCommand{shot.id});
-                                }
-                                if (ImGui::BeginPopupContextItem()) {
-                                    if (ImGui::MenuItem("删除镜头")) {
-                                        commands.Push(Core::DeleteShotCommand{shot.id});
-                                    }
-                                    ImGui::EndPopup();
-                                }
-                                DrawStatusDots(FindShotCard(state, shot.id));
-                            }
-                            ImGui::TreePop();
-                        }
-                    }
-                }
-            }
-        }
-        if (!ModeIs(state, "script")) {
-            if (ImGui::CollapsingHeader("场景对象", ImGuiTreeNodeFlags_DefaultOpen)) {
-                if (state.nodes == nullptr || state.nodes->empty()) {
-                    ImGui::TextDisabled("从资源库拖入模型，或导入 OBJ/GLB。");
-                } else {
-                    for (const NodeView& node : *state.nodes) {
-                        const std::string nodeLabel =
-                            std::string("◆  ") + node.name + "##" + node.id;
-                        if (ImGui::Selectable(nodeLabel.c_str(), node.selected)) {
-                            commands.Push(Core::SelectNodeCommand{node.id});
-                        }
-                    }
-                }
-            }
-            if (ImGui::CollapsingHeader("相机", ImGuiTreeNodeFlags_DefaultOpen)) {
-                if (ImGui::SmallButton("+ 添加相机")) {
-                    commands.Push(Core::AddCameraCommand{});
-                }
-                if (state.cameras != nullptr) {
-                    for (const CameraItemView& camera : *state.cameras) {
-                        const std::string label =
-                            std::string("▣  ") + camera.name + "##" + camera.id;
-                        if (ImGui::Selectable(label.c_str(), camera.selected)) {
-                            commands.Push(Core::SelectCameraCommand{camera.id});
-                        }
-                        if (ImGui::BeginPopupContextItem()) {
-                            if (ImGui::MenuItem("删除相机")) {
-                                commands.Push(Core::RemoveCameraCommand{camera.id});
-                            }
-                            ImGui::EndPopup();
-                        }
-                    }
-                }
-            }
-        }
+        DrawPanelCaption("层级");
+        DrawHierarchyBody(state, commands, &sceneHeaderClicked);
+        ImGui::End();
+    } else if (!empty && iconBar && (rail.overlay == LeftRailOverlay::Shots ||
+                                     rail.overlay == LeftRailOverlay::Scene)) {
+        ImGui::SetNextWindowPos(rail.overlayPos);
+        ImGui::SetNextWindowSize(rail.overlaySize);
+        ImGui::SetNextWindowViewport(viewport->ID);
+        ImGui::Begin("层级###Hierarchy", nullptr,
+                     ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse |
+                         ImGuiWindowFlags_NoTitleBar);
+        DrawPanelCaption("层级");
+        DrawHierarchyBody(state, commands, &sceneHeaderClicked);
         ImGui::End();
     }
 
     ImGui::Begin("检查器###Inspector");
+    DrawPanelCaption("检查器");
+    const char* selectionId = state.selectionId != nullptr ? state.selectionId : "";
+    const std::string selectionKey = std::string(KindId(state)) + "\n" + selectionId;
+    if (selectionKey != m_lastSelectionKey) {
+        m_lastSelectionKey = selectionKey;
+        if (!sceneHeaderClicked) {
+            m_sceneFacePinned = false;
+        }
+    }
+    if (sceneHeaderClicked) {
+        m_sceneFacePinned = true;
+    }
     if (ModeIs(state, "script")) {
         DrawScriptInspector(state);
     } else if (ModeIs(state, "review")) {
         DrawDeliveryInspector(state, commands);
+    } else if (m_sceneFacePinned || (ModeIs(state, "set") && KindIs(state, "none"))) {
+        DrawSceneInspector(state, commands);
+    } else if (KindIs(state, "asset")) {
+        if (const LibraryAssetView* asset = FindSelectedAsset(state)) {
+            DrawAssetInspector(*asset, commands);
+        } else {
+            DrawOnboarding(state, commands);
+        }
     } else if (KindIs(state, "shot")) {
         const ScriptSceneView* scene = nullptr;
         if (const ScriptShotView* shot = FindSelectedShot(state, &scene)) {
@@ -1085,9 +1580,6 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
         }
     } else {
         DrawOnboarding(state, commands);
-    }
-    if (const LibraryAssetView* asset = FindSelectedAsset(state)) {
-        DrawAssetInspector(*asset, commands);
     }
     ImGui::End();
 
@@ -1112,13 +1604,13 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
     PopModalColors();
 
     if (state.exportStalePrompt) {
-        ImGui::OpenPopup("缩略图未就绪");
+        ImGui::OpenPopup("预览未就绪");
     }
     PushModalColors();
     ImGui::SetNextWindowBgAlpha(1.0f);
-    if (ImGui::BeginPopupModal("缩略图未就绪", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::BeginPopupModal("预览未就绪", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         char staleText[128];
-        std::snprintf(staleText, sizeof(staleText), "有 %d 个镜头缩略图缺失、过期或失败。",
+        std::snprintf(staleText, sizeof(staleText), "有 %d 个镜头预览缺失、需刷新或失败。",
                       state.exportStaleCount);
         ModalBodyText(staleText);
         ModalBodyText("继续导出将使用占位状态，是否继续？");

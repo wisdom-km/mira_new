@@ -40,6 +40,13 @@ TEST_CASE("UiFontFile finds a system CJK font", "[platform][paths]") {
     REQUIRE(DirectorDesk::Platform::Paths::Exists(font.Value()));
 }
 
+TEST_CASE("UiIconFontFile finds the Lucide subset", "[platform][paths]") {
+    auto font = DirectorDesk::Platform::Paths::UiIconFontFile();
+    REQUIRE(font.IsOk());
+    REQUIRE(DirectorDesk::Platform::Paths::Exists(font.Value()));
+    REQUIRE(DirectorDesk::Platform::Paths::FileName(font.Value()) == "lucide-dd.ttf");
+}
+
 TEST_CASE("RelativeTo stays inside a Chinese project directory", "[platform][paths]") {
     auto temp = DirectorDesk::Platform::Paths::TemporaryDirectory();
     REQUIRE(temp.IsOk());

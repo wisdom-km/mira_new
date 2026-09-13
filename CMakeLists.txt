@@ -6,7 +6,7 @@ if(NOT DEFINED CMAKE_TOOLCHAIN_FILE AND DEFINED ENV{VCPKG_ROOT})
         CACHE FILEPATH "vcpkg toolchain")
 endif()
 
-project(DirectorDesk VERSION 0.1.2 LANGUAGES CXX)
+project(DirectorDesk VERSION 0.1.3 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -130,7 +130,12 @@ add_custom_command(TARGET DirectorDesk POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
         "${PROJECT_SOURCE_DIR}/examples"
         "$<TARGET_FILE_DIR:DirectorDesk>/examples"
-    COMMENT "Copy compiled shaders and examples next to DirectorDesk"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory
+        "$<TARGET_FILE_DIR:DirectorDesk>/fonts"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${PROJECT_SOURCE_DIR}/assets/fonts/lucide-dd.ttf"
+        "$<TARGET_FILE_DIR:DirectorDesk>/fonts/lucide-dd.ttf"
+    COMMENT "Copy compiled shaders, examples, and UI icon font next to DirectorDesk"
 )
 
 if(DD_BUILD_TESTS)

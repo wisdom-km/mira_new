@@ -41,8 +41,14 @@ TEST_CASE("Example cafe script loads into a published snapshot", "[script][docum
     auto loaded = document.LoadFromPath(example);
     REQUIRE(loaded.IsOk());
     REQUIRE(document.HasPublishedSnapshot());
-    REQUIRE(document.PublishedSnapshot().scenes.size() == 2);
-    REQUIRE(document.PublishedSnapshot().scenes[0].shots.size() == 2);
+    REQUIRE(document.PublishedSnapshot().scenes.size() == 3);
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots.size() == 4);
+    REQUIRE(document.PublishedSnapshot().scenes[1].shots.size() == 2);
+    REQUIRE(document.PublishedSnapshot().scenes[2].shots.size() == 2);
+    REQUIRE(document.SelectedShotId().empty());
+    REQUIRE(document.FirstShotId() == "shot-cafe-001");
+    REQUIRE(document.AdjacentShotId(1) == "shot-cafe-001");
+    REQUIRE(document.AdjacentShotId(-1) == "shot-counter-002");
     REQUIRE_FALSE(document.IsDirty());
 #endif
 }
@@ -111,6 +117,50 @@ TEST_CASE("External file change blocks overwrite", "[script][document]") {
     auto disk = DirectorDesk::Platform::Paths::ReadTextFile(path);
     REQUIRE(disk.IsOk());
     REQUIRE(disk.Value().find("外部修改") != std::string::npos);
+}
+
+TEST_CASE("Empty document has no first shot", "[script][document]") {
+    DirectorDesk::Script::Document document;
+    REQUIRE(document.FirstShotId().empty());
+    REQUIRE(document.SelectedShotId().empty());
+    REQUIRE(document.AdjacentShotId(1).empty());
+    REQUIRE(document.AdjacentShotId(-1).empty());
+}
+
+TEST_CASE("AdjacentShotId wraps and fills empty selection", "[script][document]") {
+    DirectorDesk::Script::Document document;
+    REQUIRE(document
+                .LoadFromText("## [scene:scene-a] 一\n### [shot:shot-a] A\n"
+                              "### [shot:shot-b] B\n## [scene:scene-b] 二\n"
+                              "### [shot:shot-c] C\n")
+                .IsOk());
+    REQUIRE(document.AdjacentShotId(1) == "shot-a");
+    REQUIRE(document.AdjacentShotId(-1) == "shot-c");
+    document.SelectShot("shot-a");
+    REQUIRE(document.AdjacentShotId(1) == "shot-b");
+    REQUIRE(document.AdjacentShotId(-1) == "shot-c");
+    document.SelectShot("shot-c");
+    REQUIRE(document.AdjacentShotId(1) == "shot-a");
+    REQUIRE(document.AdjacentShotId(-1) == "shot-b");
+    REQUIRE(document.AdjacentShotId(0).empty());
+}
+
+TEST_CASE("AdjacentShotId walks thirty shots and wraps", "[script][document]") {
+    std::string markdown = "## [scene:scene-long] 场\n";
+    for (int i = 0; i < 30; ++i) {
+        markdown += "### [shot:shot-" + std::to_string(i) + "] 镜" + std::to_string(i) + "\n";
+    }
+    DirectorDesk::Script::Document document;
+    REQUIRE(document.LoadFromText(markdown).IsOk());
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots.size() == 30);
+    document.SelectShot("shot-0");
+    for (int i = 0; i < 30; ++i) {
+        const std::string next = document.AdjacentShotId(1);
+        REQUIRE(next == ("shot-" + std::to_string((i + 1) % 30)));
+        document.SelectShot(next);
+    }
+    REQUIRE(document.SelectedShotId() == "shot-0");
+    REQUIRE(document.AdjacentShotId(-1) == "shot-29");
 }
 
 TEST_CASE("Insert scene and shot write stable IDs", "[script][document]") {

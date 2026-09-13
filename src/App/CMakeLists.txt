@@ -5,6 +5,7 @@ add_library(dd_app
     Application.cpp
     ProjectFile.cpp
     ProjectBinding.cpp
+    UserSettings.cpp
 )
 add_library(DirectorDesk::app ALIAS dd_app)
 

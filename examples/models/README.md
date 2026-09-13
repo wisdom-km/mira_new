@@ -6,4 +6,4 @@
 
 - 导演台「导入示例 OBJ / GLB」
 - 文件 → 导入模型
-- 示例工程 `examples/cafe.ddproj` 已引用 `cube.glb`
+- 示例工程 `examples/cafe.ddproj` 用同一份 `cube.glb` 摆了立方体、桌子、杯子

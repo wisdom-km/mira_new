@@ -65,6 +65,7 @@ struct RenderLight {
 struct RenderSceneView {
     bool showTestMesh = true;
     bool showGroundGrid = false;
+    bool showGroundAxes = false;
     RenderLight light;
     std::vector<RenderMeshInstance> instances;
 };
@@ -79,6 +80,7 @@ struct RenderTargetDesc {
     std::uint32_t width = 1280;
     std::uint32_t height = 720;
     bool transparentBackground = false;
+    std::uint32_t opaqueClearRgba = 0x2b2b2eff;
 };
 
 struct PixelBuffer {

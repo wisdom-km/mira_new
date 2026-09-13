@@ -74,6 +74,12 @@ CameraPose ResolveCameraPreset(CameraPresetKind kind, const SubjectFrame& subjec
         pose.fovYDegrees = 35.0f;
         pose.target += glm::vec3(0.0f, radius * 0.35f, 0.0f);
         break;
+    case CameraPresetKind::EyeLevel:
+        pose.yawDegrees = 90.0f;
+        pose.pitchDegrees = 0.0f;
+        pose.distance = radius * 4.0f;
+        pose.fovYDegrees = 45.0f;
+        break;
     }
     return pose;
 }
@@ -109,6 +115,8 @@ const char* CameraPresetId(CameraPresetKind kind) {
         return "top";
     case CameraPresetKind::CloseUp:
         return "close-up";
+    case CameraPresetKind::EyeLevel:
+        return "eye-level";
     }
     return "front";
 }
@@ -144,6 +152,10 @@ bool TryParseCameraPreset(const std::string& id, CameraPresetKind& out) {
     }
     if (id == "close-up") {
         out = CameraPresetKind::CloseUp;
+        return true;
+    }
+    if (id == "eye-level") {
+        out = CameraPresetKind::EyeLevel;
         return true;
     }
     return false;

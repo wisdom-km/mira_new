@@ -28,6 +28,23 @@ TEST_CASE("DeleteShotCommand and RemoveLibraryAssetCommand join the variant") {
     REQUIRE(std::get<DirectorDesk::Core::RemoveLibraryAssetCommand>(remove).assetId == "local-1");
 }
 
+TEST_CASE("SelectAdjacentShotCommand joins the variant") {
+    using DirectorDesk::Core::Command;
+    Command next = DirectorDesk::Core::SelectAdjacentShotCommand{};
+    Command prev = DirectorDesk::Core::SelectAdjacentShotCommand{-1};
+    REQUIRE(std::get<DirectorDesk::Core::SelectAdjacentShotCommand>(next).delta == 1);
+    REQUIRE(std::get<DirectorDesk::Core::SelectAdjacentShotCommand>(prev).delta == -1);
+}
+
+TEST_CASE("RevealPathCommand joins the variant") {
+    using DirectorDesk::Core::Command;
+    Command open = DirectorDesk::Core::RevealPathCommand{"D:/shot.png", false};
+    Command folder = DirectorDesk::Core::RevealPathCommand{"D:/shot.png", true};
+    REQUIRE(std::get<DirectorDesk::Core::RevealPathCommand>(open).utf8Path == "D:/shot.png");
+    REQUIRE_FALSE(std::get<DirectorDesk::Core::RevealPathCommand>(open).folder);
+    REQUIRE(std::get<DirectorDesk::Core::RevealPathCommand>(folder).folder);
+}
+
 TEST_CASE("SetWorkspaceModeCommand defaults to shoot") {
     DirectorDesk::Core::SetWorkspaceModeCommand command;
     REQUIRE(command.modeId == "shoot");

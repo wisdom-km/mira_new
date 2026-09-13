@@ -12,7 +12,7 @@ DirectorDesk 把剧本变成可摆的 3D 分镜，再导出给后续 AI 生图/�
 
 ## 核心路径
 
-1. **剧本**：右侧「剧本」打开 `.md`。语法见 `docs/dev-map/modules/script-format.md`。示例：`examples/scripts/cafe.md`
+1. **剧本**：右侧「剧本」打开 `.md`。语法见 `docs/dev-map/modules/script-format.md`。完整测试本：`examples/scripts/cafe.md`（3 场 8 镜，工程 `examples/cafe.ddproj`）
 2. **资源**：左下「资源库」
    - **本地**：导入自己的 `.glb` / `.obj`
    - **在线**：浏览官方仓库并下载（需联网）。官方源固定，不能添加第三方地址
@@ -33,6 +33,9 @@ DirectorDesk 把剧本变成可摆的 3D 分镜，再导出给后续 AI 生图/�
 | Ctrl+Shift+S | 工程另存为 |
 | Ctrl+I | 导入模型 |
 | Ctrl+E | 按检查器当前分辨率导出当前镜头 |
+| [ ] / ↑↓ | 上一镜 / 下一镜（输入框里不触发） |
+
+导出成功后，状态栏和审片「导出记录」里可以用 **打开** / **文件夹**。
 
 视口：左键旋转，右键平移，滚轮缩放。分镜画布：右键平移，滚轮缩放。在文本框输入时快捷键不会触发。
 

@@ -4,20 +4,23 @@
 #include "DirectorDesk/UI/StoryboardPanel.h"
 
 #include "DirectorDesk/Core/Command.h"
+#include "UiChrome.h"
+#include "UiIcons.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <imgui.h>
+#include <imgui_internal.h>
 
 namespace DirectorDesk::UI {
 namespace {
 
-constexpr ImVec4 kAccent(0.85f, 0.60f, 0.29f, 1.0f);
-constexpr ImVec4 kWarning(0.94f, 0.51f, 0.35f, 1.0f);
-constexpr ImVec4 kLive(0.31f, 0.82f, 0.58f, 1.0f);
-constexpr ImVec4 kMuted(0.56f, 0.61f, 0.68f, 1.0f);
+constexpr ImVec4 kAccent(0.847f, 0.604f, 0.290f, 1.0f);
+constexpr ImVec4 kWarning(0.878f, 0.537f, 0.290f, 1.0f);
+constexpr ImVec4 kSuccess(0.310f, 0.749f, 0.498f, 1.0f);
+constexpr ImVec4 kMuted(0.604f, 0.604f, 0.635f, 1.0f);
 
 ImVec2 WorldToScreen(float x, float y, float panX, float panY, float zoom) {
     return ImVec2(panX + x * zoom, panY + y * zoom);
@@ -31,6 +34,9 @@ const StoryboardCardView* HitCard(const AppViewState& state, ImVec2 local, float
     const float wx = (local.x - panX) / zoom;
     const float wy = (local.y - panY) / zoom;
     for (auto it = state.storyboardCards->rbegin(); it != state.storyboardCards->rend(); ++it) {
+        if (it->kind == "root") {
+            continue;
+        }
         if (wx >= it->x && wx <= it->x + it->w && wy >= it->y && wy <= it->y + it->h) {
             return &(*it);
         }
@@ -53,7 +59,7 @@ bool ProjectIsEmpty(const AppViewState& state) {
 void DrawStatusDots(const StoryboardCardView& card) {
     auto dot = [](bool on) {
         ImGui::SameLine();
-        ImGui::TextColored(on ? kLive : kMuted, "%s", on ? "●" : "○");
+        ImGui::TextColored(on ? kSuccess : kMuted, "%s", on ? "●" : "○");
     };
     dot(card.link != nullptr && std::strcmp(card.link, "已关联") == 0);
     dot(card.preview != nullptr && std::strcmp(card.preview, "就绪") == 0);
@@ -72,10 +78,25 @@ bool CardUnready(const StoryboardCardView& card) {
 }
 
 void DrawShotStrip(const AppViewState& state, Core::CommandQueue& commands) {
-    ImGui::Begin("镜头条###ShotStrip");
     const char* mode = ModeId(state);
+    if (std::strcmp(mode, "script") == 0 || ProjectIsEmpty(state)) {
+        return;
+    }
+
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const ImGuiWindowFlags sideFlags =
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoDecoration;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 4.0f));
+    if (!ImGui::BeginViewportSideBar("镜头条###ShotStrip", viewport, ImGuiDir_Down, 132.0f,
+                                     sideFlags)) {
+        ImGui::PopStyleVar();
+        ImGui::End();
+        return;
+    }
+
     const bool empty = ProjectIsEmpty(state);
     if (std::strcmp(mode, "review") == 0) {
+        DrawPanelCaption("导出记录");
         if (state.exportLog == nullptr || state.exportLog->empty()) {
             ImGui::TextDisabled("尚无导出记录");
         } else {
@@ -104,6 +125,20 @@ void DrawShotStrip(const AppViewState& state, Core::CommandQueue& commands) {
                 }
                 ImGui::SameLine();
                 ImGui::TextDisabled("%s", entry.path.c_str());
+                if (!entry.path.empty()) {
+                    ImGui::SameLine();
+                    char openFile[32];
+                    char openFolder[32];
+                    std::snprintf(openFile, sizeof(openFile), "%s 打开", Icon::FileInput);
+                    std::snprintf(openFolder, sizeof(openFolder), "%s 文件夹", Icon::FolderOpen);
+                    if (ImGui::SmallButton(openFile)) {
+                        commands.Push(Core::RevealPathCommand{entry.path, false});
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton(openFolder)) {
+                        commands.Push(Core::RevealPathCommand{entry.path, true});
+                    }
+                }
                 if (!entry.message.empty()) {
                     ImGui::TextWrapped("%s", entry.message.c_str());
                 }
@@ -111,45 +146,38 @@ void DrawShotStrip(const AppViewState& state, Core::CommandQueue& commands) {
             }
         }
         ImGui::End();
-        return;
-    }
-
-    if (std::strcmp(mode, "script") == 0) {
-        int scenes = 0;
-        int shots = 0;
-        if (state.scriptScenes != nullptr) {
-            scenes = static_cast<int>(state.scriptScenes->size());
-            for (const ScriptSceneView& scene : *state.scriptScenes) {
-                shots += static_cast<int>(scene.shots.size());
-            }
-        }
-        const int diagnostics = state.scriptDiagnostics != nullptr
-                                    ? static_cast<int>(state.scriptDiagnostics->size())
-                                    : 0;
-        ImGui::Text("本剧本解析出 %d 场 %d 镜 · %d 诊断", scenes, shots, diagnostics);
-        ImGui::End();
+        ImGui::PopStyleVar();
         return;
     }
 
     if (empty || state.storyboardCards == nullptr) {
-        ImGui::TextDisabled("镜头表为空 · 打开剧本后生成");
-        if (ImGui::SmallButton("打开剧本...")) {
+        ImGui::TextDisabled("还没有镜头。打开或新建剧本");
+        if (ImGui::SmallButton("打开剧本")) {
             commands.Push(Core::LoadScriptCommand{});
         }
         if (state.exampleScriptPath != nullptr && state.exampleScriptPath[0] != '\0') {
             ImGui::SameLine();
-            if (ImGui::SmallButton("打开示例剧本")) {
+            if (ImGui::SmallButton("示例")) {
                 commands.Push(Core::LoadScriptFromPathCommand{state.exampleScriptPath});
             }
         }
         ImGui::End();
+        ImGui::PopStyleVar();
         return;
     }
 
-    const float cellW = std::strcmp(mode, "set") == 0 ? 72.0f : 96.0f;
+    constexpr float kThumbW = 176.0f;
+    constexpr float kThumbH = 99.0f;
     const float cellH = ImGui::GetContentRegionAvail().y;
     ImGui::BeginChild("ShotStripRow", ImVec2(0.0f, 0.0f), ImGuiChildFlags_None,
                       ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    if (ImGui::IsWindowHovered()) {
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.MouseWheel != 0.0f) {
+            ImGui::SetScrollX(ImGui::GetScrollX() - io.MouseWheel * 48.0f);
+            io.MouseWheel = 0.0f;
+        }
+    }
     int index = 0;
     for (const StoryboardCardView& card : *state.storyboardCards) {
         if (card.kind != "shot") {
@@ -159,34 +187,38 @@ void DrawShotStrip(const AppViewState& state, Core::CommandQueue& commands) {
         if (index > 0) {
             ImGui::SameLine();
         }
-        const ImVec2 childSize(cellW, std::max(cellH - 4.0f, 48.0f));
+        const ImVec2 childSize(kThumbW + 8.0f, std::max(cellH - 2.0f, kThumbH));
         ImGui::BeginChild(("cell" + card.shotId).c_str(), childSize, ImGuiChildFlags_Borders,
                           ImGuiWindowFlags_NoScrollbar);
         if (card.selected) {
             const ImVec2 min = ImGui::GetWindowPos();
-            ImGui::GetWindowDrawList()->AddRectFilled(min,
-                                                      ImVec2(min.x + childSize.x, min.y + 3.0f),
-                                                      ImGui::GetColorU32(ImGuiCol_SeparatorActive));
+            const ImVec2 max = ImVec2(min.x + childSize.x, min.y + childSize.y);
+            ImGui::GetWindowDrawList()->AddRect(min, max, ImGui::GetColorU32(kAccent), 0.0f, 0,
+                                                2.0f);
+        }
+        const ImVec2 thumbMin = ImGui::GetCursorScreenPos();
+        const ImVec2 thumbSize(kThumbW, kThumbH);
+        if (ImGui::InvisibleButton("##thumb", thumbSize)) {
+            commands.Push(Core::SelectShotCommand{card.shotId});
         }
         if (card.thumbTexture != 0xFFFFu) {
-            const ImVec2 thumbMin = ImGui::GetCursorScreenPos();
-            const ImVec2 thumbMax(thumbMin.x + childSize.x - 8.0f, thumbMin.y + 40.0f);
-            ImGui::Dummy(ImVec2(childSize.x - 8.0f, 40.0f));
             ImGui::GetWindowDrawList()->AddImage(
-                ImTextureRef(static_cast<ImTextureID>(card.thumbTexture)), thumbMin, thumbMax);
+                ImTextureRef(static_cast<ImTextureID>(card.thumbTexture)), thumbMin,
+                ImVec2(thumbMin.x + thumbSize.x, thumbMin.y + thumbSize.y));
         } else {
-            ImGui::Dummy(ImVec2(childSize.x - 8.0f, 40.0f));
             ImGui::GetWindowDrawList()->AddRectFilled(
-                ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), IM_COL32(28, 34, 45, 255));
-            ImGui::SetCursorScreenPos(ImGui::GetItemRectMin());
-            ImGui::TextDisabled("无预览");
+                thumbMin, ImVec2(thumbMin.x + thumbSize.x, thumbMin.y + thumbSize.y),
+                IM_COL32(42, 42, 47, 255));
+            ImGui::GetWindowDrawList()->AddText(
+                ImVec2(thumbMin.x + 8.0f, thumbMin.y + 8.0f),
+                ImGui::GetColorU32(ImGuiCol_TextDisabled), "无预览");
         }
         if (ImGui::Selectable(card.title.c_str(), card.selected)) {
             commands.Push(Core::SelectShotCommand{card.shotId});
         }
         DrawStatusDots(card);
         if (ImGui::BeginPopupContextItem("shot-cell-menu")) {
-            if (ImGui::MenuItem("重渲缩略图")) {
+            if (ImGui::MenuItem("刷新预览")) {
                 commands.Push(Core::RefreshStoryboardThumbnailCommand{card.shotId});
             }
             if (ImGui::MenuItem("聚焦")) {
@@ -203,6 +235,7 @@ void DrawShotStrip(const AppViewState& state, Core::CommandQueue& commands) {
     }
     ImGui::EndChild();
     ImGui::End();
+    ImGui::PopStyleVar();
 }
 
 } // namespace
@@ -216,7 +249,8 @@ void StoryboardPanel::Draw(const AppViewState& state, Core::CommandQueue& comman
     }
 
     ImGui::Begin("分镜###Storyboard");
-    ImGui::TextColored(kAccent, "STORYBOARD / BEAT MAP");
+    DrawPanelCaption("分镜总览");
+    ImGui::TextUnformatted("分镜总览");
     ImGui::SameLine();
     ImGui::TextDisabled("%.0f%%", m_zoom * 100.0f);
     if (ImGui::SmallButton("适配全部")) {
@@ -244,7 +278,7 @@ void StoryboardPanel::Draw(const AppViewState& state, Core::CommandQueue& comman
         }
     }
     ImGui::SameLine();
-    if (ImGui::SmallButton("刷新缩略图")) {
+    if (ImGui::SmallButton("刷新预览")) {
         commands.Push(Core::RefreshStoryboardThumbnailCommand{});
     }
     ImGui::SameLine();
@@ -254,7 +288,7 @@ void StoryboardPanel::Draw(const AppViewState& state, Core::CommandQueue& comman
     if (state.storyboardHeldLastValid) {
         ImGui::TextColored(kWarning, "剧本有错误，画布未更新");
     } else if (state.storyboardCards == nullptr || state.storyboardCards->empty()) {
-        ImGui::TextUnformatted("打开剧本后会自动生成分镜画布。");
+        ImGui::TextUnformatted("还没有分镜。打开或新建剧本后会生成总览。");
     }
 
     const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
@@ -308,25 +342,27 @@ void StoryboardPanel::Draw(const AppViewState& state, Core::CommandQueue& comman
                       IM_COL32(49, 57, 70, 52));
     }
     if (state.storyboardCards != nullptr) {
-        for (const StoryboardCardView& card : *state.storyboardCards) {
-            if (card.kind == "shot" || card.kind == "scene") {
-                const ImVec2 from =
-                    WorldToScreen(card.x - 48.0f, card.y + card.h * 0.5f, m_panX, m_panY, m_zoom);
-                const ImVec2 to =
-                    WorldToScreen(card.x, card.y + card.h * 0.5f, m_panX, m_panY, m_zoom);
-                draw->AddLine(ImVec2(canvasPos.x + from.x, canvasPos.y + from.y),
-                              ImVec2(canvasPos.x + to.x, canvasPos.y + to.y),
-                              ImGui::GetColorU32(ImGuiCol_Border), 1.5f);
+        auto shotCountInScene = [&](const std::string& sceneId) {
+            int count = 0;
+            for (const StoryboardCardView& item : *state.storyboardCards) {
+                if (item.kind == "shot" && item.sceneId == sceneId) {
+                    ++count;
+                }
             }
-        }
+            return count;
+        };
         for (const StoryboardCardView& card : *state.storyboardCards) {
-            const ImVec2 min = WorldToScreen(card.x, card.y, m_panX, m_panY, m_zoom);
-            const ImVec2 max =
-                WorldToScreen(card.x + card.w, card.y + card.h, m_panX, m_panY, m_zoom);
-            ImU32 color = ImGui::GetColorU32(ImGuiCol_FrameBg);
             if (card.kind == "root") {
-                color = ImGui::GetColorU32(ImGuiCol_Header);
-            } else if (card.kind == "scene") {
+                continue;
+            }
+            const ImVec2 min = WorldToScreen(card.x, card.y, m_panX, m_panY, m_zoom);
+            ImVec2 max = WorldToScreen(card.x + card.w, card.y + card.h, m_panX, m_panY, m_zoom);
+            if (card.kind == "scene") {
+                const float bannerH = std::min(max.y - min.y, 28.0f * m_zoom);
+                max.y = min.y + std::max(bannerH, 22.0f);
+            }
+            ImU32 color = ImGui::GetColorU32(ImGuiCol_FrameBg);
+            if (card.kind == "scene") {
                 color = ImGui::GetColorU32(ImGuiCol_TabSelected);
             }
             if (card.selected) {
@@ -341,27 +377,44 @@ void StoryboardPanel::Draw(const AppViewState& state, Core::CommandQueue& comman
                                                           : ImGui::GetColorU32(ImGuiCol_Border));
             draw->AddRect(cardMin, cardMax, border, 4.0f, 0,
                           card.selected || unready ? 2.0f : 1.0f);
-            if (card.selected) {
-                draw->AddRectFilled(cardMin, ImVec2(cardMax.x, cardMin.y + 3.0f),
-                                    ImGui::GetColorU32(ImGuiCol_SeparatorActive), 4.0f);
+            if (card.kind == "scene") {
+                char banner[192];
+                std::snprintf(banner, sizeof(banner), "%s  %d 镜  %s", card.title.c_str(),
+                              shotCountInScene(card.sceneId), card.collapsed ? ">" : "v");
+                draw->AddText(ImVec2(cardMin.x + 8.0f, cardMin.y + 6.0f),
+                              ImGui::GetColorU32(ImGuiCol_Text), banner);
+                continue;
             }
-            draw->AddText(ImVec2(canvasPos.x + min.x + 8.0f, canvasPos.y + min.y + 8.0f),
+            draw->AddText(ImVec2(cardMin.x + 8.0f, cardMin.y + 6.0f),
                           ImGui::GetColorU32(ImGuiCol_Text), card.title.c_str());
-            if (card.kind == "shot") {
-                char meta[128];
-                std::snprintf(meta, sizeof(meta), "%s · %s · %s", card.link, card.preview,
-                              card.exported);
-                draw->AddText(ImVec2(canvasPos.x + min.x + 8.0f, canvasPos.y + min.y + 28.0f),
-                              ImGui::GetColorU32(ImGuiCol_TextDisabled), meta);
+            const char* linkText =
+                card.link != nullptr && std::strcmp(card.link, "已关联") == 0 ? "已绑机位"
+                                                                              : "无机位";
+            const char* previewText = "无";
+            if (card.preview != nullptr && std::strcmp(card.preview, "就绪") == 0) {
+                previewText = "最新";
+            } else if (card.preview != nullptr && std::strcmp(card.preview, "过期") == 0) {
+                previewText = "需刷新";
+            } else if (card.preview != nullptr && std::strcmp(card.preview, "失败") == 0) {
+                previewText = "失败";
+            }
+            char meta[128];
+            std::snprintf(meta, sizeof(meta), "%s · %s", linkText, previewText);
+            draw->AddText(ImVec2(cardMin.x + 8.0f, cardMin.y + 24.0f),
+                          ImGui::GetColorU32(ImGuiCol_TextDisabled), meta);
+            const float innerW = std::max(8.0f, (cardMax.x - cardMin.x) - 16.0f);
+            const float thumbH = innerW * 9.0f / 16.0f;
+            const float thumbTop = cardMin.y + 44.0f;
+            const float thumbBottom = std::min(cardMin.y + 44.0f + thumbH, cardMax.y - 8.0f);
+            if (thumbBottom > thumbTop + 8.0f) {
+                const ImVec2 thumbMin(cardMin.x + 8.0f, thumbTop);
+                const ImVec2 thumbMax(cardMin.x + 8.0f + innerW, thumbBottom);
                 if (card.thumbTexture != 0xFFFFu) {
-                    const ImVec2 thumbMin(canvasPos.x + min.x + 8.0f, canvasPos.y + min.y + 48.0f);
-                    const ImVec2 thumbMax(canvasPos.x + max.x - 8.0f, canvasPos.y + max.y - 8.0f);
                     draw->AddImage(ImTextureRef(static_cast<ImTextureID>(card.thumbTexture)),
                                    thumbMin, thumbMax);
+                } else {
+                    draw->AddRectFilled(thumbMin, thumbMax, IM_COL32(42, 42, 47, 255));
                 }
-            } else if (card.kind == "scene" && card.collapsed) {
-                draw->AddText(ImVec2(canvasPos.x + min.x + 8.0f, canvasPos.y + min.y + 32.0f),
-                              ImGui::GetColorU32(ImGuiCol_TextDisabled), "已折叠");
             }
         }
     }

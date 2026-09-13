@@ -1,7 +1,7 @@
 {
   "format": "DirectorDeskProject",
   "formatVersion": 1,
-  "createdBy": "DirectorDesk 0.1.0",
+  "createdBy": "DirectorDesk 0.1.2",
   "projectId": "proj-example-cafe-001",
   "name": "咖啡馆示例",
   "script": {
@@ -31,6 +31,30 @@
           "scale": [1.0, 1.0, 1.0]
         },
         "visible": true
+      },
+      {
+        "id": "node-table-01",
+        "name": "桌子",
+        "assetRef": "assetref-cube",
+        "parent": null,
+        "transform": {
+          "position": [0.0, -0.45, 0.2],
+          "rotation": [0.0, 0.0, 0.0, 1.0],
+          "scale": [1.6, 0.18, 0.9]
+        },
+        "visible": true
+      },
+      {
+        "id": "node-cup-01",
+        "name": "杯子",
+        "assetRef": "assetref-cube",
+        "parent": null,
+        "transform": {
+          "position": [0.35, 0.22, 0.15],
+          "rotation": [0.0, 0.0, 0.0, 1.0],
+          "scale": [0.22, 0.28, 0.22]
+        },
+        "visible": true
       }
     ]
   },
@@ -49,15 +73,110 @@
       "orbitYaw": 40.0,
       "orbitPitch": 25.0,
       "preset": "front"
+    },
+    {
+      "id": "cam-over-shoulder",
+      "name": "过肩机位",
+      "projection": "perspective",
+      "position": [0.0, 1.6, 5.0],
+      "rotation": [0.0, 0.0, 0.0, 1.0],
+      "verticalFovDegrees": 40.0,
+      "nearPlane": 0.1,
+      "farPlane": 200.0,
+      "orbitTarget": [0.0, 0.8, 0.0],
+      "orbitDistance": 3.2,
+      "orbitYaw": 145.0,
+      "orbitPitch": 8.0,
+      "preset": "over-shoulder"
+    },
+    {
+      "id": "cam-closeup",
+      "name": "特写机位",
+      "projection": "perspective",
+      "position": [0.0, 1.6, 5.0],
+      "rotation": [0.0, 0.0, 0.0, 1.0],
+      "verticalFovDegrees": 35.0,
+      "nearPlane": 0.1,
+      "farPlane": 200.0,
+      "orbitTarget": [0.35, 0.35, 0.15],
+      "orbitDistance": 1.4,
+      "orbitYaw": 20.0,
+      "orbitPitch": 12.0,
+      "preset": "close-up"
+    },
+    {
+      "id": "cam-wide",
+      "name": "全景机位",
+      "projection": "perspective",
+      "position": [0.0, 1.6, 5.0],
+      "rotation": [0.0, 0.0, 0.0, 1.0],
+      "verticalFovDegrees": 55.0,
+      "nearPlane": 0.1,
+      "farPlane": 200.0,
+      "orbitTarget": [0.0, 0.4, 0.0],
+      "orbitDistance": 7.5,
+      "orbitYaw": 25.0,
+      "orbitPitch": 18.0,
+      "preset": "front"
+    },
+    {
+      "id": "cam-side",
+      "name": "侧面机位",
+      "projection": "perspective",
+      "position": [0.0, 1.6, 5.0],
+      "rotation": [0.0, 0.0, 0.0, 1.0],
+      "verticalFovDegrees": 45.0,
+      "nearPlane": 0.1,
+      "farPlane": 200.0,
+      "orbitTarget": [0.0, 0.6, 0.0],
+      "orbitDistance": 4.0,
+      "orbitYaw": 90.0,
+      "orbitPitch": 6.0,
+      "preset": "side"
+    },
+    {
+      "id": "cam-top",
+      "name": "俯拍机位",
+      "projection": "perspective",
+      "position": [0.0, 1.6, 5.0],
+      "rotation": [0.0, 0.0, 0.0, 1.0],
+      "verticalFovDegrees": 50.0,
+      "nearPlane": 0.1,
+      "farPlane": 200.0,
+      "orbitTarget": [0.0, 0.0, 0.0],
+      "orbitDistance": 8.0,
+      "orbitYaw": 0.0,
+      "orbitPitch": 78.0,
+      "preset": "top"
+    },
+    {
+      "id": "cam-eye-level",
+      "name": "平视机位",
+      "projection": "perspective",
+      "position": [0.0, 1.6, 5.0],
+      "rotation": [0.0, 0.0, 0.0, 1.0],
+      "verticalFovDegrees": 45.0,
+      "nearPlane": 0.1,
+      "farPlane": 200.0,
+      "orbitTarget": [0.0, 0.7, 0.0],
+      "orbitDistance": 4.5,
+      "orbitYaw": 0.0,
+      "orbitPitch": 2.0,
+      "preset": "eye-level"
     }
   ],
   "activeCamera": "cam-main",
   "shotLinks": [
-    { "shotId": "shot-cafe-001", "cameraId": "cam-main" },
-    { "shotId": "shot-cafe-002", "cameraId": "cam-main" },
-    { "shotId": "shot-street-001", "cameraId": "cam-main" }
+    { "shotId": "shot-cafe-001", "cameraId": "cam-over-shoulder" },
+    { "shotId": "shot-cafe-002", "cameraId": "cam-closeup" },
+    { "shotId": "shot-cafe-003", "cameraId": "cam-wide" },
+    { "shotId": "shot-cafe-004", "cameraId": "cam-side" },
+    { "shotId": "shot-street-001", "cameraId": "cam-top" },
+    { "shotId": "shot-street-002", "cameraId": "cam-eye-level" },
+    { "shotId": "shot-counter-001", "cameraId": "cam-main" },
+    { "shotId": "shot-counter-002", "cameraId": "cam-over-shoulder" }
   ],
-  "lighting": { "preset": "neutral" },
+  "lighting": { "preset": "warm" },
   "storyboard": {
     "layout": "left-to-right",
     "collapsedScenes": []

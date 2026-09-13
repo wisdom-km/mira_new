@@ -23,6 +23,7 @@ public:
     // Platform user-data root plus "/DirectorDesk".
     static Core::Result<std::string> UserDataDirectory();
     static Core::Result<std::string> LogDirectory();
+    static Core::Result<std::string> UserSettingsFile();
     static Core::Result<std::string> LibraryDirectory();
     static Core::Result<std::string> OfficialAssetsDirectory();
     static Core::Result<std::uint64_t> AvailableDiskBytes(const std::string& utf8Path);
@@ -41,6 +42,7 @@ public:
     static Core::Result<std::uint64_t> LastWriteTimeCount(const std::string& utf8Path);
     static Core::Result<std::string> ExecutableDirectory();
     static Core::Result<std::string> UiFontFile();
+    static Core::Result<std::string> UiIconFontFile();
     static Core::Result<std::vector<std::uint8_t>> ReadBinaryFile(const std::string& utf8Path);
     static Core::Result<void> WriteBinaryFile(const std::string& utf8Path, const std::uint8_t* data,
                                               std::size_t size);

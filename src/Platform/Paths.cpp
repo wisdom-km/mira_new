@@ -132,6 +132,14 @@ Core::Result<std::string> Paths::LogDirectory() {
     return Core::Result<std::string>::Ok(Join(userData.Value(), "logs"));
 }
 
+Core::Result<std::string> Paths::UserSettingsFile() {
+    auto userData = UserDataDirectory();
+    if (!userData.IsOk()) {
+        return userData;
+    }
+    return Core::Result<std::string>::Ok(Join(userData.Value(), "settings.json"));
+}
+
 Core::Result<std::string> Paths::LibraryDirectory() {
     auto userData = UserDataDirectory();
     if (!userData.IsOk()) {
@@ -333,6 +341,37 @@ Core::Result<std::string> Paths::UiFontFile() {
         Core::Error::Make(Core::ErrorCode::NotFound, "No CJK UI font on this system",
                           "找不到可用的中文字体"));
 #endif
+}
+
+Core::Result<std::string> Paths::UiIconFontFile() {
+    auto tryCandidate = [](const std::string& path) -> Core::Result<std::string> {
+        if (Exists(path)) {
+            return Core::Result<std::string>::Ok(path);
+        }
+        return Core::Result<std::string>::Fail(
+            Core::Error::Make(Core::ErrorCode::NotFound, path, "找不到图标字体"));
+    };
+
+    if (auto exe = ExecutableDirectory(); exe.IsOk()) {
+        std::string dir = exe.Value();
+        for (int i = 0; i < 8; ++i) {
+            auto nextToExe = tryCandidate(Join(Join(dir, "fonts"), "lucide-dd.ttf"));
+            if (nextToExe.IsOk()) {
+                return nextToExe;
+            }
+            auto inAssets = tryCandidate(Join(Join(Join(dir, "assets"), "fonts"), "lucide-dd.ttf"));
+            if (inAssets.IsOk()) {
+                return inAssets;
+            }
+            const std::string parent = Parent(dir);
+            if (parent.empty() || parent == dir) {
+                break;
+            }
+            dir = parent;
+        }
+    }
+    return Core::Result<std::string>::Fail(
+        Core::Error::Make(Core::ErrorCode::NotFound, "lucide-dd.ttf not found", "找不到图标字体"));
 }
 
 Core::Result<std::string> Paths::ExecutableDirectory() {

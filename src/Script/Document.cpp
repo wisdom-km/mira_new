@@ -8,6 +8,8 @@
 #include "DirectorDesk/Script/Ids.h"
 #include "DirectorDesk/Script/Parser.h"
 
+#include <vector>
+
 namespace DirectorDesk::Script {
 namespace {
 
@@ -42,7 +44,7 @@ bool ShotExists(const Snapshot& snapshot, const std::string& shotId) {
     return false;
 }
 
-std::string FirstShotId(const Snapshot& snapshot) {
+std::string FirstShotIdInSnapshot(const Snapshot& snapshot) {
     for (const Scene& scene : snapshot.scenes) {
         if (!scene.shots.empty()) {
             return scene.shots.front().id;
@@ -262,7 +264,7 @@ bool Document::RemoveShot(const std::string& shotId) {
     m_dirty = true;
     ApplyParse(Parser::Parse(m_text), true);
     if (m_selectedShotId.empty()) {
-        SelectShot(FirstShotId(m_snapshot));
+        SelectShot(FirstShotIdInSnapshot(m_snapshot));
     }
     return true;
 }
@@ -271,6 +273,44 @@ void Document::SelectShot(const std::string& shotId) {
     if (shotId.empty() || ShotExists(m_snapshot, shotId)) {
         m_selectedShotId = shotId;
     }
+}
+
+std::string Document::FirstShotId() const {
+    if (!m_hasSnapshot) {
+        return {};
+    }
+    return FirstShotIdInSnapshot(m_snapshot);
+}
+
+std::string Document::AdjacentShotId(int delta) const {
+    if (!m_hasSnapshot || delta == 0) {
+        return {};
+    }
+    std::vector<std::string> ids;
+    for (const Scene& scene : m_snapshot.scenes) {
+        for (const Shot& shot : scene.shots) {
+            ids.push_back(shot.id);
+        }
+    }
+    if (ids.empty()) {
+        return {};
+    }
+    const int step = delta < 0 ? -1 : 1;
+    int index = -1;
+    if (!m_selectedShotId.empty()) {
+        for (std::size_t i = 0; i < ids.size(); ++i) {
+            if (ids[i] == m_selectedShotId) {
+                index = static_cast<int>(i);
+                break;
+            }
+        }
+    }
+    if (index < 0) {
+        return step > 0 ? ids.front() : ids.back();
+    }
+    const int count = static_cast<int>(ids.size());
+    index = (index + step + count) % count;
+    return ids[static_cast<std::size_t>(index)];
 }
 
 void Document::Reset() {

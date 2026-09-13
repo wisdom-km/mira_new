@@ -5,6 +5,8 @@
 
 #include "DirectorDesk/App/ProjectBinding.h"
 #include "DirectorDesk/App/ProjectFile.h"
+#include "DirectorDesk/App/UserSettings.h"
+#include "DirectorDesk/Asset/ImageDecode.h"
 #include "DirectorDesk/Asset/Library.h"
 #include "DirectorDesk/Asset/LoaderRegistry.h"
 #include "DirectorDesk/Asset/ModelLoadResult.h"
@@ -19,6 +21,7 @@
 #include "DirectorDesk/Link/ShotLink.h"
 #include "DirectorDesk/Platform/FileDialog.h"
 #include "DirectorDesk/Platform/Paths.h"
+#include "DirectorDesk/Platform/RevealPath.h"
 #include "DirectorDesk/Platform/Startup.h"
 #include "DirectorDesk/Platform/Window.h"
 #include "DirectorDesk/Platform/Worker.h"
@@ -134,6 +137,18 @@ Renderer::GpuModelDesc ToGpuModel(const Asset::ModelData& model) {
     return desc;
 }
 
+std::string LibraryAssetLabel(const Asset::Library& library,
+                              const Asset::OfficialCatalog& officialCatalog,
+                              const std::string& assetId) {
+    if (const Asset::LibraryAsset* asset = library.Find(assetId)) {
+        return asset->name;
+    }
+    if (const Asset::ManifestAsset* asset = officialCatalog.FindAsset(assetId)) {
+        return Asset::PickLocale(asset->name);
+    }
+    return assetId;
+}
+
 Camera::SubjectFrame SubjectFromScene(const Scene::Document& scene) {
     if (const Scene::Node* node = scene.Selected()) {
         return Camera::MakeSubject(node->transform.position, node->transform.scale);
@@ -141,11 +156,40 @@ Camera::SubjectFrame SubjectFromScene(const Scene::Document& scene) {
     return Camera::FallbackSubject();
 }
 
+UI::UiPreferences ToUiPreferences(const UserSettings& settings) {
+    UI::UiPreferences preferences;
+    preferences.lockExportAspect = settings.lockExportAspect;
+    preferences.leftFoldExplicit = settings.leftFoldExplicit;
+    preferences.leftFolded = settings.leftFolded;
+    preferences.showGroundGrid = settings.showGroundGrid;
+    preferences.showGroundAxes = settings.showGroundAxes;
+    preferences.showThirds = settings.showThirds;
+    preferences.showSafeFrame = settings.showSafeFrame;
+    preferences.viewportBackground = settings.viewportBackground;
+    return preferences;
+}
+
+UserSettings FromUiPreferences(const UI::UiPreferences& preferences) {
+    UserSettings settings;
+    settings.lockExportAspect = preferences.lockExportAspect;
+    settings.leftFoldExplicit = preferences.leftFoldExplicit;
+    settings.leftFolded = preferences.leftFolded;
+    settings.showGroundGrid = preferences.showGroundGrid;
+    settings.showGroundAxes = preferences.showGroundAxes;
+    settings.showThirds = preferences.showThirds;
+    settings.showSafeFrame = preferences.showSafeFrame;
+    settings.viewportBackground =
+        preferences.viewportBackground == "dark" ? "dark" : "neutral";
+    return settings;
+}
+
 Renderer::RenderSceneView BuildSceneView(const Scene::Document& scene,
-                                         const Camera::LightState& light, bool showGroundGrid) {
+                                         const Camera::LightState& light, bool showGroundGrid,
+                                         bool showGroundAxes = false) {
     Renderer::RenderSceneView view;
     view.showTestMesh = scene.IsEmpty();
     view.showGroundGrid = showGroundGrid;
+    view.showGroundAxes = showGroundAxes;
     view.light.direction = light.direction;
     view.light.color = light.color;
     for (const Scene::Node& node : scene.Nodes()) {
@@ -229,6 +273,92 @@ void SubmitImport(Platform::Worker& worker, const Asset::LoaderRegistry& registr
         }
         results.Push(std::move(result));
     });
+}
+
+struct LibraryPreviewGpu {
+    std::uint16_t texture = 0xFFFFu;
+    std::string path;
+};
+
+constexpr int kMaxLibraryPreviewUploadsPerFrame = 2;
+
+void SyncLibraryPreviewTextures(Renderer::IRenderer& renderer,
+                                std::vector<UI::LibraryAssetView>& views,
+                                const std::unordered_map<std::string, std::string>& paths,
+                                std::unordered_map<std::string, LibraryPreviewGpu>& gpu,
+                                std::unordered_map<std::string, std::string>& failed) {
+    std::unordered_set<std::string> visible;
+    visible.reserve(views.size());
+    for (const UI::LibraryAssetView& item : views) {
+        visible.insert(item.id);
+    }
+
+    for (auto it = gpu.begin(); it != gpu.end();) {
+        if (visible.count(it->first) == 0) {
+            if (it->second.texture != 0xFFFFu) {
+                renderer.DestroyRgbaTexture(it->second.texture);
+            }
+            it = gpu.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    int uploads = 0;
+    for (UI::LibraryAssetView& item : views) {
+        const auto pathIt = paths.find(item.id);
+        const std::string path = pathIt == paths.end() ? std::string() : pathIt->second;
+
+        auto gpuIt = gpu.find(item.id);
+        if (gpuIt != gpu.end() && gpuIt->second.path != path) {
+            if (gpuIt->second.texture != 0xFFFFu) {
+                renderer.DestroyRgbaTexture(gpuIt->second.texture);
+            }
+            gpu.erase(gpuIt);
+            gpuIt = gpu.end();
+            failed.erase(item.id);
+        }
+
+        if (gpuIt != gpu.end()) {
+            item.previewTexture = gpuIt->second.texture;
+            continue;
+        }
+
+        item.previewTexture = 0xFFFFu;
+        if (path.empty()) {
+            continue;
+        }
+        const auto failedIt = failed.find(item.id);
+        if (failedIt != failed.end() && failedIt->second == path) {
+            continue;
+        }
+        if (!Platform::Paths::Exists(path)) {
+            failed[item.id] = path;
+            continue;
+        }
+        if (uploads >= kMaxLibraryPreviewUploadsPerFrame) {
+            continue;
+        }
+
+        auto decoded = Asset::DecodeImageFile(path);
+        ++uploads;
+        if (!decoded.IsOk()) {
+            failed[item.id] = path;
+            continue;
+        }
+        auto texture = renderer.CreateRgbaTexture(decoded.Value().width, decoded.Value().height,
+                                                  decoded.Value().rgba.data());
+        if (!texture.IsOk()) {
+            failed[item.id] = path;
+            continue;
+        }
+        failed.erase(item.id);
+        LibraryPreviewGpu record;
+        record.texture = texture.Value();
+        record.path = path;
+        gpu[item.id] = std::move(record);
+        item.previewTexture = texture.Value();
+    }
 }
 
 void WriteLibraryPlaceholder(Asset::Library& library, const Asset::LibraryAsset& asset) {
@@ -796,6 +926,8 @@ int Application::Run(int argc, char** argv) {
     std::vector<UI::ScriptDiagnosticView> scriptDiagnostics;
     std::vector<UI::CameraItemView> cameraViews;
     std::vector<UI::LibraryAssetView> libraryViews;
+    std::unordered_map<std::string, LibraryPreviewGpu> libraryPreviewGpu;
+    std::unordered_map<std::string, std::string> libraryPreviewFailed;
     std::string status;
     std::string librarySearch;
     std::string libraryOriginFilter = "all";
@@ -833,6 +965,31 @@ int Application::Run(int argc, char** argv) {
     std::string selectionKind = "none";
     std::string selectionId;
     std::string selectionLabel;
+
+    const auto recordShotSelection = [&](const std::string& shotId) {
+        script.SelectShot(shotId);
+        storyboard.SetSelectedShot(shotId);
+        selectedLibraryAssetId.clear();
+        selectionKind = "shot";
+        selectionId = shotId;
+        selectionLabel = FindShotTitle(script, shotId);
+        if (const std::string* cameraId = links.CameraForShot(shotId)) {
+            if (cameras.Find(*cameraId) != nullptr) {
+                cameras.Select(*cameraId);
+            } else {
+                status = "关联相机已不存在";
+            }
+        }
+    };
+    const auto selectFirstShotIfNone = [&]() {
+        if (!script.SelectedShotId().empty()) {
+            return;
+        }
+        const std::string shotId = script.FirstShotId();
+        if (!shotId.empty()) {
+            recordShotSelection(shotId);
+        }
+    };
     std::string exportResolutionId = "1080p";
     std::vector<UI::ExportIssueView> exportIssueViews;
     std::vector<UI::ExportLogView> exportLogViews;
@@ -887,6 +1044,17 @@ int Application::Run(int argc, char** argv) {
                       registry, projectId, projectName, projectPath, collapsedScenes, projectDirty,
                       status);
     }
+    selectFirstShotIfNone();
+    std::string userSettingsPath;
+    if (auto settingsPath = Platform::Paths::UserSettingsFile(); settingsPath.IsOk()) {
+        userSettingsPath = settingsPath.Value();
+        auto loaded = LoadUserSettings(userSettingsPath);
+        if (loaded.IsOk()) {
+            workspace.ApplyPreferences(ToUiPreferences(loaded.Value()));
+        } else {
+            DD_LOG_WARN("{}", loaded.GetError().technicalMessage);
+        }
+    }
     if (IsWorkspaceModeId(options.workspaceMode)) {
         workspaceModeId = options.workspaceMode;
         layoutRebuildRequested = true;
@@ -906,6 +1074,10 @@ int Application::Run(int argc, char** argv) {
             ResetProject(scene, cameras, links, script, *renderer, projectId, projectName,
                          projectPath, collapsedScenes, projectDirty);
             storyboard.Clear();
+            selectedLibraryAssetId.clear();
+            selectionKind = "none";
+            selectionId.clear();
+            selectionLabel.clear();
             refreshBoard();
             status = "已新建工程";
         } else if (action == PendingProjectAction::Open) {
@@ -914,6 +1086,7 @@ int Application::Run(int argc, char** argv) {
                           status);
             storyboard.Clear();
             refreshBoard();
+            selectFirstShotIfNone();
         } else if (action == PendingProjectAction::Quit) {
             window.RequestClose();
         }
@@ -1146,6 +1319,7 @@ int Application::Run(int argc, char** argv) {
                                      importInProgress, status);
                     } else if constexpr (std::is_same_v<T, Core::SelectNodeCommand>) {
                         scene.SetSelectedId(typed.nodeId);
+                        selectedLibraryAssetId.clear();
                         selectionKind = "node";
                         selectionId = typed.nodeId;
                         selectionLabel = typed.nodeId;
@@ -1173,10 +1347,12 @@ int Application::Run(int argc, char** argv) {
                         } else if (!path.Value().empty()) {
                             ApplyScriptLoad(script, path.Value(), status);
                             projectDirty = true;
+                            selectFirstShotIfNone();
                         }
                     } else if constexpr (std::is_same_v<T, Core::LoadScriptFromPathCommand>) {
                         ApplyScriptLoad(script, typed.utf8Path, status);
                         projectDirty = true;
+                        selectFirstShotIfNone();
                     } else if constexpr (std::is_same_v<T, Core::SaveScriptCommand>) {
                         HandleSaveScript(script, status);
                     } else if constexpr (std::is_same_v<T, Core::SetScriptTextCommand>) {
@@ -1211,17 +1387,17 @@ int Application::Run(int argc, char** argv) {
                             status = "已删除镜头";
                         }
                     } else if constexpr (std::is_same_v<T, Core::SelectShotCommand>) {
-                        script.SelectShot(typed.shotId);
-                        storyboard.SetSelectedShot(typed.shotId);
-                        selectionKind = "shot";
-                        selectionId = typed.shotId;
-                        selectionLabel = FindShotTitle(script, typed.shotId);
-                        if (const std::string* cameraId = links.CameraForShot(typed.shotId)) {
-                            if (cameras.Find(*cameraId) != nullptr) {
-                                cameras.Select(*cameraId);
-                            } else {
-                                status = "关联相机已不存在";
-                            }
+                        recordShotSelection(typed.shotId);
+                    } else if constexpr (std::is_same_v<T, Core::RevealPathCommand>) {
+                        const auto revealed = Platform::RevealPath(typed.utf8Path, typed.folder);
+                        if (!revealed.IsOk()) {
+                            status = revealed.GetError().userMessage;
+                        }
+                    } else if constexpr (std::is_same_v<T, Core::SelectAdjacentShotCommand>) {
+                        const std::string shotId = script.AdjacentShotId(typed.delta);
+                        if (!shotId.empty()) {
+                            recordShotSelection(shotId);
+                            status = std::string("已选中 ") + selectionLabel;
                         }
                     } else if constexpr (std::is_same_v<T, Core::ApplyCameraPresetCommand>) {
                         Camera::CameraPresetKind kind = Camera::CameraPresetKind::Front;
@@ -1249,6 +1425,7 @@ int Application::Run(int argc, char** argv) {
                         projectDirty = true;
                     } else if constexpr (std::is_same_v<T, Core::SelectCameraCommand>) {
                         cameras.Select(typed.cameraId);
+                        selectedLibraryAssetId.clear();
                         selectionKind = "camera";
                         selectionId = typed.cameraId;
                         selectionLabel = typed.cameraId;
@@ -1284,12 +1461,29 @@ int Application::Run(int argc, char** argv) {
                         libraryViewMode = typed.viewMode;
                     } else if constexpr (std::is_same_v<T, Core::SelectLibraryAssetCommand>) {
                         selectedLibraryAssetId = typed.assetId;
+                        if (typed.assetId.empty()) {
+                            if (selectionKind == "asset") {
+                                selectionKind = "none";
+                                selectionId.clear();
+                                selectionLabel.clear();
+                            }
+                        } else {
+                            selectionKind = "asset";
+                            selectionId = typed.assetId;
+                            selectionLabel =
+                                LibraryAssetLabel(library, officialCatalog, typed.assetId);
+                        }
                     } else if constexpr (std::is_same_v<T, Core::RemoveLibraryAssetCommand>) {
                         if (!library.Remove(typed.assetId)) {
                             status = "无法从资源库删除";
                         } else {
                             if (selectedLibraryAssetId == typed.assetId) {
                                 selectedLibraryAssetId.clear();
+                            }
+                            if (selectionKind == "asset" && selectionId == typed.assetId) {
+                                selectionKind = "none";
+                                selectionId.clear();
+                                selectionLabel.clear();
                             }
                             status = "已从资源库删除";
                         }
@@ -1626,6 +1820,7 @@ int Application::Run(int argc, char** argv) {
 
         libraryViews.clear();
         officialCategoryViews.clear();
+        std::unordered_map<std::string, std::string> libraryPreviewPaths;
         if (libraryOriginFilter == "online") {
             for (const Asset::ManifestCategory& category : officialCatalog.Manifest().categories) {
                 officialCategoryViews.push_back(category.id);
@@ -1661,6 +1856,9 @@ int Application::Run(int argc, char** argv) {
                     !state->message.empty()) {
                     item.status = state->message;
                 }
+                if (state != nullptr && !state->previewPath.empty()) {
+                    libraryPreviewPaths[asset.id] = state->previewPath;
+                }
                 libraryViews.push_back(std::move(item));
             }
         } else {
@@ -1676,9 +1874,14 @@ int Application::Run(int argc, char** argv) {
                 item.status = asset.sourceExists ? "就绪" : "缺失";
                 item.canAddToScene = asset.sourceExists;
                 item.selected = asset.id == selectedLibraryAssetId;
+                if (!asset.previewPath.empty()) {
+                    libraryPreviewPaths[asset.id] = asset.previewPath;
+                }
                 libraryViews.push_back(std::move(item));
             }
         }
+        SyncLibraryPreviewTextures(*renderer, libraryViews, libraryPreviewPaths, libraryPreviewGpu,
+                                   libraryPreviewFailed);
         viewState.libraryAssets = &libraryViews;
         viewState.librarySearch = librarySearch.c_str();
         viewState.libraryOriginFilter = libraryOriginFilter.c_str();
@@ -1805,6 +2008,16 @@ int Application::Run(int argc, char** argv) {
                 selectionKind = "none";
                 selectionId.clear();
             }
+        } else if (selectionKind == "asset") {
+            selectionLabel = LibraryAssetLabel(library, officialCatalog, selectionId);
+            const bool inLibrary = library.Find(selectionId) != nullptr;
+            const bool inOfficial = officialCatalog.FindAsset(selectionId) != nullptr;
+            if (!inLibrary && !inOfficial) {
+                selectionKind = "none";
+                selectionId.clear();
+                selectionLabel.clear();
+                selectedLibraryAssetId.clear();
+            }
         }
         if (selectionKind == "none") {
             selectionLabel.clear();
@@ -1849,9 +2062,12 @@ int Application::Run(int argc, char** argv) {
                                  : static_cast<float>(renderer->ViewportWidth()) /
                                        static_cast<float>(renderer->ViewportHeight());
         renderer->BeginFrame(size.width, size.height);
-        renderer->RenderScene(BuildSceneView(scene, cameras.CurrentLight(), true),
-                              cameras.Selected()->orbit.BuildView(aspect),
-                              Renderer::RenderTargetDesc{});
+        const UI::UiPreferences prefs = workspace.Preferences();
+        Renderer::RenderTargetDesc viewportTarget;
+        viewportTarget.opaqueClearRgba = ViewportClearRgba(prefs.viewportBackground);
+        renderer->RenderScene(BuildSceneView(scene, cameras.CurrentLight(), prefs.showGroundGrid,
+                                             prefs.showGroundAxes),
+                              cameras.Selected()->orbit.BuildView(aspect), viewportTarget);
         if (pendingThumbShotId.empty() && !renderer->HasPendingReadback() &&
             thumbScheduler.ShouldRun(NowMs())) {
             Storyboard::ViewRect view;
@@ -1891,6 +2107,12 @@ int Application::Run(int argc, char** argv) {
         }
         imgui.BeginFrame();
         workspace.Draw(viewState, commands);
+        if (workspace.ConsumePreferencesDirty() && !userSettingsPath.empty()) {
+            auto saved = SaveUserSettings(userSettingsPath, FromUiPreferences(workspace.Preferences()));
+            if (!saved.IsOk()) {
+                DD_LOG_WARN("{}", saved.GetError().technicalMessage);
+            }
+        }
         scriptPanel.Draw(viewState, commands);
         libraryPanel.Draw(viewState, commands);
         storyboardPanel.Draw(viewState, commands);
@@ -1901,6 +2123,12 @@ int Application::Run(int argc, char** argv) {
 
     worker.Shutdown();
     imgui.Shutdown();
+    for (auto& entry : libraryPreviewGpu) {
+        if (entry.second.texture != 0xFFFFu) {
+            renderer->DestroyRgbaTexture(entry.second.texture);
+        }
+    }
+    libraryPreviewGpu.clear();
     renderer->Shutdown();
     window.Destroy();
     DD_LOG_INFO("DirectorDesk exiting");

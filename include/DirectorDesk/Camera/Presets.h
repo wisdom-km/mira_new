@@ -15,6 +15,7 @@ enum class CameraPresetKind {
     OverShoulder,
     Top,
     CloseUp,
+    EyeLevel,
 };
 
 enum class LightPresetKind {

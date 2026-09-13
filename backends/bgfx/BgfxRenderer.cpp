@@ -213,7 +213,8 @@ public:
             return;
         }
 
-        const std::uint32_t clearColor = target.transparentBackground ? 0x00000000 : 0x3a4a62ff;
+        const std::uint32_t clearColor =
+            target.transparentBackground ? 0x00000000 : target.opaqueClearRgba;
         bgfx::setViewFrameBuffer(viewId, framebuffer.frameBuffer);
         bgfx::setViewRect(viewId, 0, 0, static_cast<std::uint16_t>(width),
                           static_cast<std::uint16_t>(height));
@@ -228,18 +229,29 @@ public:
         bgfx::setUniform(m_lightDir, lightDir);
         bgfx::setUniform(m_lightColor, lightColor);
 
-        if (scene.showGroundGrid && !offscreen) {
+        if (!offscreen && (scene.showGroundGrid || scene.showGroundAxes)) {
             const float identity[16] = {1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
                                         0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
             const float white[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-            bgfx::setTransform(identity);
-            bgfx::setUniform(m_baseColor, white);
-            bgfx::setTexture(0, m_sampler, m_whiteTexture);
-            bgfx::setVertexBuffer(0, m_gridVertexBuffer);
-            bgfx::setIndexBuffer(m_gridIndexBuffer);
-            bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z |
-                           BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_PT_LINES | BGFX_STATE_MSAA);
-            bgfx::submit(viewId, m_program);
+            auto submitLines = [&](std::uint32_t firstIndex, std::uint32_t indexCount) {
+                if (indexCount == 0) {
+                    return;
+                }
+                bgfx::setTransform(identity);
+                bgfx::setUniform(m_baseColor, white);
+                bgfx::setTexture(0, m_sampler, m_whiteTexture);
+                bgfx::setVertexBuffer(0, m_gridVertexBuffer);
+                bgfx::setIndexBuffer(m_gridIndexBuffer, firstIndex, indexCount);
+                bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z |
+                               BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_PT_LINES | BGFX_STATE_MSAA);
+                bgfx::submit(viewId, m_program);
+            };
+            if (scene.showGroundGrid) {
+                submitLines(0, m_gridLineIndexCount);
+            }
+            if (scene.showGroundAxes) {
+                submitLines(m_axisIndexStart, m_axisIndexCount);
+            }
         }
 
         if (scene.showTestMesh) {
@@ -549,9 +561,11 @@ private:
     void CreateGroundGrid() {
         constexpr float kExtent = 10.0f;
         constexpr float kStep = 1.0f;
-        constexpr std::uint32_t kGray = 0xff6a7380;
-        constexpr std::uint32_t kAxisX = 0xff3d5cff;
-        constexpr std::uint32_t kAxisZ = 0xffffb14a;
+        constexpr int kMajorEvery = 5;
+        constexpr std::uint32_t kGridMajor = 0xff605a5a; // 0x5a5a60
+        constexpr std::uint32_t kGridMinor = 0xff423c3c; // 0x3c3c42
+        constexpr std::uint32_t kAxisX = 0xff4a4ab0;     // 0xb04a4a
+        constexpr std::uint32_t kAxisZ = 0xffb06a4a;     // 0x4a6ab0
 
         std::vector<MeshVertex> vertices;
         std::vector<std::uint16_t> indices;
@@ -564,14 +578,22 @@ private:
             indices.push_back(static_cast<std::uint16_t>(start + 1));
         };
 
-        for (float x = -kExtent; x <= kExtent + 0.01f; x += kStep) {
-            addLine(x, 0.0f, -kExtent, x, 0.0f, kExtent, kGray);
+        const int lineCount = static_cast<int>(kExtent / kStep);
+        for (int i = -lineCount; i <= lineCount; ++i) {
+            const float x = static_cast<float>(i) * kStep;
+            const std::uint32_t color = (i % kMajorEvery == 0) ? kGridMajor : kGridMinor;
+            addLine(x, 0.0f, -kExtent, x, 0.0f, kExtent, color);
         }
-        for (float z = -kExtent; z <= kExtent + 0.01f; z += kStep) {
-            addLine(-kExtent, 0.0f, z, kExtent, 0.0f, z, kGray);
+        for (int i = -lineCount; i <= lineCount; ++i) {
+            const float z = static_cast<float>(i) * kStep;
+            const std::uint32_t color = (i % kMajorEvery == 0) ? kGridMajor : kGridMinor;
+            addLine(-kExtent, 0.0f, z, kExtent, 0.0f, z, color);
         }
+        m_gridLineIndexCount = static_cast<std::uint32_t>(indices.size());
+        m_axisIndexStart = m_gridLineIndexCount;
         addLine(-kExtent, 0.002f, 0.0f, kExtent, 0.002f, 0.0f, kAxisX);
         addLine(0.0f, 0.002f, -kExtent, 0.0f, 0.002f, kExtent, kAxisZ);
+        m_axisIndexCount = static_cast<std::uint32_t>(indices.size()) - m_axisIndexStart;
 
         m_gridVertexBuffer =
             bgfx::createVertexBuffer(bgfx::copy(vertices.data(), static_cast<std::uint32_t>(
@@ -695,6 +717,9 @@ private:
     bgfx::IndexBufferHandle m_indexBuffer = BGFX_INVALID_HANDLE;
     bgfx::VertexBufferHandle m_gridVertexBuffer = BGFX_INVALID_HANDLE;
     bgfx::IndexBufferHandle m_gridIndexBuffer = BGFX_INVALID_HANDLE;
+    std::uint32_t m_gridLineIndexCount = 0;
+    std::uint32_t m_axisIndexStart = 0;
+    std::uint32_t m_axisIndexCount = 0;
     bgfx::ProgramHandle m_program = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle m_lightDir = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle m_lightColor = BGFX_INVALID_HANDLE;

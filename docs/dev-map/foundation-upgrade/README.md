@@ -54,4 +54,5 @@
 - 一轮只做 [`34`](34-LANDING-CHECKLIST.md) 里的一行或一组；F0 全部完成并 CI 全绿之前不开 F1。
 - 契约先于代码：F2/F3 任何一行代码落地前，先把 [`33`](33-CONTRACT-DELTA.md) 对应格式抄进 `../modules/`，再写解析器与测试。
 - 与本文件夹冲突时：控制面以 `../01`/`../07` 为准；界面主次以 `../ui-pro-upgrade/` 为准；本版的新格式与新 Command 以 [`33`](33-CONTRACT-DELTA.md) 为准。
+- 并行的界面重设计 **UI-CLARITY**（`../ui-clarity/`）U0 不依赖本版；U1/U2 依赖 F1/F2 若干字段（见 `../ui-clarity/44`）。本版任务不因它改动落点。
 - 未经 Wisdom 明确要求，不得 commit、tag、push。
