@@ -49,12 +49,33 @@ function(dd_compile_bgfx_shader)
     dd_find_shaderc()
     dd_find_bgfx_shader_include()
 
-    set(_backends
-        "dx11|windows|s_5_0"
-        "metal|osx|metal"
-        "glsl|linux|430"
-        "spirv|linux|spirv"
-    )
+    if(WIN32)
+        set(_backends
+            "dx11|windows|s_5_0"
+            "spirv|linux|spirv"
+        )
+    elseif(APPLE)
+        set(_backends
+            "metal|osx|metal"
+        )
+    else()
+        set(_backends
+            "glsl|linux|430"
+            "spirv|linux|spirv"
+        )
+    endif()
+
+    set(_keep_folders "")
+    foreach(_backend ${_backends})
+        string(REPLACE "|" ";" _parts "${_backend}")
+        list(GET _parts 0 _folder)
+        list(APPEND _keep_folders "${_folder}")
+    endforeach()
+    foreach(_old IN ITEMS dx11 metal glsl spirv)
+        if(NOT _old IN_LIST _keep_folders)
+            file(REMOVE_RECURSE "${SHADER_OUTPUT_DIR}/${_old}")
+        endif()
+    endforeach()
 
     set(_outputs "")
     foreach(_backend ${_backends})

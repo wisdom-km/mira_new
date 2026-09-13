@@ -1,6 +1,8 @@
-# P0 发布检查清单
+# 发布检查清单
 
-完成下列全部项后再打 `phase-10-p0`。
+P0 基线检查仍适用。FOUNDATION 起：**打 `v*` tag 即触发** `.github/workflows/release.yml`，由 Action 调用 `packaging/windows/build-installer.ps1` 上传草稿 `.exe` / `.zip`。版本号只从 `CMakeLists.txt` 的 `project(... VERSION)` 读取，不要再手改 Inno 脚本或 zip 文件名。
+
+完成下列全部项后再打发布 tag。
 
 ## 范围
 

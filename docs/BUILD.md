@@ -59,10 +59,12 @@ winget install --id JRSoftware.InnoSetup -e
 powershell -ExecutionPolicy Bypass -File packaging\windows\build-installer.ps1
 ```
 
-产物在 `dist/`：
+产物在 `dist/`（文件名里的版本号来自 `CMakeLists.txt`）：
 
-- `DirectorDesk-0.1.2-windows-x64.exe`：Inno Setup 安装包（图标为暂定 logo `img/dog.png`）
-- `DirectorDesk-0.1.2-windows-x64.zip`：便携目录
+- `DirectorDesk-<version>-windows-x64.exe`：Inno Setup 安装包（图标为暂定 logo `img/dog.png`）
+- `DirectorDesk-<version>-windows-x64.zip`：便携目录
+
+打 `v*` tag 后 GitHub Actions `Release` workflow 会跑同一脚本并上传草稿 Release。
 
 不要把 `dist/` 或 `packaging/stage/` 提交进仓库。
 

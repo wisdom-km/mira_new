@@ -163,7 +163,7 @@ struct RefreshStoryboardThumbnailCommand {
 };
 
 struct ExportCurrentShotCommand {
-    std::string resolutionId = "1080p";
+    std::string resolutionId;
 };
 
 struct ExportStoryboardBoardCommand {};

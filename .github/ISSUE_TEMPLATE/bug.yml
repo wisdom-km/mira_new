@@ -1,0 +1,39 @@
+name: Bug
+description: Something in DirectorDesk does not work as documented.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. UI only sends Commands; say which action failed.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did and what you expected.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: "0.1.2 / commit SHA"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - Windows
+        - macOS
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Prefer examples/cafe.ddproj if it shows the bug.
+    validations:
+      required: true

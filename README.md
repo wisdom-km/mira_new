@@ -1,6 +1,11 @@
 # DirectorDesk
 
+[![CI](https://github.com/wisdom-km/mira_new/actions/workflows/ci.yml/badge.svg)](https://github.com/wisdom-km/mira_new/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/wisdom-km/mira_new)](https://github.com/wisdom-km/mira_new/releases)
+
 <p align="center"><img src="img/dog.png" width="160" alt="DirectorDesk"></p>
+
+**DirectorDesk** is a 3D director's desk: write a Markdown script, drop in models, set cameras, and export storyboard PNGs you can feed to an AI video tool. No real AI service runs inside the app.
 
 3D 导演台：用剧本、资源库和预设机位，帮助非 3D 专业用户制作可控的 AI 视频分镜。
 
@@ -8,7 +13,14 @@ P0 已走通：**Markdown 剧本 → 本地/官方资源 → 预设机位 → �
 
 核心不是预埋未来所有功能，而是先画接缝：哪一块可以独立加、独立删、独立坏。原理见 [08 接缝与 Vibe Coding](docs/dev-map/08-SEAMS-AND-VIBE-CODING.md)。
 
-Windows 用户可直接从 [Releases](https://github.com/wisdom-km/mira_new/releases) 下载 `DirectorDesk-0.1.2-windows-x64.exe` 安装包。
+Windows 用户可直接从 [Releases](https://github.com/wisdom-km/mira_new/releases) 下载最新 `DirectorDesk-*-windows-x64.exe` 安装包。
+
+## 30 秒上手
+
+1. 安装 [最新 Windows 包](https://github.com/wisdom-km/mira_new/releases)，或按下面「构建」从源码编译。
+2. 启动后打开 `examples/cafe.ddproj`（安装包开始菜单默认也会打开它）。
+3. 用顶部 **编剧 / 置景 / 掌机 / 审片** 四个模式走一遍：改剧本、拖模型、选镜头、导出 PNG。
+4. 检查器里选 1080p 或 2K，`Ctrl+E` 按当前选择导出当前镜头。
 
 ## 架构
 

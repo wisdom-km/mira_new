@@ -2,16 +2,45 @@
 # This file owns project behavior only; keep platform and dependency boundaries explicit.
 
 $ErrorActionPreference = "Stop"
-# Build flow: configure Release with the pinned vcpkg toolchain, stage runtime assets,
-# then emit both the portable archive and the Inno Setup installer.
+# Build flow: read the version from CMakeLists.txt, configure Release with the pinned
+# vcpkg toolchain, stage runtime assets, then emit the portable archive and Inno Setup installer.
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $BuildDir = Join-Path $Root "build\windows-release"
 $StageDir = Join-Path $Root "packaging\stage\DirectorDesk"
 $DistDir = Join-Path $Root "dist"
 $VcpkgRoot = if ($env:VCPKG_ROOT) { $env:VCPKG_ROOT } else { "C:\Users\19612\vcpkg" }
-$Vcvars = "G:\BaseWare\VisualStudio\VC\Auxiliary\Build\vcvars64.bat"
-$CMake = "G:\BaseWare\VisualStudio\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
-$Ninja = "G:\BaseWare\VisualStudio\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+
+function Read-ProjectVersion {
+    $text = Get-Content -Path (Join-Path $Root "CMakeLists.txt") -Raw
+    $match = [regex]::Match($text, 'project\s*\(\s*DirectorDesk\s+VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)')
+    if (-not $match.Success) {
+        throw "无法从 CMakeLists.txt 读取 project(... VERSION)"
+    }
+    return $match.Groups[1].Value
+}
+
+function Find-Vcvars {
+    $fallback = "G:\BaseWare\VisualStudio\VC\Auxiliary\Build\vcvars64.bat"
+    if (Test-Path $fallback) { return $fallback }
+    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path $vswhere) {
+        $install = & $vswhere -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath
+        if ($install) {
+            $candidate = Join-Path $install "VC\Auxiliary\Build\vcvars64.bat"
+            if (Test-Path $candidate) { return $candidate }
+        }
+    }
+    return $null
+}
+
+function Find-Tool([string]$name, [string]$fallback) {
+    $cmd = Get-Command $name -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    if ($fallback -and (Test-Path $fallback)) { return $fallback }
+    return $null
+}
 
 function Find-Iscc {
     $paths = @(
@@ -27,7 +56,13 @@ function Find-Iscc {
     return $null
 }
 
-if (-not (Test-Path $Vcvars)) { throw "找不到 vcvars64.bat" }
+$AppVersion = Read-ProjectVersion
+$Vcvars = Find-Vcvars
+$CMake = Find-Tool "cmake.exe" "G:\BaseWare\VisualStudio\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
+$Ninja = Find-Tool "ninja.exe" "G:\BaseWare\VisualStudio\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+if (-not $Vcvars) { throw "找不到 vcvars64.bat" }
+if (-not $CMake) { throw "找不到 cmake" }
+if (-not $Ninja) { throw "找不到 ninja" }
 
 $configure = @"
 call "$Vcvars" || exit /b 1
@@ -60,15 +95,15 @@ Copy-Item (Join-Path $Root "docs\THIRD_PARTY.md") $StageDir
 New-Item -ItemType Directory -Path (Join-Path $StageDir "img") | Out-Null
 Copy-Item (Join-Path $Root "img\dog.png") (Join-Path $StageDir "img\dog.png")
 
-$zip = Join-Path $DistDir "DirectorDesk-0.1.2-windows-x64.zip"
+$zip = Join-Path $DistDir "DirectorDesk-$AppVersion-windows-x64.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $StageDir "*") -DestinationPath $zip -Force
 
 $iscc = Find-Iscc
 if (-not $iscc) { throw "找不到 Inno Setup ISCC.exe，请先安装 JRSoftware.InnoSetup" }
 $iss = Join-Path $PSScriptRoot "DirectorDesk.iss"
-& $iscc $iss
+& $iscc "/DAppVersion=$AppVersion" $iss
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup 编译失败" }
 
-Write-Host "Installer and zip written to $DistDir"
+Write-Host "Installer and zip written to $DistDir (version $AppVersion)"
 Get-ChildItem $DistDir | Format-Table Name, Length

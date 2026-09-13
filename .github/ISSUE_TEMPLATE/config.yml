@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Development map
+    url: https://github.com/wisdom-km/mira_new/blob/main/docs/dev-map/03-CURRENT-STATUS.md
+    about: Read 03-CURRENT-STATUS.md before opening an issue.

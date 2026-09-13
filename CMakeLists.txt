@@ -123,6 +123,7 @@ if(WIN32)
 endif()
 
 add_custom_command(TARGET DirectorDesk POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E rm -rf "$<TARGET_FILE_DIR:DirectorDesk>/shaders"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
         "${DD_SHADER_OUTPUT_DIR}"
         "$<TARGET_FILE_DIR:DirectorDesk>/shaders"

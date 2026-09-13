@@ -671,7 +671,10 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                     commands.Push(Core::ImportModelCommand{});
                 }
                 ImGui::Separator();
-                if (ImGui::MenuItem("导出当前镜头 1080p", "Ctrl+E")) {
+                if (ImGui::MenuItem("按当前选择导出", "Ctrl+E")) {
+                    commands.Push(Core::ExportCurrentShotCommand{});
+                }
+                if (ImGui::MenuItem("导出当前镜头 1080p")) {
                     commands.Push(Core::ExportCurrentShotCommand{"1080p"});
                 }
                 if (ImGui::MenuItem("导出当前镜头 2K")) {
@@ -733,7 +736,7 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                 ImGui::TextUnformatted("Ctrl+S  保存工程");
                 ImGui::TextUnformatted("Ctrl+Shift+S  工程另存为");
                 ImGui::TextUnformatted("Ctrl+I  导入模型");
-                ImGui::TextUnformatted("Ctrl+E  导出当前镜头 1080p");
+                ImGui::TextUnformatted("Ctrl+E  按当前选择导出");
                 ImGui::Separator();
                 ImGui::TextUnformatted("视口：左键旋转  右键平移  滚轮缩放");
                 ImGui::TextUnformatted("分镜：右键平移  滚轮缩放");
@@ -865,7 +868,7 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
         } else if (ctrl && ImGui::IsKeyPressed(ImGuiKey_I, false)) {
             commands.Push(Core::ImportModelCommand{});
         } else if (ctrl && ImGui::IsKeyPressed(ImGuiKey_E, false)) {
-            commands.Push(Core::ExportCurrentShotCommand{"1080p"});
+            commands.Push(Core::ExportCurrentShotCommand{});
         }
     }
 
@@ -935,8 +938,8 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
             if (m_lastViewportW == 0 || m_lastViewportH == 0 || dw * dw + dh * dh >= 4) {
                 m_lastViewportW = width;
                 m_lastViewportH = height;
+                commands.Push(Core::ViewportResizeCommand{m_lastViewportW, m_lastViewportH});
             }
-            commands.Push(Core::ViewportResizeCommand{m_lastViewportW, m_lastViewportH});
             const ImVec2 cursor = ImGui::GetCursorScreenPos();
             ImGui::InvisibleButton("viewport_input", available);
             const bool viewportHovered = ImGui::IsItemHovered();

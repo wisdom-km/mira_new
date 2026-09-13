@@ -1283,7 +1283,6 @@ int Application::Run(int argc, char** argv) {
                             if (selectedLibraryAssetId == typed.assetId) {
                                 selectedLibraryAssetId.clear();
                             }
-                            projectDirty = true;
                             status = "已从资源库删除";
                         }
                     } else if constexpr (std::is_same_v<T, Core::RefreshLibraryCommand>) {

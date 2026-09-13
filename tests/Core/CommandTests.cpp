@@ -32,3 +32,8 @@ TEST_CASE("SetWorkspaceModeCommand defaults to shoot") {
     DirectorDesk::Core::SetWorkspaceModeCommand command;
     REQUIRE(command.modeId == "shoot");
 }
+
+TEST_CASE("ExportCurrentShotCommand default resolution is empty") {
+    DirectorDesk::Core::ExportCurrentShotCommand command;
+    REQUIRE(command.resolutionId.empty());
+}

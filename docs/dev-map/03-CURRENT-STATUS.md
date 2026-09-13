@@ -6,12 +6,12 @@
 
 - **当前 Phase**：Phase 10 已完成
 - **上一版本**：**UI-PRO（UI 专业化升级）** 已随 **0.1.2** 打包。见 [`ui-pro-upgrade/`](ui-pro-upgrade/README.md)
-- **当前版本工作**：**FOUNDATION（地基、镜头包与 Skills 融合）**，F0 止血进行中（FND-01 已写入）。见 [`foundation-upgrade/`](foundation-upgrade/README.md)，进度以 [`foundation-upgrade/36-FOUNDATION-STATUS.md`](foundation-upgrade/36-FOUNDATION-STATUS.md) 为准
+- **当前版本工作**：**FOUNDATION（地基、镜头包与 Skills 融合）**，F0 止血进行中（FND-01–06 / 08 / 09 已写入，FND-07 缺截图）。见 [`foundation-upgrade/`](foundation-upgrade/README.md)，进度以 [`foundation-upgrade/36-FOUNDATION-STATUS.md`](foundation-upgrade/36-FOUNDATION-STATUS.md) 为准
 - **最后更新**：2026-09-13
 - **更新者**：Cursor AI
 - **当前分支**：`main`
 - **最近完成 tag**：`v0.1.2`
-- **下一个允许执行的工作**：FOUNDATION **F0 · FND-02**（shader 按平台裁剪）。按 [`foundation-upgrade/34-LANDING-CHECKLIST.md`](foundation-upgrade/34-LANDING-CHECKLIST.md) 顺序推进；不得新建 CMake 模块、不得接线真实 AI；`Application.cpp` 允许在 App 目标内分文件（FOUNDATION 版改写，见 foundation-upgrade/35 第四节）
+- **下一个允许执行的工作**：确认 CI 双绿；补 FND-07 产品截图 / GIF。F0 未齐之前不开 F1。不得新建 CMake 模块、不得接线真实 AI；`Application.cpp` 允许在 App 目标内分文件（FOUNDATION 版改写，见 foundation-upgrade/35 第四节）
 
 ## 已完成
 
@@ -29,7 +29,8 @@ P0 路线图已完成；两个升级版之外的加删功能仍以 `07` 为准�
 
 ## 阻塞项
 
-- **GitHub Actions**：Windows runner 已改为 `windows-2022`（FND-01，待 push 后确认 job 绿）；macOS 仍对 dx11 跑 shaderc（FND-02）
+- **GitHub Actions**：FND-01/02 已写入（`windows-2022` + shader 按平台裁剪），待本轮 push 后确认双绿
+- **FND-07**：README 英文与 30 秒上手已写，缺产品截图 / GIF
 - **macOS 实机回归**：本机无 Mac。以 GitHub Actions `macOS` job 为门禁
 
 ## 已确认决策
@@ -85,8 +86,9 @@ P0 路线图已完成；两个升级版之外的加删功能仍以 `07` 为准�
 
 ## 本次验证
 
-- FND-01：`.github/workflows/ci.yml` Windows 矩阵 `os: windows-2022`；`ci-windows` 生成器未改
-- Windows Debug 测试：109 cases / 590 assertions（本轮未改业务代码）
+- FND-01 已 push（`81a25af`）
+- FND-02–06 / 08 / 09 已写入；Windows Debug **110 cases / 591 assertions**；产物只有 `dx11/` `spirv/`
+- FND-07 文案完成，截图未拍
 
 ## 下一步清单
 
@@ -96,6 +98,12 @@ P0 路线图已完成；两个升级版之外的加删功能仍以 `07` 为准�
 4. 有 Mac 时按 `docs/RELEASE-CHECKLIST.md` 补实机回归
 
 ## 工作日志
+
+### 2026-09-13：F0 FND-02–09
+
+- shader 按平台裁剪；Ctrl+E 走当前分辨率；删资源库索引不标脏；视口 resize 只在变化时推；工程哈希改 `Core::Sha256Hex`。
+- Issue/PR 模板；`release.yml` 打 `v*` 出草稿安装包；版本号只读 `CMakeLists.txt`。
+- README 英文摘要、CI/Release 徽章、30 秒上手。截图 / GIF 未补。
 
 ### 2026-09-13：FND-01 Windows CI 生成器
 

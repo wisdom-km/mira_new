@@ -1,0 +1,33 @@
+name: Asset
+description: Official catalog, download, cache, or license problem.
+title: "[asset] "
+labels: ["asset"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Official models live in https://github.com/wisdom-km/obj-3d-models. Do not upload from inside DirectorDesk.
+  - type: input
+    id: asset-id
+    attributes:
+      label: Asset id
+      placeholder: catalog id or file name
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - Missing or failed download
+        - Wrong license or attribution
+        - Catalog / manifest
+        - Local library index
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+    validations:
+      required: true

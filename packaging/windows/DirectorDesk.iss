@@ -2,7 +2,9 @@
 // This file owns project behavior only; keep platform and dependency boundaries explicit.
 
 #define AppName "DirectorDesk"
+#ifndef AppVersion
 #define AppVersion "0.1.2"
+#endif
 #define AppPublisher "DirectorDesk contributors"
 #define AppURL "https://github.com/wisdom-km/mira_new"
 #define AppExeName "DirectorDesk.exe"

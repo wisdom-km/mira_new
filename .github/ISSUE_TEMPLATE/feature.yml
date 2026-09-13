@@ -1,0 +1,29 @@
+name: Feature
+description: A change that fits an existing noun in the development map.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        New work lands in an existing module. Do not propose a new CMake target or a real AI service.
+  - type: textarea
+    id: noun
+    attributes:
+      label: Which noun
+      description: Shot, camera, node, library, storyboard, export, or script.
+    validations:
+      required: true
+  - type: textarea
+    id: request
+    attributes:
+      label: What you want
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it belongs on the main path
+      description: Markdown script → assets → camera → storyboard → PNG / shot package.
+    validations:
+      required: true

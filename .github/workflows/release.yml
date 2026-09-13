@@ -1,0 +1,58 @@
+# release: tag-triggered Windows packaging for DirectorDesk.
+# This file owns project behavior only; keep platform and dependency boundaries explicit.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows installer
+    runs-on: windows-2022
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-binary-cache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.vcpkg-binary-cache
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+
+      - name: Create vcpkg binary cache directory
+        shell: bash
+        run: mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+
+      - name: Clone vcpkg
+        shell: bash
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          git -C "$VCPKG_ROOT" checkout c5a15727ee70fddf0296f0d8aafc3f58916fefac
+
+      - name: Bootstrap vcpkg
+        run: .\vcpkg\bootstrap-vcpkg.bat
+
+      - name: Install Ninja and Inno Setup
+        run: choco install ninja innosetup -y
+
+      - name: Build installer
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File packaging/windows/build-installer.ps1
+
+      - name: Upload draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            dist/DirectorDesk-*-windows-x64.exe
+            dist/DirectorDesk-*-windows-x64.zip
+          fail_on_unmatched_files: true
