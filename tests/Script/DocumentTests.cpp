@@ -175,6 +175,68 @@ TEST_CASE("Insert scene and shot write stable IDs", "[script][document]") {
     REQUIRE(document.SelectedShotId() == document.PublishedSnapshot().scenes[0].shots[0].id);
 }
 
+TEST_CASE("InsertShot after a shot keeps the following shot after it", "[script][document]") {
+    DirectorDesk::Script::Document document;
+    REQUIRE(document
+                .LoadFromText("## [scene:s1] 场\n\n### [shot:shot-a] 过肩\n\n窗。\n\n### "
+                              "[shot:shot-b] 特写\n\n手。\n")
+                .IsOk());
+    document.InsertShot("shot-a");
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots.size() == 3);
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots[0].id == "shot-a");
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots[1].id == document.SelectedShotId());
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots[2].id == "shot-b");
+    REQUIRE(document.Text().find("窗。") < document.Text().find("[shot:" + document.SelectedShotId()));
+    REQUIRE(document.Text().find("[shot:" + document.SelectedShotId()) <
+            document.Text().find("[shot:shot-b]"));
+}
+
+TEST_CASE("InsertShot with empty id still appends", "[script][document]") {
+    DirectorDesk::Script::Document document;
+    REQUIRE(document
+                .LoadFromText("## [scene:s1] 场\n### [shot:shot-a] 一\n### [shot:shot-b] 二\n")
+                .IsOk());
+    document.SelectShot("shot-a");
+    document.InsertShot();
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots.size() == 3);
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots[0].id == "shot-a");
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots[1].id == "shot-b");
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots[2].id == document.SelectedShotId());
+}
+
+TEST_CASE("InsertShot unknown id appends and adds a diagnostic", "[script][document]") {
+    DirectorDesk::Script::Document document;
+    REQUIRE(document
+                .LoadFromText("## [scene:s1] 场\n### [shot:shot-a] 一\n### [shot:shot-b] 二\n")
+                .IsOk());
+    document.InsertShot("missing-shot");
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots.size() == 3);
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots[2].id == document.SelectedShotId());
+    bool found = false;
+    for (const auto& diagnostic : document.Diagnostics()) {
+        if (diagnostic.code == "script.unknown-after-shot") {
+            found = true;
+            REQUIRE(diagnostic.message.find("追加") != std::string::npos);
+        }
+    }
+    REQUIRE(found);
+}
+
+TEST_CASE("InsertShot after the last shot of a scene stays in that scene", "[script][document]") {
+    DirectorDesk::Script::Document document;
+    REQUIRE(document
+                .LoadFromText("## [scene:s1] 一\n### [shot:shot-a] A\n"
+                              "## [scene:s2] 二\n### [shot:shot-b] B\n")
+                .IsOk());
+    document.InsertShot("shot-a");
+    REQUIRE(document.PublishedSnapshot().scenes.size() == 2);
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots.size() == 2);
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots[0].id == "shot-a");
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots[1].id == document.SelectedShotId());
+    REQUIRE(document.PublishedSnapshot().scenes[1].shots.size() == 1);
+    REQUIRE(document.PublishedSnapshot().scenes[1].shots[0].id == "shot-b");
+}
+
 TEST_CASE("RemoveShot drops the heading and keeps the other shot", "[script][document]") {
     DirectorDesk::Script::Document document;
     REQUIRE(document
@@ -189,6 +251,51 @@ TEST_CASE("RemoveShot drops the heading and keeps the other shot", "[script][doc
     REQUIRE(document.Text().find("特写") != std::string::npos);
     REQUIRE(document.SelectedShotId() == "shot-b");
     REQUIRE_FALSE(document.RemoveShot("shot-a"));
+}
+
+TEST_CASE("RemoveShot deletes an H4 subheading with the whole shot", "[script][document]") {
+    DirectorDesk::Script::Document document;
+    REQUIRE(document
+                .LoadFromText("## [scene:scene-a] 场\n### [shot:shot-a] 一\n#### 细节\n继续。\n"
+                              "### [shot:shot-b] 二\n特写。\n")
+                .IsOk());
+    REQUIRE(document.RemoveShot("shot-a"));
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots.size() == 1);
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots[0].id == "shot-b");
+    REQUIRE(document.Text().find("#### 细节") == std::string::npos);
+    REQUIRE(document.Text().find("继续") == std::string::npos);
+    REQUIRE(document.Text().find("特写") != std::string::npos);
+}
+
+TEST_CASE("RemoveShot does not stop at a fenced heading", "[script][document]") {
+    DirectorDesk::Script::Document document;
+    REQUIRE(document
+                .LoadFromText("## [scene:scene-a] 场\n### [shot:shot-a] 一\n```\n## fake\n```\n"
+                              "围栏后。\n### [shot:shot-b] 二\n特写。\n")
+                .IsOk());
+    REQUIRE(document.RemoveShot("shot-a"));
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots.size() == 1);
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots[0].id == "shot-b");
+    REQUIRE(document.Text().find("## fake") == std::string::npos);
+    REQUIRE(document.Text().find("围栏后") == std::string::npos);
+    REQUIRE(document.Text().find("特写") != std::string::npos);
+}
+
+TEST_CASE("RemoveShot on CRLF text keeps CRLF on save", "[script][document]") {
+    const std::string dir = MakeCaseDir("remove-crlf");
+    const std::string path = DirectorDesk::Platform::Paths::Join(dir, "删除镜头.md");
+    WriteText(path, "## [scene:scene-a] 场\r\n### [shot:shot-a] 一\r\n窗边。\r\n"
+                      "### [shot:shot-b] 二\r\n特写。\r\n");
+    DirectorDesk::Script::Document document;
+    REQUIRE(document.LoadFromPath(path).IsOk());
+    REQUIRE(document.RemoveShot("shot-a"));
+    REQUIRE(document.Save().IsOk());
+    auto saved = DirectorDesk::Platform::Paths::ReadTextFile(path);
+    REQUIRE(saved.IsOk());
+    REQUIRE(saved.Value().find("\r\n") != std::string::npos);
+    REQUIRE(saved.Value().find("[shot:shot-a]") == std::string::npos);
+    REQUIRE(saved.Value().find("[shot:shot-b]") != std::string::npos);
+    REQUIRE(saved.Value().find("特写") != std::string::npos);
 }
 
 TEST_CASE("Selecting a shot is reflected on the document", "[script][document]") {

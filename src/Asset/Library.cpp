@@ -51,6 +51,27 @@ const char* OriginJson(AssetOrigin origin) {
     return Library::OriginId(origin);
 }
 
+bool FingerprintMatches(const std::string& sourcePath, std::uint64_t sourceMtime,
+                        std::uint64_t sourceSize) {
+    if (sourcePath.empty() || sourceMtime == 0) {
+        return false;
+    }
+    auto mtime = Platform::Paths::LastWriteTimeCount(sourcePath);
+    auto size = Platform::Paths::FileSize(sourcePath);
+    return mtime.IsOk() && size.IsOk() && mtime.Value() == sourceMtime && size.Value() == sourceSize;
+}
+
+void StampFingerprint(LibraryAsset& asset, const std::string& sourcePath) {
+    auto mtime = Platform::Paths::LastWriteTimeCount(sourcePath);
+    if (mtime.IsOk()) {
+        asset.sourceMtime = mtime.Value();
+    }
+    auto size = Platform::Paths::FileSize(sourcePath);
+    if (size.IsOk()) {
+        asset.fileSize = size.Value();
+    }
+}
+
 } // namespace
 
 const char* Library::OriginId(AssetOrigin origin) {
@@ -138,7 +159,9 @@ Core::Result<void> Library::LoadIndex() {
             asset.origin = origin;
             asset.category = item.value("category", "uncategorized");
             asset.previewPath = item.value("previewPath", "");
-            asset.fileSize = item.value("fileSize", 0ull);
+            asset.fileSize = item.value("sourceSize", item.value("fileSize", 0ull));
+            asset.sourceMtime = item.value("sourceMtime", 0ull);
+            asset.sha256 = item.value("sha256", "");
             if (item.contains("tags") && item["tags"].is_array()) {
                 for (const nlohmann::json& tag : item["tags"]) {
                     if (tag.is_string()) {
@@ -177,6 +200,11 @@ Core::Result<void> Library::Save() const {
         item["category"] = asset.category;
         item["previewPath"] = asset.previewPath;
         item["fileSize"] = asset.fileSize;
+        item["sourceSize"] = asset.fileSize;
+        item["sourceMtime"] = asset.sourceMtime;
+        if (!asset.sha256.empty()) {
+            item["sha256"] = asset.sha256;
+        }
         item["tags"] = asset.tags;
         assets.push_back(std::move(item));
     }
@@ -188,10 +216,7 @@ void Library::Refresh() {
     for (LibraryAsset& asset : m_assets) {
         asset.sourceExists = Platform::Paths::Exists(asset.sourcePath);
         if (asset.sourceExists) {
-            auto size = Platform::Paths::FileSize(asset.sourcePath);
-            if (size.IsOk()) {
-                asset.fileSize = size.Value();
-            }
+            StampFingerprint(asset, asset.sourcePath);
         }
     }
 }
@@ -212,6 +237,61 @@ const LibraryAsset* Library::Find(const std::string& assetId) const {
         }
     }
     return nullptr;
+}
+
+bool Library::TryCachedHash(const std::string& sourcePath, const std::string& assetId,
+                             std::string& sha256) const {
+    const LibraryAsset* asset = nullptr;
+    if (!assetId.empty()) {
+        asset = Find(assetId);
+    }
+    if (asset == nullptr && !sourcePath.empty()) {
+        asset = FindByKey(Platform::Paths::StableKey(sourcePath));
+    }
+    if (asset != nullptr && !asset->sha256.empty() &&
+        FingerprintMatches(sourcePath.empty() ? asset->sourcePath : sourcePath, asset->sourceMtime,
+                            asset->fileSize)) {
+        sha256 = asset->sha256;
+        return true;
+    }
+    const std::string key = Platform::Paths::StableKey(sourcePath);
+    const auto found = m_ephemeralHashes.find(key);
+    if (found != m_ephemeralHashes.end() && !found->second.sha256.empty() &&
+        FingerprintMatches(sourcePath, found->second.sourceMtime, found->second.fileSize)) {
+        sha256 = found->second.sha256;
+        return true;
+    }
+    return false;
+}
+
+bool Library::RecordContentHash(const std::string& sourcePath, const std::string& assetId,
+                                 const std::string& sha256) {
+    if (sourcePath.empty() || sha256.empty()) {
+        return false;
+    }
+    LibraryAsset* asset = nullptr;
+    if (!assetId.empty()) {
+        asset = FindMutable(assetId);
+    }
+    if (asset == nullptr) {
+        if (const LibraryAsset* byKey = FindByKey(Platform::Paths::StableKey(sourcePath))) {
+            asset = FindMutable(byKey->id);
+        }
+    }
+    LibraryAsset fingerprint;
+    fingerprint.sourcePath = sourcePath;
+    fingerprint.sha256 = sha256;
+    StampFingerprint(fingerprint, sourcePath);
+    m_ephemeralHashes[Platform::Paths::StableKey(sourcePath)] = fingerprint;
+    if (asset != nullptr) {
+        asset->sha256 = sha256;
+        asset->sourceMtime = fingerprint.sourceMtime;
+        asset->fileSize = fingerprint.fileSize;
+        if (!m_indexPath.empty()) {
+            Save();
+        }
+    }
+    return true;
 }
 
 LibraryAsset* Library::FindMutable(const std::string& assetId) {
@@ -252,10 +332,7 @@ Core::Result<LibraryAsset> Library::Import(const std::string& utf8Path, AssetOri
     asset.origin = origin;
     asset.category = origin == AssetOrigin::Builtin ? "builtin" : "uncategorized";
     asset.sourceExists = true;
-    auto size = Platform::Paths::FileSize(utf8Path);
-    if (size.IsOk()) {
-        asset.fileSize = size.Value();
-    }
+    StampFingerprint(asset, utf8Path);
 
     const std::string sidecarPng =
         Platform::Paths::Join(Platform::Paths::Parent(utf8Path), asset.name + ".png");

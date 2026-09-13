@@ -218,6 +218,9 @@ void DrawShotStrip(const AppViewState& state, Core::CommandQueue& commands) {
         }
         DrawStatusDots(card);
         if (ImGui::BeginPopupContextItem("shot-cell-menu")) {
+            if (ImGui::MenuItem("在此后插入镜头")) {
+                commands.Push(Core::InsertShotCommand{card.shotId});
+            }
             if (ImGui::MenuItem("刷新预览")) {
                 commands.Push(Core::RefreshStoryboardThumbnailCommand{card.shotId});
             }

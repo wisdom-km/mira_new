@@ -9,6 +9,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -17,6 +18,8 @@
 
 namespace DirectorDesk::App {
 namespace {
+
+std::atomic<std::uint32_t> g_sha256FileReads{0};
 
 Core::Error ParseError(const std::string& technical, const std::string& user) {
     return Core::Error::Make(Core::ErrorCode::ParseFailure, technical, user);
@@ -190,11 +193,20 @@ Core::Result<std::string> ProjectFile::ResolveStoredPath(const std::string& proj
 }
 
 Core::Result<std::string> ProjectFile::Sha256File(const std::string& utf8Path) {
+    ++g_sha256FileReads;
     auto bytes = Platform::Paths::ReadBinaryFile(utf8Path);
     if (!bytes.IsOk()) {
         return Core::Result<std::string>::Fail(bytes.GetError());
     }
     return Core::Result<std::string>::Ok(Core::Sha256Hex(bytes.Value()));
+}
+
+std::uint32_t ProjectFile::Sha256FileReadCount() {
+    return g_sha256FileReads.load();
+}
+
+void ProjectFile::ResetSha256FileReadCount() {
+    g_sha256FileReads.store(0);
 }
 
 Core::Result<ProjectSnapshot> ProjectFile::Parse(const std::string& jsonText,

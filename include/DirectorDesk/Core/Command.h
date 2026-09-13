@@ -43,6 +43,19 @@ struct SetNodeTransformCommand {
     float scale[3] = {1.0f, 1.0f, 1.0f};
 };
 
+struct DeleteNodeCommand {
+    std::string nodeId;
+};
+
+struct DuplicateNodeCommand {
+    std::string nodeId;
+};
+
+struct SetNodeVisibleCommand {
+    std::string nodeId;
+    bool visible = true;
+};
+
 struct LoadScriptCommand {};
 
 struct LoadScriptFromPathCommand {
@@ -57,7 +70,9 @@ struct SetScriptTextCommand {
 
 struct InsertSceneCommand {};
 
-struct InsertShotCommand {};
+struct InsertShotCommand {
+    std::string afterShotId;
+};
 
 struct SelectShotCommand {
     std::string shotId;
@@ -238,6 +253,7 @@ using Command = std::variant<
     ReportStoryboardViewCommand, ConfirmStoryboardStaleExportCommand,
     CancelStoryboardStaleExportCommand, SetWorkspaceModeCommand, ResetLayoutCommand,
     BindShotToNewCameraCommand, SelectExportResolutionCommand, DeleteShotCommand,
-    RemoveLibraryAssetCommand, RevealPathCommand>;
+    RemoveLibraryAssetCommand, RevealPathCommand, DeleteNodeCommand, DuplicateNodeCommand,
+    SetNodeVisibleCommand>;
 
 } // namespace DirectorDesk::Core

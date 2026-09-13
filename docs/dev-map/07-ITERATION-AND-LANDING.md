@@ -71,7 +71,7 @@ DirectorDesk 已走完 P0 主路径，仍处于可加、可删功能的 Demo 阶
 
 1. 用户要看见或点到 → 改对应 Panel，只读 `AppViewState`
 2. 需要新意图 → 在 `Core::Command` 增加值对象，并加入 `variant`
-3. 在 `Application.cpp` 的 visit 里分发到拥有该名词的模块
+3. 在 `CommandDispatch` 的 `TryDispatch*` 里分发到拥有该名词的模块（FOUNDATION 版改写，见 foundation-upgrade/35 第四节；FND-10）
 4. 若跨模块（例如剧本变了要重排画布）→ 只允许 App 组装新快照
 5. 领域规则加测试；不要只靠点 UI
 6. 更新 `03-CURRENT-STATUS.md`；若改了契约，同步对应 `modules/*.md`

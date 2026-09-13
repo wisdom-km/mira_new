@@ -34,8 +34,11 @@ namespace DirectorDesk::App {
 ProjectSnapshot CaptureProject(const std::string& projectId, const std::string& name,
                                const std::string& projectPath, const Scene::Document& scene,
                                const Camera::CameraManager& cameras, const Link::Table& links,
-                               const Script::Document& script, const Asset::Library& library,
+                               const Script::Document& script, Asset::Library& library,
                                const std::vector<std::string>& collapsedScenes);
+
+std::vector<std::string> CollectUncachedSourcePaths(const Scene::Document& scene,
+                                                     const Asset::Library& library);
 
 Core::Result<void> HydrateProject(const ProjectSnapshot& snapshot, const std::string& projectDir,
                                   Scene::Document& scene, Camera::CameraManager& cameras,

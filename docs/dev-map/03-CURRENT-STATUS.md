@@ -11,7 +11,7 @@
 - **更新者**：Cursor AI
 - **当前分支**：`main`
 - **最近完成 tag**：`v0.1.3`
-- **下一个允许执行的工作**：FOUNDATION F1 — **FND-10**（先写 Dispatch 测试再搬 `Application.cpp`）。UI-CLARITY U1 其余等对应 `FND-xx`；UIC-32 等 F2。不得新建 CMake 模块、不得接线真实 AI；`Application.cpp` 允许在 App 目标内分文件（FOUNDATION 版改写，见 foundation-upgrade/35 第四节）
+- **下一个允许执行的工作**：FOUNDATION F1 — **FND-16**（官方资产按 `official` 三元组持久化）。UI-CLARITY U1 其余等对应 `FND-xx`；UIC-32 等 F2。不得新建 CMake 模块、不得接线真实 AI；`Application.cpp` 允许在 App 目标内分文件（FOUNDATION 版改写，见 foundation-upgrade/35 第四节）
 
 ## 已完成
 
@@ -21,9 +21,9 @@
 
 ## 进行中
 
-**FOUNDATION**：F0 已随 `v0.1.3` 发布。下一波 F1 地基从 **FND-10** 开始。设计与进度见 [`foundation-upgrade/`](foundation-upgrade/README.md)。
+**FOUNDATION**：F0 已随 `v0.1.3` 发布。FND-10～FND-15 已完成。下一行 **FND-16**。设计与进度见 [`foundation-upgrade/`](foundation-upgrade/README.md)。
 
-**UI-CLARITY（界面重设计）**：U0 + UIC-20 / 27 / 30 / 31 / 33 / 34 已随 `v0.1.3` 入库。进度以 [`ui-clarity/46`](ui-clarity/46-UI-CLARITY-STATUS.md) 为准。U1 其余等对应 `FND-xx`；UIC-32 等 F2。
+**UI-CLARITY（界面重设计）**：U0 + UIC-20 / 23 / 25 / 27 / 30 / 31 / 33 / 34 已写入（UIC-25 随 FND-11，UIC-23 随 FND-13）。进度以 [`ui-clarity/46`](ui-clarity/46-UI-CLARITY-STATUS.md) 为准。U1 其余等对应 `FND-xx`；UIC-32 等 F2。
 
 **UI-PRO 0.1.2**：W1–W3 已写入并打 Windows 安装包，已收口。
 
@@ -32,7 +32,7 @@ P0 路线图已完成；升级版之外的加删功能仍以 `07` 为准。
 ## 阻塞项
 
 - **UI-CLARITY**：不依赖 FND 的行已随 `v0.1.3` 入库。U1 其余等 `FND-xx`。左栏段头 `SetCursorScreenPos` 导致的 Debug abort 已修
-- **F1**：门禁已开，下一行 **FND-10**
+- **F1**：FND-10～FND-15 已完成，下一行 **FND-16**
 - **macOS CI / 实机**：云上 macOS job 已关；实机回归待有 Mac 时再开（Wisdom 2026-09-13）
 
 ## 已确认决策
@@ -99,6 +99,9 @@ P0 路线图已完成；升级版之外的加删功能仍以 `07` 为准。
 
 ## 本次验证
 
+- FND-15：Windows Debug 构建绿；`RemoveShot`/`InsertShot` 走 Parser `lineStart`/`lineEnd`；已删文本扫描。`####` / 围栏 / CRLF 三条测试通过。Catch2 **158 cases / 948 assertions**。无新 CMake 模块。未 commit
+- FND-11：Windows Debug 构建绿；打开工程先挂占位盒、后台 `Load`、主线程每帧 ≤1 次 `CreateModel`；状态栏「加载模型 x/y」；过期 `projectGeneration` 丢弃。Catch2 **141 cases / 794 assertions**。无新 CMake 模块。未 commit
+- FND-10：Windows Debug 构建绿；`Application.cpp` **283 行**；6 个 Dispatch 用例；Catch2 **136 cases / 775 assertions**；无新 CMake 模块；`Application.h` 仍只有 `Run`。未 commit
 - UIC-20：Windows Debug 构建绿；Catch2 **130 cases / 735 assertions**；`previewTexture` 默认 `0xFFFF`；缺失路径 / 空缓冲解码失败；中文路径 PNG 往返。无新 Command、无新 CMake 模块
 - UIC-34：Windows Debug 构建绿；Catch2 **126 cases / 722 assertions**；`settings.json` 中文路径往返；咖啡馆 `.ddproj` 不含偏好键
 - UIC-33：Windows Debug 构建绿；Catch2 **119 cases / 683 assertions**；`fonts/lucide-dd.ttf` 已拷到 exe 旁。1280×800 掌机顶栏四模式有图标；审片左侧 48px 条，点击镜头表展开浮层
@@ -119,11 +122,35 @@ P0 路线图已完成；升级版之外的加删功能仍以 `07` 为准。
 
 ## 下一步清单
 
-1. FOUNDATION F1：从 **FND-10** 开始（先写 Dispatch 测试再搬文件）
+1. FOUNDATION F1：**FND-16**（官方资产按 `official` 三元组持久化）
 2. UI-CLARITY U1 其余等对应 `FND-xx`；UIC-32 等 F2 之后
 3. 有 Mac 时按 `docs/RELEASE-CHECKLIST.md` 补实机回归
 
 ## 工作日志
+
+### 2026-09-14：FND-15 删 / 插镜头改用解析器行号
+
+- Parser 给 Scene/Shot `lineStart`/`lineEnd`。删除整段含 `####` 与围栏；CRLF 保存仍 `\r\n`。Catch2 **158 / 948**。未 commit。下一行 FND-16。
+
+### 2026-09-14：FND-14 镜头插在选中之后
+
+- 空 `afterShotId` 仍追加末尾。右键「在此后插入镜头」。Catch2 **154 / 916**。未 commit。下一行 FND-15。
+
+### 2026-09-14：FND-13 节点删 / 复制 / 显隐
+
+- 三 Command；复制共享 GPU 引用计数；隐藏节点不进 `BuildSceneView`。检查器对齐地面 / 面向相机 / 复位。Catch2 **148 / 884**。未 commit。下一行 FND-14。
+
+### 2026-09-14：FND-12 保存免重算哈希
+
+- `CaptureProject` 优先索引哈希；变化才后台重算。状态栏「正在校验资产」；再次保存排队。Catch2 **143 / 831**。未 commit。下一行 FND-13。
+
+### 2026-09-14：FND-11 异步模型加载
+
+- 打开工程不再同步解析模型。占位盒先显示；`sceneLoadPending/Total`；状态栏「加载模型 x/y」。5 个 scene-load 用例。Catch2 **141 / 794**。未 commit。
+
+### 2026-09-14：FND-10 App 内分文件 + Dispatch 测试
+
+- `AppState` + `Dispatch` + `ViewStateBuilder`；`Application.cpp` 283 行。6 个 Catch2 Dispatch 用例锁定现有语义（含 `InsertShot` 仍追加末尾、`RemoveLibraryAsset` 不标脏）。Catch2 **136 / 775**。未 commit。
 
 ### 2026-09-14：v0.1.3
 

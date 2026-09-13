@@ -44,12 +44,46 @@ const ProjectAssetRef* FindAsset(const ProjectSnapshot& snapshot, const std::str
     return nullptr;
 }
 
+std::string ResolveSourceHash(Asset::Library& library, const std::string& sourcePath,
+                                const std::string& libraryAssetId) {
+    std::string hash;
+    if (library.TryCachedHash(sourcePath, libraryAssetId, hash)) {
+        return hash;
+    }
+    auto computed = ProjectFile::Sha256File(sourcePath);
+    if (!computed.IsOk()) {
+        return {};
+    }
+    library.RecordContentHash(sourcePath, libraryAssetId, computed.Value());
+    return computed.Value();
+}
+
 } // namespace
+
+std::vector<std::string> CollectUncachedSourcePaths(const Scene::Document& scene,
+                                                      const Asset::Library& library) {
+    std::vector<std::string> paths;
+    std::unordered_set<std::string> seen;
+    for (const Scene::Node& node : scene.Nodes()) {
+        if (node.sourcePath.empty()) {
+            continue;
+        }
+        const std::string key = Platform::Paths::StableKey(node.sourcePath);
+        if (!seen.insert(key).second) {
+            continue;
+        }
+        std::string hash;
+        if (!library.TryCachedHash(node.sourcePath, node.libraryAssetId, hash)) {
+            paths.push_back(node.sourcePath);
+        }
+    }
+    return paths;
+}
 
 ProjectSnapshot CaptureProject(const std::string& projectId, const std::string& name,
                                const std::string& projectPath, const Scene::Document& scene,
                                const Camera::CameraManager& cameras, const Link::Table& links,
-                               const Script::Document& script, const Asset::Library& library,
+                               const Script::Document& script, Asset::Library& library,
                                const std::vector<std::string>& collapsedScenes) {
     ProjectSnapshot snapshot;
     snapshot.projectId = projectId.empty() ? ProjectFile::MakeProjectId() : projectId;
@@ -86,11 +120,11 @@ ProjectSnapshot CaptureProject(const std::string& projectId, const std::string& 
         if (!projectDir.empty() && !node.sourcePath.empty() &&
             Platform::Paths::IsWithin(projectDir, node.sourcePath)) {
             auto relative = Platform::Paths::RelativeTo(projectDir, node.sourcePath);
-            auto hash = ProjectFile::Sha256File(node.sourcePath);
-            if (relative.IsOk() && hash.IsOk()) {
+            const std::string hash = ResolveSourceHash(library, node.sourcePath, node.libraryAssetId);
+            if (relative.IsOk() && !hash.empty()) {
                 asset.source = ProjectAssetSource::Project;
                 asset.path = relative.Value();
-                asset.sha256 = hash.Value();
+                asset.sha256 = hash;
                 sourceToRef[key] = asset.refId;
                 snapshot.assets.push_back(std::move(asset));
                 continue;
@@ -100,10 +134,7 @@ ProjectSnapshot CaptureProject(const std::string& projectId, const std::string& 
         asset.assetId =
             node.libraryAssetId.empty() ? Asset::Library::MakeId(node.sourcePath) : node.libraryAssetId;
         if (!node.sourcePath.empty()) {
-            auto hash = ProjectFile::Sha256File(node.sourcePath);
-            if (hash.IsOk()) {
-                asset.sha256 = hash.Value();
-            }
+            asset.sha256 = ResolveSourceHash(library, node.sourcePath, node.libraryAssetId);
             asset.path = Platform::Paths::NormalizeSlashes(node.sourcePath);
         }
         if (library.Find(asset.assetId) == nullptr && node.sourcePath.empty()) {

@@ -3,6 +3,17 @@
 
 add_library(dd_app
     Application.cpp
+    AppState.cpp
+    AppInternals.cpp
+    CommandDispatch.cpp
+    DispatchProject.cpp
+    DispatchScript.cpp
+    DispatchScene.cpp
+    DispatchCamera.cpp
+    DispatchLibrary.cpp
+    DispatchExport.cpp
+    DispatchWorkspace.cpp
+    ViewStateBuilder.cpp
     ProjectFile.cpp
     ProjectBinding.cpp
     UserSettings.cpp
@@ -12,6 +23,8 @@ add_library(DirectorDesk::app ALIAS dd_app)
 target_include_directories(dd_app
     PUBLIC
         "${PROJECT_SOURCE_DIR}/include"
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
 find_package(nlohmann_json CONFIG REQUIRED)

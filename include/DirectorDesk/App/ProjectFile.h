@@ -5,6 +5,7 @@
 
 #include "DirectorDesk/Core/Result.h"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -93,6 +94,8 @@ public:
     static Core::Result<std::string> ResolveStoredPath(const std::string& projectDir,
                                                        const StoredPath& path);
     static Core::Result<std::string> Sha256File(const std::string& utf8Path);
+    static std::uint32_t Sha256FileReadCount();
+    static void ResetSha256FileReadCount();
 
     static Core::Result<ProjectSnapshot> Parse(const std::string& jsonText,
                                                const std::string& projectDir);

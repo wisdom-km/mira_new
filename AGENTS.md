@@ -12,7 +12,7 @@
 6. [07 迭代与落点](docs/dev-map/07-ITERATION-AND-LANDING.md)
 7. 当前工作涉及的 [modules](docs/dev-map/modules/)
 
-当前进行中的版本：**FOUNDATION（地基、镜头包与 Skills 融合）**。产品 tag **`v0.1.3`** 已含 F0 与 UI-CLARITY。所有代码工作先读 [foundation-upgrade/README.md](docs/dev-map/foundation-upgrade/README.md)，从 [36-FOUNDATION-STATUS.md](docs/dev-map/foundation-upgrade/36-FOUNDATION-STATUS.md) 找「下一个允许执行的工作」，按 [34-LANDING-CHECKLIST.md](docs/dev-map/foundation-upgrade/34-LANDING-CHECKLIST.md) 的任务 ID（`FND-xx`）落点，动手前扫一遍 [35-DO-NOT.md](docs/dev-map/foundation-upgrade/35-DO-NOT.md)。新 Command 与新文件格式以 [33-CONTRACT-DELTA.md](docs/dev-map/foundation-upgrade/33-CONTRACT-DELTA.md) 为准。下一代码行是 **FND-10**。
+当前进行中的版本：**FOUNDATION（地基、镜头包与 Skills 融合）**。产品 tag **`v0.1.3`** 已含 F0 与 UI-CLARITY。所有代码工作先读 [foundation-upgrade/README.md](docs/dev-map/foundation-upgrade/README.md)，从 [36-FOUNDATION-STATUS.md](docs/dev-map/foundation-upgrade/36-FOUNDATION-STATUS.md) 找「下一个允许执行的工作」，按 [34-LANDING-CHECKLIST.md](docs/dev-map/foundation-upgrade/34-LANDING-CHECKLIST.md) 的任务 ID（`FND-xx`）落点，动手前扫一遍 [35-DO-NOT.md](docs/dev-map/foundation-upgrade/35-DO-NOT.md)。新 Command 与新文件格式以 [33-CONTRACT-DELTA.md](docs/dev-map/foundation-upgrade/33-CONTRACT-DELTA.md) 为准。下一代码行是 **FND-16**。
 
 上一版本 **UI-PRO** 已收口。凡涉及界面布局、面板主次、工作区模式、检查器、状态栏、镜头条，仍按 [ui-pro-upgrade/README.md](docs/dev-map/ui-pro-upgrade/README.md) 的区域 ID 落点。界面主次以该文件夹为准，控制面仍以 01/07 为准。
 

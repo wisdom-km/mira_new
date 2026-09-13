@@ -33,15 +33,35 @@ std::string NormalizeLf(const std::string& text) {
     return out;
 }
 
-bool ShotExists(const Snapshot& snapshot, const std::string& shotId) {
+const Shot* FindShot(const Snapshot& snapshot, const std::string& shotId) {
     for (const Scene& scene : snapshot.scenes) {
         for (const Shot& shot : scene.shots) {
             if (shot.id == shotId) {
-                return true;
+                return &shot;
             }
         }
     }
-    return false;
+    return nullptr;
+}
+
+bool ShotExists(const Snapshot& snapshot, const std::string& shotId) {
+    return FindShot(snapshot, shotId) != nullptr;
+}
+
+std::size_t OffsetOfLine(const std::string& text, int line) {
+    if (line <= 1) {
+        return 0;
+    }
+    int current = 1;
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        if (text[i] == '\n') {
+            ++current;
+            if (current == line) {
+                return i + 1;
+            }
+        }
+    }
+    return text.size();
 }
 
 std::string FirstShotIdInSnapshot(const Snapshot& snapshot) {
@@ -51,47 +71,6 @@ std::string FirstShotIdInSnapshot(const Snapshot& snapshot) {
         }
     }
     return {};
-}
-
-bool IsMarkdownHeading(const std::string& line) {
-    return line.size() >= 2 && line[0] == '#' && line[1] == '#';
-}
-
-bool RemoveShotSection(std::string& text, const std::string& shotId) {
-    const std::string marker = "### [shot:" + shotId + "]";
-    std::size_t start = std::string::npos;
-    std::size_t search = 0;
-    while (search < text.size()) {
-        const std::size_t found = text.find(marker, search);
-        if (found == std::string::npos) {
-            break;
-        }
-        if (found == 0 || text[found - 1] == '\n') {
-            start = found;
-            break;
-        }
-        search = found + marker.size();
-    }
-    if (start == std::string::npos) {
-        return false;
-    }
-    std::size_t end = text.find('\n', start);
-    if (end == std::string::npos) {
-        text.erase(start);
-        return true;
-    }
-    end += 1;
-    while (end < text.size()) {
-        const std::size_t lineEnd = text.find('\n', end);
-        const std::size_t lineLen = (lineEnd == std::string::npos ? text.size() : lineEnd) - end;
-        const std::string line = text.substr(end, lineLen);
-        if (IsMarkdownHeading(line)) {
-            break;
-        }
-        end = lineEnd == std::string::npos ? text.size() : lineEnd + 1;
-    }
-    text.erase(start, end - start);
-    return true;
 }
 
 } // namespace
@@ -240,27 +219,57 @@ void Document::InsertScene() {
     ApplyParse(Parser::Parse(m_text), true);
 }
 
-void Document::InsertShot() {
+void Document::InsertShot(const std::string& afterShotId) {
     if (m_snapshot.scenes.empty()) {
         InsertScene();
     }
     const std::string id = GenerateShotId();
-    if (!m_text.empty() && m_text.back() != '\n') {
-        m_text += '\n';
+    const std::string block = "### [shot:" + id + "] 未命名\n\n";
+    bool fallback = false;
+    std::size_t insertAt = m_text.size();
+    if (!afterShotId.empty()) {
+        const Shot* after = FindShot(m_snapshot, afterShotId);
+        if (after == nullptr) {
+            fallback = true;
+        } else {
+            insertAt = OffsetOfLine(m_text, after->lineEnd + 1);
+        }
     }
-    m_text += "### [shot:" + id + "] 未命名\n\n";
+    if (insertAt >= m_text.size()) {
+        if (!m_text.empty() && m_text.back() != '\n') {
+            m_text += '\n';
+        }
+        m_text += block;
+    } else {
+        m_text.insert(insertAt, block);
+    }
     m_dirty = true;
     ApplyParse(Parser::Parse(m_text), true);
+    if (fallback) {
+        Diagnostic diagnostic;
+        diagnostic.severity = DiagnosticSeverity::Hint;
+        diagnostic.line = 1;
+        diagnostic.code = "script.unknown-after-shot";
+        diagnostic.message = "未找到指定镜头，已追加到末尾";
+        m_diagnostics.push_back(std::move(diagnostic));
+    }
     SelectShot(id);
 }
 
 bool Document::RemoveShot(const std::string& shotId) {
-    if (shotId.empty() || !ShotExists(m_snapshot, shotId)) {
+    if (shotId.empty()) {
         return false;
     }
-    if (!RemoveShotSection(m_text, shotId)) {
+    const Shot* shot = FindShot(m_snapshot, shotId);
+    if (shot == nullptr) {
         return false;
     }
+    const std::size_t start = OffsetOfLine(m_text, shot->lineStart);
+    const std::size_t end = OffsetOfLine(m_text, shot->lineEnd + 1);
+    if (start > end) {
+        return false;
+    }
+    m_text.erase(start, end - start);
     m_dirty = true;
     ApplyParse(Parser::Parse(m_text), true);
     if (m_selectedShotId.empty()) {

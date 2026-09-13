@@ -18,6 +18,7 @@ struct NodeView {
     float eulerDegrees[3] = {0.0f, 0.0f, 0.0f};
     float scale[3] = {1.0f, 1.0f, 1.0f};
     bool selected = false;
+    bool visible = true;
 };
 
 struct ScriptShotView {
@@ -109,6 +110,9 @@ struct AppViewState {
     unsigned viewportTextureHeight = 0;
     const char* statusText = "";
     bool importInProgress = false;
+    std::uint32_t sceneLoadPending = 0;
+    std::uint32_t sceneLoadTotal = 0;
+    bool projectSaveInProgress = false;
     const std::vector<NodeView>* nodes = nullptr;
     const char* exampleObjPath = "";
     const char* exampleGlbPath = "";
@@ -156,6 +160,7 @@ struct AppViewState {
     const std::vector<ExportIssueView>* exportIssues = nullptr;
     const std::vector<ExportLogView>* exportLog = nullptr;
     const char* exportResolutionId = "1080p";
+    float selectedCameraPosition[3] = {0.0f, 0.0f, 0.0f};
 };
 
 class IPanel {

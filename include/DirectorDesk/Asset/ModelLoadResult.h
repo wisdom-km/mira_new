@@ -6,12 +6,15 @@
 #include "DirectorDesk/Asset/ModelData.h"
 #include "DirectorDesk/Core/Error.h"
 
+#include <cstdint>
 #include <string>
 
 namespace DirectorDesk::Asset {
 
 struct ModelLoadResult {
     std::string sourcePath;
+    std::string nodeId;
+    std::uint64_t generation = 0;
     bool ok = false;
     ModelData model;
     Core::Error error;

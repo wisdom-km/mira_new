@@ -5,6 +5,7 @@
 
 #include "DirectorDesk/Scene/Node.h"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -35,6 +36,9 @@ public:
     [[nodiscard]] const Node* Selected() const;
 
     std::string NextNodeId();
+    bool Remove(const std::string& id);
+    std::string Duplicate(const std::string& id);
+    bool SetVisible(const std::string& id, bool visible);
     void Clear();
     // Replaces a loaded project snapshot atomically from the caller's perspective.
     void ReplaceNodes(std::vector<Node> nodes, std::string selectedId);

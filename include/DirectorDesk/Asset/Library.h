@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace DirectorDesk::Asset {
@@ -27,6 +28,8 @@ struct LibraryAsset {
     std::vector<std::string> tags;
     std::string previewPath;
     std::uint64_t fileSize = 0;
+    std::uint64_t sourceMtime = 0;
+    std::string sha256;
     bool sourceExists = true;
 };
 
@@ -41,6 +44,10 @@ public:
     bool Remove(const std::string& assetId);
     bool SetPreviewPath(const std::string& assetId, std::string previewPath);
     [[nodiscard]] const LibraryAsset* Find(const std::string& assetId) const;
+    [[nodiscard]] bool TryCachedHash(const std::string& sourcePath, const std::string& assetId,
+                                      std::string& sha256) const;
+    bool RecordContentHash(const std::string& sourcePath, const std::string& assetId,
+                            const std::string& sha256);
     [[nodiscard]] std::vector<LibraryAsset> Query(const std::string& search,
                                                   const std::string& originFilter) const;
     [[nodiscard]] const std::vector<LibraryAsset>& Assets() const {
@@ -65,6 +72,7 @@ private:
     std::string m_directory;
     std::string m_indexPath;
     std::vector<LibraryAsset> m_assets;
+    std::unordered_map<std::string, LibraryAsset> m_ephemeralHashes;
     bool m_recoveredFromCorrupt = false;
 };
 

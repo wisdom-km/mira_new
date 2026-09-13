@@ -22,7 +22,7 @@ public:
 
     void SetText(const std::string& markdown);
     void InsertScene();
-    void InsertShot();
+    void InsertShot(const std::string& afterShotId = {});
     bool RemoveShot(const std::string& shotId);
     void SelectShot(const std::string& shotId);
     void Reset();

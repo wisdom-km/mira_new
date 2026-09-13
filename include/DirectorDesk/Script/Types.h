@@ -26,6 +26,8 @@ struct Shot {
     std::string title;
     std::string body;
     int headingLine = 1;
+    int lineStart = 1;
+    int lineEnd = 1;
 };
 
 struct Scene {
@@ -33,6 +35,8 @@ struct Scene {
     std::string title;
     std::string body;
     int headingLine = 1;
+    int lineStart = 1;
+    int lineEnd = 1;
     std::vector<Shot> shots;
 };
 

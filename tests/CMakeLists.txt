@@ -23,13 +23,19 @@ add_executable(DirectorDeskTests
     Script/DocumentTests.cpp
     Link/ShotLinkTests.cpp
     App/ProjectFileTests.cpp
+    App/ProjectBindingTests.cpp
     App/UserSettingsTests.cpp
+    App/DispatchTests.cpp
+    App/SceneLoadTests.cpp
     Storyboard/LayoutTests.cpp
     Export/ShotExportTests.cpp
     AI/ServiceTests.cpp
 )
 
-target_include_directories(DirectorDeskTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(DirectorDeskTests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${PROJECT_SOURCE_DIR}/src/App"
+)
 
 target_link_libraries(DirectorDeskTests
     PRIVATE

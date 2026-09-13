@@ -176,10 +176,12 @@ void AddDiagnostic(ParseResult& result, DiagnosticSeverity severity, int line, c
     result.diagnostics.push_back(std::move(diagnostic));
 }
 
-void FlushShot(ParseResult& result, Scene* scene, Shot& shot, bool& hasShot) {
+void FlushShot(ParseResult& result, Scene* scene, Shot& shot, bool& hasShot, int lastContentLine) {
     if (!hasShot || scene == nullptr) {
         return;
     }
+    shot.lineStart = shot.headingLine;
+    shot.lineEnd = lastContentLine >= shot.headingLine ? lastContentLine : shot.headingLine;
     if (Trim(shot.body).empty()) {
         AddDiagnostic(result, DiagnosticSeverity::Hint, shot.headingLine, "script.empty-shot-body",
                       "镜头正文为空");
@@ -187,6 +189,13 @@ void FlushShot(ParseResult& result, Scene* scene, Shot& shot, bool& hasShot) {
     scene->shots.push_back(std::move(shot));
     shot = Shot{};
     hasShot = false;
+}
+
+void CloseScene(Scene* scene, int lastContentLine) {
+    if (scene == nullptr) {
+        return;
+    }
+    scene->lineEnd = lastContentLine >= scene->headingLine ? lastContentLine : scene->headingLine;
 }
 
 } // namespace
@@ -213,8 +222,10 @@ ParseResult Parser::Parse(const std::string& markdown) {
     int fenceLen = 0;
     std::string* bodyTarget = nullptr;
 
-    auto endCurrentBodies = [&]() {
-        FlushShot(result, currentScene, currentShot, hasShot);
+    auto endCurrentBodies = [&](int atLine) {
+        const int lastContentLine = atLine > 1 ? atLine - 1 : 0;
+        FlushShot(result, currentScene, currentShot, hasShot, lastContentLine);
+        CloseScene(currentScene, lastContentLine);
         bodyTarget = currentScene == nullptr ? nullptr : &currentScene->body;
     };
 
@@ -248,12 +259,12 @@ ParseResult Parser::Parse(const std::string& markdown) {
                         result.snapshot.documentTitle = title;
                     }
                 }
-                endCurrentBodies();
+                endCurrentBodies(line.number);
                 continue;
             }
 
             if (level == 2) {
-                endCurrentBodies();
+                endCurrentBodies(line.number);
                 std::string id;
                 std::string title;
                 if (!TryParseMarker(heading, "scene", id, title)) {
@@ -279,6 +290,8 @@ ParseResult Parser::Parse(const std::string& markdown) {
                 Scene scene;
                 scene.id = std::move(id);
                 scene.headingLine = line.number;
+                scene.lineStart = line.number;
+                scene.lineEnd = line.number;
                 if (title.empty()) {
                     scene.title = "未命名";
                     AddDiagnostic(result, DiagnosticSeverity::Warning, line.number,
@@ -293,7 +306,7 @@ ParseResult Parser::Parse(const std::string& markdown) {
             }
 
             if (level == 3) {
-                FlushShot(result, currentScene, currentShot, hasShot);
+                FlushShot(result, currentScene, currentShot, hasShot, line.number - 1);
                 std::string id;
                 std::string title;
                 if (!TryParseMarker(heading, "shot", id, title)) {
@@ -325,6 +338,8 @@ ParseResult Parser::Parse(const std::string& markdown) {
                 currentShot = Shot{};
                 currentShot.id = std::move(id);
                 currentShot.headingLine = line.number;
+                currentShot.lineStart = line.number;
+                currentShot.lineEnd = line.number;
                 if (title.empty()) {
                     currentShot.title = "未命名";
                     AddDiagnostic(result, DiagnosticSeverity::Warning, line.number,
@@ -346,7 +361,9 @@ ParseResult Parser::Parse(const std::string& markdown) {
         }
     }
 
-    FlushShot(result, currentScene, currentShot, hasShot);
+    const int lastLine = lines.empty() ? 0 : lines.back().number;
+    FlushShot(result, currentScene, currentShot, hasShot, lastLine);
+    CloseScene(currentScene, lastLine);
     result.completed = true;
     result.utf8Valid = true;
     return result;

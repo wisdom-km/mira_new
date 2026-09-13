@@ -50,7 +50,22 @@ TEST_CASE("SetWorkspaceModeCommand defaults to shoot") {
     REQUIRE(command.modeId == "shoot");
 }
 
+TEST_CASE("InsertShotCommand afterShotId defaults to empty") {
+    DirectorDesk::Core::InsertShotCommand command;
+    REQUIRE(command.afterShotId.empty());
+}
+
 TEST_CASE("ExportCurrentShotCommand default resolution is empty") {
     DirectorDesk::Core::ExportCurrentShotCommand command;
     REQUIRE(command.resolutionId.empty());
+}
+
+TEST_CASE("DeleteNode DuplicateNode and SetNodeVisible join the variant") {
+    using DirectorDesk::Core::Command;
+    Command del = DirectorDesk::Core::DeleteNodeCommand{"node-1"};
+    Command dup = DirectorDesk::Core::DuplicateNodeCommand{"node-1"};
+    Command hide = DirectorDesk::Core::SetNodeVisibleCommand{"node-1", false};
+    REQUIRE(std::get<DirectorDesk::Core::DeleteNodeCommand>(del).nodeId == "node-1");
+    REQUIRE(std::get<DirectorDesk::Core::DuplicateNodeCommand>(dup).nodeId == "node-1");
+    REQUIRE_FALSE(std::get<DirectorDesk::Core::SetNodeVisibleCommand>(hide).visible);
 }

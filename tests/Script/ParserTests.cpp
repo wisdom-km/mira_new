@@ -175,4 +175,21 @@ TEST_CASE("H4 headings stay in shot body", "[script][parser]") {
         "## [scene:scene-a] 场\n### [shot:shot-a] 镜\n#### 细节\n继续\n");
     REQUIRE(parsed.completed);
     REQUIRE(parsed.snapshot.scenes[0].shots[0].body.find("#### 细节") != std::string::npos);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].lineStart == 2);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].lineEnd == 4);
+}
+
+TEST_CASE("Fenced headings stay inside the shot line range", "[script][parser]") {
+    const char* text = "## [scene:scene-a] 场\n"
+                       "### [shot:shot-a] 一\n"
+                       "```\n"
+                       "## fake\n"
+                       "```\n"
+                       "### [shot:shot-b] 二\n";
+    const auto parsed = DirectorDesk::Script::Parser::Parse(text);
+    REQUIRE(parsed.completed);
+    REQUIRE(parsed.snapshot.scenes[0].shots.size() == 2);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].lineStart == 2);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].lineEnd == 5);
+    REQUIRE(parsed.snapshot.scenes[0].shots[1].lineStart == 6);
 }

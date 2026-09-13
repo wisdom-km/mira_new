@@ -227,6 +227,33 @@ TEST_CASE("Capture and hydrate restore cameras and collapse state", "[project]")
     REQUIRE(captured.shotLinks.size() == 1);
 }
 
+TEST_CASE("Project node visible false round-trips", "[project]") {
+    const std::string dir = MakeRoot("visible");
+    auto snapshot = SampleSnapshot(dir);
+    snapshot.nodes.front().visible = false;
+    const std::string path = DirectorDesk::Platform::Paths::Join(dir, "hidden.ddproj");
+    REQUIRE(DirectorDesk::App::ProjectFile::Save(path, snapshot).IsOk());
+    auto loaded = DirectorDesk::App::ProjectFile::Load(path);
+    REQUIRE(loaded.IsOk());
+    REQUIRE_FALSE(loaded.Value().nodes.front().visible);
+
+    DirectorDesk::Scene::Document scene;
+    DirectorDesk::Camera::CameraManager cameras;
+    DirectorDesk::Link::Table links;
+    DirectorDesk::Script::Document script;
+    DirectorDesk::Asset::Library library;
+    std::vector<std::string> diagnostics;
+    REQUIRE(DirectorDesk::App::HydrateProject(loaded.Value(), dir, scene, cameras, links, script,
+                                              library, diagnostics)
+                .IsOk());
+    REQUIRE_FALSE(scene.Find("node-chair-01")->visible);
+    const std::string recapturedPath = DirectorDesk::Platform::Paths::Join(dir, "again.ddproj");
+    auto captured = DirectorDesk::App::CaptureProject(
+        snapshot.projectId, snapshot.name, recapturedPath, scene, cameras, links, script, library,
+        snapshot.collapsedScenes);
+    REQUIRE_FALSE(captured.nodes.front().visible);
+}
+
 #ifdef DD_EXAMPLE_CAFE_PROJECT
 TEST_CASE("Shipped cafe example project opens with Chinese paths nearby", "[project][example]") {
     auto loaded = DirectorDesk::App::ProjectFile::Load(DD_EXAMPLE_CAFE_PROJECT);

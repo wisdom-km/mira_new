@@ -549,7 +549,23 @@ void DrawShotInspector(const AppViewState& state, Core::CommandQueue& commands,
     ImGui::PopID();
 }
 
-void DrawNodeInspector(Core::CommandQueue& commands, const NodeView& node) {
+void PushNodeTransform(Core::CommandQueue& commands, const std::string& nodeId, const float position[3],
+                       const float euler[3], const float scale[3]) {
+    Core::SetNodeTransformCommand transform;
+    transform.nodeId = nodeId;
+    transform.position[0] = position[0];
+    transform.position[1] = position[1];
+    transform.position[2] = position[2];
+    transform.eulerDegrees[0] = euler[0];
+    transform.eulerDegrees[1] = euler[1];
+    transform.eulerDegrees[2] = euler[2];
+    transform.scale[0] = scale[0];
+    transform.scale[1] = scale[1];
+    transform.scale[2] = scale[2];
+    commands.Push(transform);
+}
+
+void DrawNodeInspector(const AppViewState& state, Core::CommandQueue& commands, const NodeView& node) {
     ImGui::PushID(node.id.c_str());
     ImGui::TextUnformatted(node.name.c_str());
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
@@ -586,18 +602,42 @@ void DrawNodeInspector(Core::CommandQueue& commands, const NodeView& node) {
         ImGui::EndTable();
     }
     if (changed) {
-        Core::SetNodeTransformCommand transform;
-        transform.nodeId = node.id;
-        transform.position[0] = position[0];
-        transform.position[1] = position[1];
-        transform.position[2] = position[2];
-        transform.eulerDegrees[0] = euler[0];
-        transform.eulerDegrees[1] = euler[1];
-        transform.eulerDegrees[2] = euler[2];
-        transform.scale[0] = scale[0];
-        transform.scale[1] = scale[1];
-        transform.scale[2] = scale[2];
-        commands.Push(transform);
+        PushNodeTransform(commands, node.id, position, euler, scale);
+    }
+    if (ImGui::Button("对齐地面")) {
+        position[1] = 0.0f;
+        PushNodeTransform(commands, node.id, position, euler, scale);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("面向相机")) {
+        const float dx = state.selectedCameraPosition[0] - position[0];
+        const float dy = state.selectedCameraPosition[1] - position[1];
+        const float dz = state.selectedCameraPosition[2] - position[2];
+        const float horiz = std::sqrt(dx * dx + dz * dz);
+        if (horiz > 1.0e-5f || std::fabs(dy) > 1.0e-5f) {
+            euler[0] = std::atan2(-dy, std::max(horiz, 1.0e-5f)) * (180.0f / 3.14159265f);
+            euler[1] = std::atan2(dx, dz) * (180.0f / 3.14159265f);
+            euler[2] = 0.0f;
+            PushNodeTransform(commands, node.id, position, euler, scale);
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("复位")) {
+        const float origin[3] = {0.0f, 0.0f, 0.0f};
+        const float identityEuler[3] = {0.0f, 0.0f, 0.0f};
+        const float identityScale[3] = {1.0f, 1.0f, 1.0f};
+        PushNodeTransform(commands, node.id, origin, identityEuler, identityScale);
+    }
+    if (ImGui::SmallButton(node.visible ? "隐藏" : "显示")) {
+        commands.Push(Core::SetNodeVisibleCommand{node.id, !node.visible});
+    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton("复制")) {
+        commands.Push(Core::DuplicateNodeCommand{node.id});
+    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton("删除")) {
+        commands.Push(Core::DeleteNodeCommand{node.id});
     }
     ImGui::PopID();
 }
@@ -837,6 +877,9 @@ void DrawHierarchyBody(const AppViewState& state, Core::CommandQueue& commands,
                             commands.Push(Core::SelectShotCommand{shot.id});
                         }
                         if (ImGui::BeginPopupContextItem()) {
+                            if (ImGui::MenuItem("在此后插入镜头")) {
+                                commands.Push(Core::InsertShotCommand{shot.id});
+                            }
                             if (ImGui::MenuItem("删除镜头")) {
                                 commands.Push(Core::DeleteShotCommand{shot.id});
                             }
@@ -858,11 +901,31 @@ void DrawHierarchyBody(const AppViewState& state, Core::CommandQueue& commands,
             }
         } else {
             for (const NodeView& node : *state.nodes) {
+                ImGui::PushID(node.id.c_str());
                 const std::string nodeLabel =
-                    std::string(Icon::Box) + "  " + node.name + "##" + node.id;
-                if (ImGui::Selectable(nodeLabel.c_str(), node.selected)) {
+                    std::string(Icon::Box) + "  " + node.name + "##sel";
+                if (ImGui::Selectable(nodeLabel.c_str(), node.selected,
+                                    ImGuiSelectableFlags_AllowOverlap, ImVec2(-28.0f, 0.0f))) {
                     commands.Push(Core::SelectNodeCommand{node.id});
                 }
+                if (ImGui::BeginPopupContextItem("##node-menu")) {
+                    if (ImGui::MenuItem("复制")) {
+                        commands.Push(Core::DuplicateNodeCommand{node.id});
+                    }
+                    if (ImGui::MenuItem(node.visible ? "隐藏" : "显示")) {
+                        commands.Push(Core::SetNodeVisibleCommand{node.id, !node.visible});
+                    }
+                    if (ImGui::MenuItem("删除")) {
+                        commands.Push(Core::DeleteNodeCommand{node.id});
+                    }
+                    ImGui::EndPopup();
+                }
+                ImGui::SameLine();
+                const char* eye = node.visible ? Icon::Eye : Icon::EyeOff;
+                if (ImGui::SmallButton(eye)) {
+                    commands.Push(Core::SetNodeVisibleCommand{node.id, !node.visible});
+                }
+                ImGui::PopID();
             }
         }
         if (ImGui::TreeNodeEx("##cameras", ImGuiTreeNodeFlags_DefaultOpen, "相机")) {
@@ -1274,7 +1337,9 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
         const bool hasStatus = state.statusText != nullptr && state.statusText[0] != '\0';
         const bool hasExportIssues = ModeIs(state, "review") && state.exportIssues != nullptr &&
                                      !state.exportIssues->empty();
-        const bool warning = state.importInProgress || hasExportIssues;
+        const bool loadingScene = state.sceneLoadPending > 0 && state.sceneLoadTotal > 0;
+        const bool warning =
+            state.importInProgress || hasExportIssues || loadingScene || state.projectSaveInProgress;
         const ImVec4& statusDot = warning ? kWarning : (hasStatus ? kMuted : kSuccess);
         ImGui::TextColored(statusDot, "%s", warning ? Icon::TriangleAlert : Icon::CircleCheck);
         ImGui::SameLine(0.0f, 6.0f);
@@ -1296,6 +1361,15 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
         if (state.importInProgress) {
             ImGui::SameLine(0.0f, 16.0f);
             ImGui::TextColored(kWarning, "导入中");
+        }
+        if (state.projectSaveInProgress) {
+            ImGui::SameLine(0.0f, 16.0f);
+            ImGui::TextColored(kWarning, "正在校验资产");
+        }
+        if (state.sceneLoadPending > 0 && state.sceneLoadTotal > 0) {
+            ImGui::SameLine(0.0f, 16.0f);
+            ImGui::TextColored(kWarning, "加载模型 %u/%u", state.sceneLoadPending,
+                               state.sceneLoadTotal);
         }
         if (state.officialCatalogStatus != nullptr && state.officialCatalogStatus[0] != '\0') {
             ImGui::SameLine(0.0f, 16.0f);
@@ -1568,7 +1642,7 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
         }
     } else if (KindIs(state, "node")) {
         if (const NodeView* node = FindSelectedNode(state)) {
-            DrawNodeInspector(commands, *node);
+            DrawNodeInspector(state, commands, *node);
         } else {
             DrawOnboarding(state, commands);
         }
