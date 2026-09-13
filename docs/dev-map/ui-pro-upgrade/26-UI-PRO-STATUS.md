@@ -12,7 +12,7 @@
 | 代码基线 | Phase 10 已完成，产品 tag `v0.1.2` |
 | 最后更新 | 2026-08-21 |
 | 更新者 | Cursor AI |
-| 下一个允许执行的工作 | 0.1.2 发布后，后续功能只填进现有名词。不得新建 CMake 模块、不得接线真实 AI、暂不拆 `Application.cpp` |
+| 下一个允许执行的工作 | 本版已收口。后续工作转到 [`../foundation-upgrade/`](../foundation-upgrade/README.md)，以其 `36` 为准 |
 | 已写入代码的改动 | 4 个 UI-PRO Command + Wisdom 追加的 `DeleteShotCommand` / `RemoveLibraryAssetCommand`；`AppViewState` 增量；面板按区域 ID 重组 |
 
 ## 任务进度

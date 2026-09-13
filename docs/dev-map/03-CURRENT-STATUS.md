@@ -5,12 +5,13 @@
 ## 当前快照
 
 - **当前 Phase**：Phase 10 已完成
-- **当前版本工作**：**UI-PRO（UI 专业化升级）** 已随 **0.1.2** 打包。见 [`ui-pro-upgrade/`](ui-pro-upgrade/README.md)，进度以 [`ui-pro-upgrade/26-UI-PRO-STATUS.md`](ui-pro-upgrade/26-UI-PRO-STATUS.md) 为准
-- **最后更新**：2026-08-21
+- **上一版本**：**UI-PRO（UI 专业化升级）** 已随 **0.1.2** 打包。见 [`ui-pro-upgrade/`](ui-pro-upgrade/README.md)
+- **当前版本工作**：**FOUNDATION（地基、镜头包与 Skills 融合）**，F0 止血进行中（FND-01 已写入）。见 [`foundation-upgrade/`](foundation-upgrade/README.md)，进度以 [`foundation-upgrade/36-FOUNDATION-STATUS.md`](foundation-upgrade/36-FOUNDATION-STATUS.md) 为准
+- **最后更新**：2026-09-13
 - **更新者**：Cursor AI
 - **当前分支**：`main`
 - **最近完成 tag**：`v0.1.2`
-- **下一个允许执行的工作**：0.1.2 已发布后，后续功能只填进现有名词。不得新建 CMake 模块、不得接线真实 AI、暂不拆 `Application.cpp`
+- **下一个允许执行的工作**：FOUNDATION **F0 · FND-02**（shader 按平台裁剪）。按 [`foundation-upgrade/34-LANDING-CHECKLIST.md`](foundation-upgrade/34-LANDING-CHECKLIST.md) 顺序推进；不得新建 CMake 模块、不得接线真实 AI；`Application.cpp` 允许在 App 目标内分文件（FOUNDATION 版改写，见 foundation-upgrade/35 第四节）
 
 ## 已完成
 
@@ -20,12 +21,15 @@
 
 ## 进行中
 
-**UI-PRO 0.1.2**：W1–W3 已写入并打 Windows 安装包。设计与进度见 [`ui-pro-upgrade/`](ui-pro-upgrade/README.md)。
+**FOUNDATION**：五波任务（F0 止血 → F1 地基 → F2 镜头包 → F3 Skills 融合 → F4 待批准）。设计与进度见 [`foundation-upgrade/`](foundation-upgrade/README.md)。
 
-P0 路线图已完成；UI-PRO 之外的加删功能仍以 `07` 为准。
+**UI-PRO 0.1.2**：W1–W3 已写入并打 Windows 安装包，已收口。
+
+P0 路线图已完成；两个升级版之外的加删功能仍以 `07` 为准。
 
 ## 阻塞项
 
+- **GitHub Actions**：Windows runner 已改为 `windows-2022`（FND-01，待 push 后确认 job 绿）；macOS 仍对 dx11 跑 shaderc（FND-02）
 - **macOS 实机回归**：本机无 Mac。以 GitHub Actions `macOS` job 为门禁
 
 ## 已确认决策
@@ -43,7 +47,7 @@ P0 路线图已完成；UI-PRO 之外的加删功能仍以 `07` 为准。
 | 窗口图形 API | `GLFW_NO_API`，由 bgfx 创建交换链 |
 | 模型加载 | cgltf（GLB）+ tinyobjloader（OBJ），通过 `IModelLoader` 扩展 |
 | 网络与 JSON | libcurl + nlohmann-json |
-| 完整性校验 | picosha2（SHA-256）；工程文件仍用既有内置哈希 |
+| 完整性校验 | picosha2（SHA-256）；工程文件统一改用 `Core::Sha256`（FOUNDATION 版改写，见 foundation-upgrade/35 第四节；任务 FND-06） |
 | 测试 | Catch2 v3 |
 | 开发顺序 | 先走通含分镜画布的本地资产核心闭环，再实现在线资产库 |
 | 项目持久化 | 版本化 JSON `.ddproj` |
@@ -62,7 +66,9 @@ P0 路线图已完成；UI-PRO 之外的加删功能仍以 `07` 为准。
 | AI 接口 | 供应商无关；参考图只接受本地路径或 RGBA；P0 无密钥 UI、无真实调用 |
 | Windows 分发 | Inno Setup 安装包，发布到 GitHub Releases；批准者 Wisdom |
 | 应用 logo | 暂定 `img/dog.png`；Windows 图标为 `img/directordesk.ico`；批准者 Wisdom |
-| Demo 迭代策略 | 部分模块化：控制面保留，模块数锁定，AI 冻结为空岛；加删按 `07` 落点；原理见 `08`；暂不拆 `Application.cpp`；批准者 Wisdom |
+| Demo 迭代策略 | 部分模块化：控制面保留，模块数锁定，AI 冻结为空岛；加删按 `07` 落点；原理见 `08`；`Application.cpp` 允许在 App 目标内分文件、不新建模块（FOUNDATION 版改写，见 foundation-upgrade/35 第四节）；批准者 Wisdom |
+| Skills 融合 | DirectorDesk 只消费 Skill 产出（`storyboard-import`）与分发 Skill（官方资产 `format: skill`），不在软件内运行；见 `foundation-upgrade/32`；批准者 Wisdom |
+| 镜头元数据与镜头包 | 元数据以剧本引用块表达（`script-format 1.1`）；对下游 AI 的接口是镜头包 PNG + `.shot.json`；`.ddproj` 保持版本 1；批准者 Wisdom |
 | 当前画面镜头与关联 | 镜头检查器可选已有相机或新建机位；相机面孔不把当前画面镜头列入占用关联；删镜头/删相机都在左侧右键；批准者 Wisdom |
 | 资源库缺失条目 | 网格不显示；可删索引记录，不删磁盘源文件；批准者 Wisdom |
 
@@ -79,17 +85,28 @@ P0 路线图已完成；UI-PRO 之外的加删功能仍以 `07` 为准。
 
 ## 本次验证
 
-- Windows Debug 测试：109 cases / 590 assertions
-- 产品版本 **0.1.2**：UI-PRO 工作台 + 镜头可选已有相机 / 建新机位 + 左侧右键删镜头与相机 + 资源库清理缺失
+- FND-01：`.github/workflows/ci.yml` Windows 矩阵 `os: windows-2022`；`ci-windows` 生成器未改
+- Windows Debug 测试：109 cases / 590 assertions（本轮未改业务代码）
 
 ## 下一步清单
 
-1. 确认 GitHub Release `v0.1.2` 安装包可下载、安装后能打开咖啡馆示例
-2. 确认 GitHub Actions Windows + macOS 全绿
-3. 有 Mac 时按 `docs/RELEASE-CHECKLIST.md` 补实机回归
-4. 后续功能只填进现有名词；不拆 `Application.cpp`，除非编排痛到无法安全改 visit
+1. FOUNDATION F0（FND-01 → FND-09）：CI 双绿、六个明确 bug、开源门面；打 `v0.1.3`
+2. FOUNDATION F1（FND-10 → FND-18）：App 内分文件 + Dispatch 测试、异步加载 / 保存、节点删复制显隐、镜头插入位置；打 `v0.2.0`
+3. FOUNDATION F2 / F3 按 [`foundation-upgrade/34`](foundation-upgrade/34-LANDING-CHECKLIST.md) 推进；F4 逐项待 Wisdom 批准
+4. 有 Mac 时按 `docs/RELEASE-CHECKLIST.md` 补实机回归
 
 ## 工作日志
+
+### 2026-09-13：FND-01 Windows CI 生成器
+
+- CI Windows runner 从 `windows-latest` 改为 `windows-2022`，对齐 `Visual Studio 17 2022` 预设。未改 Ninja。
+
+### 2026-09-13：FOUNDATION 设计集落地
+
+- 新增 `docs/dev-map/foundation-upgrade/`（README + `30`–`36`）：同类项目调研与差距、逐文件代码审查、Skills 三层融合、契约增量、五波任务表、停手清单、状态页。
+- 依据 `v0.1.2` 全仓审查：CI 双红、打开 / 保存同步 IO、节点无删除、镜头只能追加、`RemoveShotSection` 文本扫描、官方资产持久化不符契约、两份 SHA-256、字符串判业务状态。
+- 改写四条旧决策（App 内分文件、统一 SHA-256、`script-format 1.1`、`asset-manifest 2`），记录在 `foundation-upgrade/35` 第四节；Gizmo / Undo / PDF 待批准。
+- 仅文档改动：未改业务代码、未新建 CMake 模块、AI 仍冻结。
 
 ### 2026-08-21：0.1.2 Windows 发布
 

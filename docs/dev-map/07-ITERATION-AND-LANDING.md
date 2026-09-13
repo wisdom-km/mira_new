@@ -12,7 +12,7 @@ DirectorDesk 已走完 P0 主路径，仍处于可加、可删功能的 Demo 阶
 - **最小可执行**决定做什么；**模块化**决定放哪、删时从哪拆。
 - 采用**部分模块化**：控制面全部保留，产品模块不再扩张，预留模块冻结。
 - 不要退回单文件大泥球，也不要为小功能新建第 14 个库。
-- **暂缓**：不拆分 `src/App/Application.cpp`。编排层允许厚；痛点未到之前不做文件切开。
+- `src/App/Application.cpp`：编排层允许厚；**允许在 App 目标内分文件**（`AppState` / `CommandDispatch*` / `ViewStateBuilder`），不新建模块、不改 `Application.h` 签名（FOUNDATION 版改写，见 foundation-upgrade/35 第四节；此前为「暂缓拆分」）。
 
 控制面（必须遵守，见 `01`）：
 
