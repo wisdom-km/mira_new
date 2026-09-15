@@ -2,6 +2,7 @@
 #include "DirectorDesk/App/CommandDispatch.h"
 
 #include "AppInternals.h"
+#include "DirectorDesk/Storyboard/Layout.h"
 
 #include <utility>
 #include <variant>
@@ -35,19 +36,22 @@ void SelectFirstShotIfNone(AppState& state) {
 }
 
 void RefreshBoard(AppState& state) {
+    state.storyboard.SetLayoutMode(Storyboard::ParseLayoutMode(state.storyboardLayout));
+    state.storyboard.SetCanvasWidth(state.storyboardViewWidth);
     state.storyboard.ApplySource(MakeBoardSource(state.script, state.links, state.cameras,
                                                  state.collapsedScenes, state.projectId));
     state.collapsedScenes = state.storyboard.CollapsedScenes();
 }
 
 void Dispatch(AppState& state, const Core::Command& command, DispatchServices& services) {
-    if (TryDispatchWorkspace(state, command, services) ||
+    if (TryDispatchUndo(state, command, services) || TryDispatchWorkspace(state, command, services) ||
         TryDispatchProject(state, command, services) ||
         TryDispatchScript(state, command, services) ||
         TryDispatchScene(state, command, services) ||
         TryDispatchCamera(state, command, services) ||
         TryDispatchLibrary(state, command, services) ||
-        TryDispatchExport(state, command, services)) {
+        TryDispatchExport(state, command, services) ||
+        TryDispatchAi(state, command, services)) {
         return;
     }
 }

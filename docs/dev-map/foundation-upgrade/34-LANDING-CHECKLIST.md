@@ -14,6 +14,7 @@
 | **F2 · 镜头包** | 0.3 | F1 完成 | 一个镜头能导出 PNG + `.shot.json`，被外部脚本读取成功 |
 | **F3 · Skills 融合** | 0.4 | F2 完成 | 一份 `storyboard-import.json` 导入后能在四模式里走完并导出镜头包；一个 Skill 能从资源库下载 |
 | **F4 · 角色包与体验** | 0.5 | Wisdom 逐项批准 | 见各任务 |
+| **F5 · AI 解冻** | 0.6 | Wisdom 2026-09-15 批准解冻 | 设置里能保存密钥；选中镜头可生成图像；示例 Skill 可安装并运行导入 |
 
 ## F0 · 止血（0.1.3，不改契约）
 
@@ -63,22 +64,34 @@
 | FND-34 | `docs/skills/README.md`、`tools/make-skill-manifest.(ps1\|py)` | Skill 作者三步接入指南 + 清单生成脚本 | [`32`](32-SKILLS-INTEGRATION.md) 五 | 用脚本给 `shuohao-skills` 的一个 Skill 生成合法清单条目 |
 | FND-35 | `examples/` | 加一份 `storyboard-import.example.json` 与对应导入后的 `.ddproj` | — | 开始板「示例」可选它 |
 
-## F4 · 角色包与体验（0.5，逐项待批准）
+## F4 · 角色包与体验（0.5，Wisdom 2026-09-15 已批准 FND-41/42/43）
 
 | ID | 名词 / 落点 | 改动 | 需批准的原因 | 完成标准 |
 |----|-------------|------|--------------|----------|
 | FND-40 | `asset-manifest 2`（`kind: character` / `rig`）、`Asset::ModelData.hasSkin`、cgltf 加载忽略 skin、资源库徽标 | 角色包静态加载 | 不需批准（manifest 2 已含字段）；列在此处只因依赖 Wisdom 的角色包仓库先存在 | 一个带骨骼 GLB 能下载、显示 bind pose、标「含骨骼」 |
-| FND-41 | ImGuizmo（vcpkg）只在 `src/UI/*.cpp`；输出走 `SetNodeTransformCommand` | 视口 Gizmo | 改 `03` 决策「不引入 ImGuizmo」+ 新第三方依赖 | 拖 Gizmo 与 `DragFloat3` 数值一致；公共头无 ImGuizmo 类型 |
-| FND-42 | `App`（命令快照栈，仅 Scene / Camera / Link 三个名词）、`Command.h`（`UndoCommand` / `RedoCommand`） | Undo / Redo | 改 `00` 第五节「P0 不做 Undo」 | 置景 20 步可逐步撤销；剧本文本不进栈（编辑器自带） |
-| FND-43 | `Storyboard`、`Export` | 分镜总览导出 PDF（单文件、每页 N 格） | 需新第三方（或自写最小 PDF writer） | 导出 A4 横向 PDF |
+| FND-41 | ImGuizmo（vcpkg）只在 `src/UI/*.cpp`；输出走 `SetNodeTransformCommand` | 视口 Gizmo | Wisdom 2026-09-15 | 拖 Gizmo 与 `DragFloat3` 数值一致；公共头无 ImGuizmo 类型 |
+| FND-42 | `App`（命令快照栈，仅 Scene / Camera / Link 三个名词）、`Command.h`（`UndoCommand` / `RedoCommand`） | Undo / Redo | Wisdom 2026-09-15 | 置景 20 步可逐步撤销；剧本文本不进栈（编辑器自带） |
+| FND-43 | `Storyboard`、`Export` | 分镜总览导出 PDF（单文件、每页 N 格） | Wisdom 2026-09-15 | 导出 A4 横向 PDF |
+
+## F5 · AI 解冻（0.6，Wisdom 2026-09-15 批准）
+
+| ID | 名词 / 落点 | 改动 | 依据 | 完成标准 |
+|----|-------------|------|------|----------|
+| FND-50 | `00`/`01`/`07`/`32`/`35`/`modules/ai-http.md`/`skill-run.md` | 解冻地图并写契约 | 本表 | 冻结文字改为 F5 改写；契约先于代码 |
+| FND-51 | `IHttpClient::Post`、Get 可选头 | HTTPS POST JSON | `01` 平台 | MockHttpClient 与 Curl 同步；测试不碰真网 |
+| FND-52 | `AI::ExecuteImageGeneration` / `ExecuteVideoGeneration` | OpenAI 兼容适配器 | [`ai-http`](../modules/ai-http.md) | 假 HTTP 客户端可完成 b64 出图；拒远程参考图；无密钥失败 |
+| FND-53 | `Command.h` + `DispatchAi` + `UserSettings` | 生成 / 取消 / 保存设置 | [`33`](33-CONTRACT-DELTA.md) | Dispatch 测试：mock 出本地 PNG；空密钥 openai-compat 拒绝 |
+| FND-54 | 检查器 AI 区、审片按钮 | UI 只发 Command | `07` | 有密钥或 mock 可点生成；进行中可取消 |
+| FND-55 | `AI::RunSkill` + 示例 `skill.json` | L3 运行 | [`32`](32-SKILLS-INTEGRATION.md)、[`skill-run`](../modules/skill-run.md) | 安装示例 Skill 后「运行」能 append 导入 JSON；无 skill.json 不跑进程 |
+| FND-56 | 分镜 Skill 走文本 LLM | `builtin: openai-compat-json` + `aiChatModel` + chat completions | [`skill-run`](../modules/skill-run.md)、[`ai-http`](../modules/ai-http.md) | mock 不联网写出 JSON；无密钥拒绝；假客户端 chat 写出合法导入 JSON |
 
 ## 每个任务的 Definition of Done
 
 除 `../05` 第十一节通用 DoD，本版追加：
 
 1. 「完成标准」列逐条可复现，写进 [`36`](36-FOUNDATION-STATUS.md) 验证记录。
-2. 没有触碰 [`35-DO-NOT.md`](35-DO-NOT.md) 第三节硬约束；F3 任务额外确认「软件内没有运行任何外部程序」。
+2. 没有触碰 [`35-DO-NOT.md`](35-DO-NOT.md) 第三节硬约束。F5 允许 Skill 子进程与 AI HTTPS，仍禁止 MCP 与供应商 SDK。
 3. 涉及格式的任务，`../modules/*.md` 先于代码提交；解析器测试覆盖该文档「最小测试集」全部条目。
 4. 新 Command 的语义在 `tests/App/` 有 Dispatch 测试（FND-10 之后强制）。
-5. 现有测试全绿；Windows + macOS CI 全绿（FND-01/02 之后强制）。
+5. 现有测试全绿；Windows CI 全绿（FND-01 之后强制）。macOS CI 暂缓，不挡本版任务（Wisdom 2026-09-15）。
 6. 收工同步 [`36`](36-FOUNDATION-STATUS.md) 与 `../03-CURRENT-STATUS.md`；改了契约同步 `../modules/`。

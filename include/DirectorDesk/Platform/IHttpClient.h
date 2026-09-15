@@ -13,12 +13,27 @@
 
 namespace DirectorDesk::Platform {
 
+struct HttpHeader {
+    std::string name;
+    std::string value;
+};
+
 struct HttpGetRequest {
     std::string url;
     std::string outputPath;
     std::uint32_t timeoutMs = 30000;
     const std::atomic<bool>* cancel = nullptr;
     std::function<void(std::uint64_t downloaded, std::uint64_t total)> progress;
+    std::vector<HttpHeader> headers;
+};
+
+struct HttpPostRequest {
+    std::string url;
+    std::string body;
+    std::string contentType = "application/json";
+    std::vector<HttpHeader> headers;
+    std::uint32_t timeoutMs = 120000;
+    const std::atomic<bool>* cancel = nullptr;
 };
 
 struct HttpGetResponse {
@@ -31,6 +46,7 @@ class IHttpClient {
 public:
     virtual ~IHttpClient() = default;
     virtual Core::Result<HttpGetResponse> Get(const HttpGetRequest& request) = 0;
+    virtual Core::Result<HttpGetResponse> Post(const HttpPostRequest& request) = 0;
 };
 
 } // namespace DirectorDesk::Platform

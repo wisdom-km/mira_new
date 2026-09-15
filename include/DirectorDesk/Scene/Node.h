@@ -20,7 +20,10 @@ struct Node {
     std::string parent;
     std::string sourcePath;
     std::string libraryAssetId;
+    std::string officialVersion;
+    std::string officialEntrypoint;
     bool assetMissing = false;
+    bool hasSkin = false;
 };
 
 } // namespace DirectorDesk::Scene

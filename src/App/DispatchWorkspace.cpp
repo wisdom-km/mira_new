@@ -13,6 +13,8 @@ bool TryDispatchWorkspace(AppState& state, const Core::Command& command,
         if (services.renderer != nullptr) {
             services.renderer->SetViewportSize(typed->width, typed->height);
         }
+        state.viewportWidth = typed->width;
+        state.viewportHeight = typed->height;
         return true;
     }
     if (std::holds_alternative<Core::ExportTestPngCommand>(command)) {
@@ -57,6 +59,7 @@ bool TryDispatchWorkspace(AppState& state, const Core::Command& command,
         state.storyboardViewZoom = typed->zoom > 0.0f ? typed->zoom : 1.0f;
         state.storyboardViewWidth = typed->width;
         state.storyboardViewHeight = typed->height;
+        state.storyboard.SetCanvasWidth(typed->width);
         return true;
     }
     if (const auto* typed = std::get_if<Core::SetWorkspaceModeCommand>(&command)) {

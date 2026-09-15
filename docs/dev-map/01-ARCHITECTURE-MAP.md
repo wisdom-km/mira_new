@@ -27,8 +27,8 @@
 | 日志 | **spdlog**（封装在 Core::Log） | 业务代码禁止直接 include spdlog |
 | 测试 | **Catch2 v3** | |
 | 构建 | CMake ≥ 3.24 + vcpkg **manifest 模式** | `vcpkg.json` + builtin-baseline 锁版本 |
-| CI | GitHub Actions | Windows + macOS 矩阵构建 + 测试 |
-| 平台 | Windows（优先） / macOS | |
+| CI | GitHub Actions | Windows 门禁 + 测试；macOS 矩阵暂缓（Wisdom 2026-09-15） |
+| 平台 | Windows（P0 验收） / macOS 暂缓 | |
 
 **shader 管理**：bgfx shader 源码放 `shaders/`，CMake 自定义命令调用 shaderc 在构建期编译到输出目录，禁止手工编译后提交二进制 shader。
 
@@ -81,7 +81,7 @@ Core ──▶ （无内部依赖）
 | Link | 镜头 ↔ 相机关联 |
 | Storyboard | 从 App 提供的不可变快照生成 Scene/Shot 图、确定性自动布局、卡片状态和可重建缩略图缓存调度 |
 | Export | 单镜头离屏渲染、透明 PNG、分辨率选择；数据驱动的完整分镜总览 PNG 输出 |
-| AI | IImageGenService / IVideoGenService；Null/Mock 仅供测试，P0 无供应商实现 |
+| AI | IImageGenService / IVideoGenService；Null/Mock + OpenAI 兼容 HTTPS 适配器；Skill 运行（`skill.json`）；无供应商 SDK |
 | UI | 全部 ImGui 面板（IPanel），含分镜画布交互视图；只发 Command、只读 State |
 | App | 唯一主循环与生命周期管理者、Command 分发、工程文件读写编排、跨模块快照组装与选择同步 |
 
@@ -142,9 +142,9 @@ public:
 ### 5. 线程模型
 
 - **主线程**：GLFW 事件、ImGui、渲染、Command 消费——全部业务状态只在主线程读写
-- **后台线程池**（Platform 提供）：仅用于资产下载与大文件模型加载
+- **后台线程**（Platform `Worker`）：资产下载、大文件模型加载、AI HTTP、Skill 子进程
 - 后台任务完成后将结果（成功/失败 + 数据）push 进**线程安全的结果队列**，由主线程在每帧开头取出并应用；后台线程**禁止**直接触碰任何业务状态
-- 除上述两条队列外，禁止新增跨线程共享可变状态
+- 禁止再增加「后台直接改业务对象」的通道；新的异步职责必须再加一条结果队列
 
 ### 6. UTF-8 约定
 
@@ -158,13 +158,16 @@ public:
 - 分镜画布同步与交互：`modules/storyboard-canvas.md`
 - 资产清单 JSON schema：`modules/asset-manifest.md`
 - 工程文件 `.ddproj`：`modules/project-file.md`
+- AI HTTP：`modules/ai-http.md`；Skill 运行：`modules/skill-run.md`
 
 ### 8. AI 接口边界
 
 - 图像/视频生成只通过 `IImageGenService` / `IVideoGenService`；请求携带镜头元数据与本地参考图（导出 PNG 路径或可选 RGBA 快照）
-- 参考图路径禁止 `://` 远程地址；服务实现不得依赖具体供应商类型
-- P0 只提供 Null（明确不可用）和 Mock（主线程 `Pump` 推进任务）；禁止供应商 SDK、密钥 UI 和真实网络调用
-- 任务状态经 `Submit` / `Progress` / `Cancel` / `TakeResult` 表达；未来供应商适配器由 App 用结果队列收回，不得把业务状态交给后台线程
+- 参考图路径禁止 `://` 远程地址；服务实现不得依赖具体供应商类型（无 OpenAI SDK，只有 HTTPS JSON）
+- Null（明确不可用）和 Mock（主线程 `Pump`）保留给测试；产品路径用 OpenAI 兼容适配器（`modules/ai-http.md`）
+- 密钥只出现在用户目录 `settings.json` 与内存；日志禁止记录密钥和 `Authorization`
+- 任务状态经 `Submit` / `Progress` / `Cancel` / `TakeResult` 表达；HTTP 在 Worker 上执行，App 用结果队列收回
+- Skill 运行落在 AI 模块（`modules/skill-run.md`），产出仍走 L1 `storyboard-import`
 
 ## 五、日志规范
 

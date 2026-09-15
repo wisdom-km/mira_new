@@ -20,13 +20,19 @@ bool TryDispatchScene(AppState& state, const Core::Command& command, DispatchSer
         if (!path.IsOk()) {
             state.status = path.GetError().userMessage;
             DD_LOG_ERROR("{}", path.GetError().technicalMessage);
-        } else if (!path.Value().empty() && services.submitImport) {
-            services.submitImport(path.Value());
+        } else if (!path.Value().empty()) {
+            if (IsSkillPath(path.Value())) {
+                InstallSkill(state, path.Value());
+            } else if (services.submitImport) {
+                services.submitImport(path.Value());
+            }
         }
         return true;
     }
     if (const auto* typed = std::get_if<Core::ImportModelFromPathCommand>(&command)) {
-        if (services.submitImport) {
+        if (IsSkillPath(typed->utf8Path)) {
+            InstallSkill(state, typed->utf8Path);
+        } else if (services.submitImport) {
             services.submitImport(typed->utf8Path);
         }
         return true;
@@ -116,6 +122,12 @@ bool TryDispatchScene(AppState& state, const Core::Command& command, DispatchSer
         const Asset::LibraryAsset* asset = state.library.Find(typed->assetId);
         if (asset == nullptr) {
             state.status = "找不到该资产";
+        } else if (asset->format == "skill") {
+            state.status = "Skill 不是模型";
+        } else if (const Asset::ManifestAsset* official =
+                       state.officialCatalog.FindAsset(typed->assetId);
+                   official != nullptr && official->kind == "skill") {
+            state.status = "Skill 不是模型";
         } else if (!asset->sourceExists || !Platform::Paths::Exists(asset->sourcePath)) {
             state.status = "源文件已丢失";
         } else {

@@ -8,22 +8,29 @@
 #include "DirectorDesk/Asset/Manifest.h"
 #include "DirectorDesk/Camera/Presets.h"
 #include "DirectorDesk/Core/Log.h"
+#include "DirectorDesk/Export/ShotExport.h"
 #include "DirectorDesk/Platform/FileDialog.h"
 #include "DirectorDesk/Platform/IHttpClient.h"
 #include "DirectorDesk/Platform/Paths.h"
 #include "DirectorDesk/Renderer/PngWriter.h"
-#include "DirectorDesk/Export/ShotExport.h"
-#include "DirectorDesk/Storyboard/BoardComposer.h"
 #include "DirectorDesk/Scene/Document.h"
+#include "DirectorDesk/Script/Parser.h"
 #include "DirectorDesk/Script/Types.h"
+#include "DirectorDesk/Storyboard/BoardComposer.h"
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstring>
-#include <memory>
+#include <ctime>
+#include <glm/geometric.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
+#include <iomanip>
+#include <memory>
+#include <sstream>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -34,6 +41,9 @@
 #endif
 #ifndef DD_OFFICIAL_ASSET_BASE_URL
 #define DD_OFFICIAL_ASSET_BASE_URL ""
+#endif
+#ifndef DD_PROJECT_VERSION
+#define DD_PROJECT_VERSION "0.1.3"
 #endif
 
 namespace DirectorDesk::App {
@@ -125,6 +135,13 @@ UI::UiPreferences ToUiPreferences(const UserSettings& settings) {
     preferences.showThirds = settings.showThirds;
     preferences.showSafeFrame = settings.showSafeFrame;
     preferences.viewportBackground = settings.viewportBackground;
+    preferences.uiScale = SanitizeUiScale(settings.uiScale);
+    if (preferences.uiScale <= 0.0f) {
+        preferences.uiScale = 1.0f;
+    }
+    preferences.openLastProject = settings.openLastProject;
+    preferences.defaultExportDirectory = settings.defaultExportDirectory;
+    preferences.defaultSkillId = settings.defaultSkillId;
     return preferences;
 }
 
@@ -137,18 +154,24 @@ UserSettings FromUiPreferences(const UI::UiPreferences& preferences) {
     settings.showGroundAxes = preferences.showGroundAxes;
     settings.showThirds = preferences.showThirds;
     settings.showSafeFrame = preferences.showSafeFrame;
-    settings.viewportBackground =
-        preferences.viewportBackground == "dark" ? "dark" : "neutral";
+    settings.viewportBackground = preferences.viewportBackground == "dark" ? "dark" : "neutral";
+    settings.uiScale = SanitizeUiScale(preferences.uiScale > 0.0f ? preferences.uiScale : 1.0f);
+    settings.openLastProject = preferences.openLastProject;
+    settings.defaultExportDirectory = preferences.defaultExportDirectory;
+    settings.defaultSkillId = preferences.defaultSkillId;
     return settings;
 }
 
 Renderer::RenderSceneView BuildSceneView(const Scene::Document& scene,
                                          const Camera::LightState& light, bool showGroundGrid,
-                                         bool showGroundAxes) {
+                                         bool showGroundAxes, float uiScale) {
     Renderer::RenderSceneView view;
     view.showTestMesh = scene.IsEmpty();
     view.showGroundGrid = showGroundGrid;
     view.showGroundAxes = showGroundAxes;
+    const float scale = uiScale > 0.05f ? uiScale : 1.0f;
+    view.groundGridLineWidth = scale;
+    view.groundAxisLineWidth = 2.0f * scale;
     view.light.direction = light.direction;
     view.light.color = light.color;
     for (const Scene::Node& node : scene.Nodes()) {
@@ -212,8 +235,42 @@ bool HandleExportTestPng(Renderer::IRenderer& renderer, const Camera::OrbitCamer
     return alphaOk;
 }
 
+void WriteLibraryPlaceholder(Asset::Library& library, const Asset::LibraryAsset& asset);
+
+bool IsSkillPath(const std::string& utf8Path) {
+    const std::string name = Platform::Paths::FileName(utf8Path);
+    return name == "SKILL.md" || name == "skill.md";
+}
+
+void InstallSkill(AppState& state, const std::string& utf8Path) {
+    if (utf8Path.empty()) {
+        return;
+    }
+    if (state.library.Directory().empty()) {
+        state.status = "资源库尚未打开";
+        return;
+    }
+    auto imported = state.library.Import(utf8Path, Asset::AssetOrigin::User);
+    if (!imported.IsOk()) {
+        state.status = imported.GetError().userMessage;
+        DD_LOG_ERROR("{}", imported.GetError().technicalMessage);
+        return;
+    }
+    WriteLibraryPlaceholder(state.library, imported.Value());
+    state.libraryOriginFilter = "all";
+    state.selectedLibraryAssetId = imported.Value().id;
+    state.selectionKind = "asset";
+    state.selectionId = imported.Value().id;
+    state.selectionLabel = imported.Value().name;
+    state.status = "已安装 Skill " + imported.Value().name;
+}
+
 void SubmitImport(AppState& state, Platform::Worker& worker,
-                   Core::ResultQueue<Asset::ModelLoadResult>& results, const std::string& path) {
+                  Core::ResultQueue<Asset::ModelLoadResult>& results, const std::string& path) {
+    if (IsSkillPath(path)) {
+        InstallSkill(state, path);
+        return;
+    }
     if (path.empty() || state.importInProgress) {
         if (state.importInProgress) {
             state.status = "已有模型正在加载";
@@ -387,7 +444,8 @@ void ReleaseGpuModel(AppState& state, Renderer::IRenderer* renderer, std::uint32
     }
 }
 
-void ApplyLoadedModel(AppState& state, Renderer::IRenderer& renderer, Asset::ModelLoadResult result) {
+void ApplyLoadedModel(AppState& state, Renderer::IRenderer& renderer,
+                      Asset::ModelLoadResult result) {
     if (!result.ok) {
         state.status = result.error.userMessage;
         DD_LOG_ERROR("{}", result.error.technicalMessage);
@@ -406,13 +464,21 @@ void ApplyLoadedModel(AppState& state, Renderer::IRenderer& renderer, Asset::Mod
     node.name = result.model.name.empty() ? Platform::Paths::FileName(result.sourcePath)
                                           : result.model.name;
     node.gpuModelId = uploaded.Value();
+    node.hasSkin = result.model.hasSkin;
     node.sourcePath = result.sourcePath;
-    node.libraryAssetId = Asset::Library::MakeId(result.sourcePath);
+    if (const Asset::LibraryAsset* indexed = state.library.FindBySourcePath(result.sourcePath);
+        indexed != nullptr) {
+        node.libraryAssetId = indexed->id;
+        node.officialVersion = indexed->version;
+        node.officialEntrypoint = indexed->entrypoint;
+    } else {
+        node.libraryAssetId = Asset::Library::MakeId(result.sourcePath);
+        IndexLibraryPath(state.library, result.sourcePath, Asset::AssetOrigin::User);
+    }
     state.scene.Add(std::move(node));
     RetainGpuModel(state, uploaded.Value());
-    IndexLibraryPath(state.library, result.sourcePath, Asset::AssetOrigin::User);
     state.status = result.model.warnings.empty() ? "已导入 " + state.scene.Selected()->name
-                                                : result.model.warnings.front();
+                                                 : result.model.warnings.front();
     DD_LOG_INFO("Imported model {} as {}", result.sourcePath, state.scene.Selected()->name);
 }
 
@@ -458,7 +524,7 @@ void AttachPlaceholderModels(AppState& state, Renderer::IRenderer* renderer) {
 }
 
 void QueueSceneModelLoads(AppState& state, Platform::Worker& worker,
-                           Core::ResultQueue<Asset::ModelLoadResult>& results) {
+                          Core::ResultQueue<Asset::ModelLoadResult>& results) {
     const Asset::LoaderRegistry* registry = &state.registry;
     const std::uint64_t generation = state.projectGeneration;
     std::uint32_t total = 0;
@@ -515,6 +581,7 @@ void ApplySceneNodeModel(AppState& state, Renderer::IRenderer* renderer,
     }
     if (renderer == nullptr) {
         node->assetMissing = false;
+        node->hasSkin = result.model.hasSkin;
         FinishSceneLoadSlot(state);
         return;
     }
@@ -527,8 +594,10 @@ void ApplySceneNodeModel(AppState& state, Renderer::IRenderer* renderer,
     }
     const std::uint32_t oldId = node->gpuModelId;
     const std::uint32_t newId = uploaded.Value();
+    const bool hasSkin = result.model.hasSkin;
     if (oldId == 0) {
         node->gpuModelId = newId;
+        node->hasSkin = hasSkin;
         RetainGpuModel(state, newId);
     } else {
         std::vector<std::string> users;
@@ -540,6 +609,7 @@ void ApplySceneNodeModel(AppState& state, Renderer::IRenderer* renderer,
         for (const std::string& id : users) {
             if (Scene::Node* shared = state.scene.Find(id)) {
                 shared->gpuModelId = newId;
+                shared->hasSkin = hasSkin;
                 RetainGpuModel(state, newId);
                 ReleaseGpuModel(state, renderer, oldId);
             }
@@ -640,13 +710,32 @@ void ResetProject(Scene::Document& scene, Camera::CameraManager& cameras, Link::
     projectDirty = false;
 }
 
+void PersistUserSettings(AppState& state) {
+    if (state.userSettingsPath.empty()) {
+        return;
+    }
+    auto saved = SaveUserSettings(state.userSettingsPath, state.userSettings);
+    if (!saved.IsOk()) {
+        DD_LOG_WARN("{}", saved.GetError().technicalMessage);
+    }
+}
+
+void RememberLastProject(AppState& state, const std::string& path) {
+    if (path.empty() || path == state.userSettings.lastProjectPath) {
+        return;
+    }
+    state.userSettings.lastProjectPath = path;
+    PersistUserSettings(state);
+}
+
 bool FinishSaveProject(AppState& state, const std::string& path) {
     if (path.empty()) {
         return false;
     }
-    auto snapshot = CaptureProject(state.projectId, state.projectName, path, state.scene,
-                                    state.cameras, state.links, state.script, state.library,
-                                    state.collapsedScenes);
+    auto snapshot =
+        CaptureProject(state.projectId, state.projectName, path, state.scene, state.cameras,
+                       state.links, state.script, state.library, state.collapsedScenes,
+                       state.storyboardLayout);
     auto saved = ProjectFile::Save(path, snapshot);
     if (!saved.IsOk()) {
         state.status = saved.GetError().userMessage;
@@ -658,12 +747,13 @@ bool FinishSaveProject(AppState& state, const std::string& path) {
     state.projectDirty = false;
     state.projectSaveInProgress = false;
     state.status = "已保存工程";
+    RememberLastProject(state, path);
     return true;
 }
 
 SaveProjectStatus RequestSaveProject(AppState& state, const std::string& path,
-                                      Platform::Worker* worker,
-                                      Core::ResultQueue<SaveHashJobResult>* hashResults) {
+                                     Platform::Worker* worker,
+                                     Core::ResultQueue<SaveHashJobResult>* hashResults) {
     if (path.empty()) {
         return SaveProjectStatus::Failed;
     }
@@ -675,7 +765,7 @@ SaveProjectStatus RequestSaveProject(AppState& state, const std::string& path,
     const std::vector<std::string> stale = CollectUncachedSourcePaths(state.scene, state.library);
     if (stale.empty() || worker == nullptr || hashResults == nullptr) {
         return FinishSaveProject(state, path) ? SaveProjectStatus::Saved
-                                                 : SaveProjectStatus::Failed;
+                                              : SaveProjectStatus::Failed;
     }
     state.projectSaveInProgress = true;
     state.projectSavePendingPath = path;
@@ -716,14 +806,14 @@ void DrainSaveHashResults(AppState& state, Core::ResultQueue<SaveHashJobResult>&
             }
         }
         state.projectSaveInProgress = false;
-        const std::string path =
-            job.savePath.empty() ? state.projectSavePendingPath : job.savePath;
+        const std::string path = job.savePath.empty() ? state.projectSavePendingPath : job.savePath;
         FinishSaveProject(state, path);
     }
 }
 
 bool OpenProjectAt(const std::string& path, AppState& state, Renderer::IRenderer* renderer,
-                    Platform::Worker* worker, Core::ResultQueue<Asset::ModelLoadResult>* loadResults) {
+                   Platform::Worker* worker,
+                   Core::ResultQueue<Asset::ModelLoadResult>* loadResults) {
     auto loaded = ProjectFile::Load(path);
     if (!loaded.IsOk()) {
         state.status = loaded.GetError().userMessage;
@@ -749,7 +839,8 @@ bool OpenProjectAt(const std::string& path, AppState& state, Renderer::IRenderer
         ReleaseSceneGpu(state.scene, *renderer);
     }
     state.scene.ReplaceNodes(nextScene.Nodes(), nextScene.SelectedId());
-    state.cameras.Replace(nextCameras.Cameras(), nextCameras.SelectedId(), nextCameras.LightPreset());
+    state.cameras.Replace(nextCameras.Cameras(), nextCameras.SelectedId(),
+                          nextCameras.LightPreset());
     state.links.Replace(nextLinks.All());
     if (nextScript.Path().empty()) {
         state.script.Reset();
@@ -779,8 +870,12 @@ bool OpenProjectAt(const std::string& path, AppState& state, Renderer::IRenderer
             state.collapsedScenes.push_back(id);
         }
     }
+    state.storyboardLayout = loaded.Value().storyboardLayout.empty()
+                                 ? std::string("grid")
+                                 : loaded.Value().storyboardLayout;
     state.projectDirty = false;
     state.status = diagnostics.empty() ? "已打开工程" : diagnostics.front();
+    RememberLastProject(state, path);
     return true;
 }
 
@@ -821,6 +916,7 @@ Storyboard::StoryboardSourceSnapshot MakeBoardSource(const Script::Document& scr
                 shotItem.cameraId = *cameraId;
                 shotItem.cameraExists = cameras.Find(*cameraId) != nullptr;
             }
+            shotItem.metaLine = Script::ComposeShotMetaLine(shot.meta);
             item.shots.push_back(std::move(shotItem));
         }
         snapshot.scenes.push_back(std::move(item));
@@ -844,6 +940,8 @@ void IndexReadyOfficial(Asset::OfficialCatalog& catalog, Asset::Library& library
         item.category = asset.category;
         item.tags = asset.tags;
         item.previewPath = state->previewPath;
+        item.version = asset.version;
+        item.entrypoint = asset.entrypoint;
         library.Upsert(item);
     }
 }
@@ -965,6 +1063,7 @@ bool ExportShotPng(AppState& state, Renderer::IRenderer& renderer, std::uint32_t
                    std::uint32_t fbH, const std::string& path, Export::ShotResolution resolution) {
     UI::ExportLogView log;
     log.label = Export::ResolutionId(resolution);
+    log.shotId = state.script.SelectedShotId();
     log.shotTitle = FindShotTitle(state.script, state.script.SelectedShotId());
     log.path = path;
     if (state.cameras.Selected() == nullptr) {
@@ -977,7 +1076,7 @@ bool ExportShotPng(AppState& state, Renderer::IRenderer& renderer, std::uint32_t
     const float aspect = static_cast<float>(target.width) / static_cast<float>(target.height);
     renderer.BeginFrame(fbW, fbH);
     renderer.RenderScene(BuildSceneView(state.scene, state.cameras.CurrentLight(), false),
-                          state.cameras.Selected()->orbit.BuildView(aspect), target);
+                         state.cameras.Selected()->orbit.BuildView(aspect), target);
     auto pixels = renderer.ReadbackTarget(target);
     if (!pixels.IsOk()) {
         state.status = pixels.GetError().userMessage;
@@ -994,6 +1093,159 @@ bool ExportShotPng(AppState& state, Renderer::IRenderer& renderer, std::uint32_t
     }
     state.storyboard.MarkShotExported(state.script.SelectedShotId());
     state.status = "已导出 " + Platform::Paths::FileName(path);
+    log.ok = true;
+    PushExportLog(state.exportLog, std::move(log));
+    return true;
+}
+
+std::string UtcTimestamp() {
+    const std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::tm utc{};
+#ifdef _WIN32
+    gmtime_s(&utc, &now);
+#else
+    gmtime_r(&now, &utc);
+#endif
+    std::ostringstream out;
+    out << std::put_time(&utc, "%Y-%m-%dT%H:%M:%SZ");
+    return out.str();
+}
+
+bool ExportShotPackage(AppState& state, Renderer::IRenderer& renderer, std::uint32_t fbW,
+                       std::uint32_t fbH, const std::string& path,
+                       Export::ShotResolution resolution, const std::string& shotId) {
+    UI::ExportLogView log;
+    log.label = "package";
+    log.shotId = shotId;
+    log.shotTitle = FindShotTitle(state.script, shotId);
+    log.path = path;
+    const Script::Shot* shot = nullptr;
+    const Script::Scene* scene = nullptr;
+    if (state.script.HasPublishedSnapshot()) {
+        for (const Script::Scene& sceneItem : state.script.PublishedSnapshot().scenes) {
+            for (const Script::Shot& shotItem : sceneItem.shots) {
+                if (shotItem.id == shotId) {
+                    shot = &shotItem;
+                    scene = &sceneItem;
+                    break;
+                }
+            }
+            if (shot != nullptr) {
+                break;
+            }
+        }
+    }
+    if (shot == nullptr) {
+        state.status = "没有可导出的镜头";
+        log.message = state.status;
+        PushExportLog(state.exportLog, std::move(log));
+        return false;
+    }
+    const Camera::CameraRig* camera = nullptr;
+    if (const std::string* cameraId = state.links.CameraForShot(shotId)) {
+        camera = state.cameras.Find(*cameraId);
+    }
+    if (camera == nullptr) {
+        camera = state.cameras.Selected();
+    }
+    if (camera == nullptr) {
+        state.status = "没有可导出的相机";
+        log.message = state.status;
+        PushExportLog(state.exportLog, std::move(log));
+        return false;
+    }
+    const auto target = Export::MakeOffscreenTarget(resolution, state.exportTransparent);
+    const float aspect = static_cast<float>(target.width) / static_cast<float>(target.height);
+    renderer.BeginFrame(fbW, fbH);
+    renderer.RenderScene(BuildSceneView(state.scene, state.cameras.CurrentLight(), false),
+                         camera->orbit.BuildView(aspect), target);
+    auto pixels = renderer.ReadbackTarget(target);
+    if (!pixels.IsOk()) {
+        state.status = pixels.GetError().userMessage;
+        log.message = state.status;
+        PushExportLog(state.exportLog, std::move(log));
+        return false;
+    }
+    const glm::vec3 position = camera->orbit.Position();
+    const glm::vec3 lookAt = camera->orbit.Target();
+    glm::vec3 forward = lookAt - position;
+    if (glm::length(forward) < 1.0e-5f) {
+        forward = glm::vec3(0.0f, 0.0f, -1.0f);
+    } else {
+        forward = glm::normalize(forward);
+    }
+    glm::vec3 up(0.0f, 1.0f, 0.0f);
+    if (std::abs(glm::dot(forward, up)) > 0.999f) {
+        up = glm::vec3(0.0f, 0.0f, 1.0f);
+    }
+    const glm::quat rotation = glm::quatLookAt(forward, up);
+
+    Export::ShotPackageInput input;
+    input.generatedBy = std::string("DirectorDesk ") + DD_PROJECT_VERSION;
+    input.generatedAt = UtcTimestamp();
+    input.projectName = state.projectName;
+    input.projectId = state.projectId;
+    input.sceneId = scene->id;
+    input.sceneTitle = scene->title;
+    input.sceneBody = scene->body;
+    input.shotId = shot->id;
+    input.shotTitle = shot->title;
+    input.shotBody = shot->body;
+    for (const Script::ShotMeta& meta : shot->meta) {
+        input.meta.push_back(Export::ShotPackageMeta{meta.key, meta.value});
+        if (meta.key == "提示词") {
+            input.prompt = meta.value;
+        } else if (meta.key == "负面提示词") {
+            input.negativePrompt = meta.value;
+        }
+    }
+    input.imageWidth = target.width;
+    input.imageHeight = target.height;
+    input.transparentBackground = state.exportTransparent;
+    input.cameraId = camera->id;
+    input.cameraName = camera->name;
+    input.cameraPosition = {position.x, position.y, position.z};
+    input.cameraRotation = {rotation.x, rotation.y, rotation.z, rotation.w};
+    input.cameraLookAt = {lookAt.x, lookAt.y, lookAt.z};
+    input.verticalFovDegrees = camera->orbit.FovYDegrees();
+    input.aspect = aspect;
+    input.cameraPreset = camera->lastPreset;
+    input.lightingPreset = Camera::LightPresetId(state.cameras.LightPreset());
+    for (const Scene::Node& node : state.scene.Nodes()) {
+        if (!node.visible) {
+            continue;
+        }
+        Export::ShotPackageNode packed;
+        packed.id = node.id;
+        packed.name = node.name;
+        packed.assetId = node.libraryAssetId.empty() ? node.assetRef : node.libraryAssetId;
+        packed.assetName = node.name;
+        if (const Asset::LibraryAsset* asset = state.library.Find(packed.assetId)) {
+            packed.assetName = asset->name;
+        } else if (const Asset::ManifestAsset* official =
+                       state.officialCatalog.FindAsset(packed.assetId)) {
+            packed.assetName = Asset::PickLocale(official->name);
+        }
+        packed.position = {node.transform.position.x, node.transform.position.y,
+                           node.transform.position.z};
+        packed.rotation = {node.transform.rotation.x, node.transform.rotation.y,
+                           node.transform.rotation.z, node.transform.rotation.w};
+        packed.scale = {node.transform.scale.x, node.transform.scale.y, node.transform.scale.z};
+        packed.visible = true;
+        input.sceneNodes.push_back(std::move(packed));
+    }
+
+    const std::string directory = Platform::Paths::Parent(path);
+    auto writtenPackage = Export::WriteShotPackage(directory, input, pixels.Value());
+    if (!writtenPackage.IsOk()) {
+        state.status = writtenPackage.GetError().userMessage;
+        log.message = state.status;
+        PushExportLog(state.exportLog, std::move(log));
+        return false;
+    }
+    state.storyboard.MarkShotExported(shotId);
+    state.status = "已导出镜头包 " + writtenPackage.Value().pngPath;
+    log.path = writtenPackage.Value().jsonPath;
     log.ok = true;
     PushExportLog(state.exportLog, std::move(log));
     return true;
@@ -1035,7 +1287,76 @@ bool ExportBoardPng(AppState& state, const std::string& path) {
         PushExportLog(state.exportLog, std::move(log));
         return false;
     }
+    const std::string imageName = Platform::Paths::FileName(path);
+    std::vector<Export::BoardIndexShot> indexShots;
+    for (const Storyboard::LayoutCard& card : request.layout.cards) {
+        if (card.kind != Storyboard::CardKind::Shot) {
+            continue;
+        }
+        Export::BoardIndexShot item;
+        item.id = card.shotId;
+        item.title = card.title;
+        item.image = imageName;
+        item.metaLine = card.metaLine;
+        indexShots.push_back(std::move(item));
+    }
+    const std::string indexPath =
+        Platform::Paths::Join(Platform::Paths::Parent(path), "board.json");
+    auto indexWritten = Export::WriteBoardIndex(indexPath, imageName, indexShots);
+    if (!indexWritten.IsOk()) {
+        state.status = indexWritten.GetError().userMessage;
+        log.message = state.status;
+        PushExportLog(state.exportLog, std::move(log));
+        return false;
+    }
     state.status = composed.Value().scaledToMax ? "已导出分镜总览（已缩放）" : "已导出分镜总览";
+    log.ok = true;
+    PushExportLog(state.exportLog, std::move(log));
+    return true;
+}
+
+bool ExportBoardPdf(AppState& state, const std::string& path) {
+    UI::ExportLogView log;
+    log.label = "pdf";
+    log.path = path;
+    Storyboard::BoardComposeRequest request;
+    request.layout = state.storyboard.ExportLayout();
+    for (const Storyboard::LayoutCard& card : request.layout.cards) {
+        if (card.kind != Storyboard::CardKind::Shot) {
+            continue;
+        }
+        if (const Storyboard::ThumbnailRecord* thumb = state.storyboard.Thumbnail(card.shotId)) {
+            request.thumbnails[card.shotId] = thumb->pixels;
+        }
+    }
+    auto font = Platform::Paths::UiFontFile();
+    if (font.IsOk()) {
+        request.fontPath = font.Value();
+    }
+    auto composed = Storyboard::ComposePdfPages(request, 6);
+    if (!composed.IsOk()) {
+        state.status = composed.GetError().userMessage;
+        log.message = state.status;
+        PushExportLog(state.exportLog, std::move(log));
+        return false;
+    }
+    std::vector<Renderer::PixelBuffer> pages;
+    pages.reserve(composed.Value().pages.size());
+    for (Storyboard::ImageBuffer& image : composed.Value().pages) {
+        Renderer::PixelBuffer pixels;
+        pixels.width = image.width;
+        pixels.height = image.height;
+        pixels.rgba = std::move(image.rgba);
+        pages.push_back(std::move(pixels));
+    }
+    auto written = Export::WriteBoardPdf(path, pages);
+    if (!written.IsOk()) {
+        state.status = written.GetError().userMessage;
+        log.message = state.status;
+        PushExportLog(state.exportLog, std::move(log));
+        return false;
+    }
+    state.status = "已导出分镜 PDF " + path;
     log.ok = true;
     PushExportLog(state.exportLog, std::move(log));
     return true;
@@ -1088,11 +1409,12 @@ void TickStoryboardGpu(AppState& state, Renderer::IRenderer& renderer) {
 }
 
 void DrainAppQueues(AppState& state, Renderer::IRenderer& renderer,
-                     Core::ResultQueue<Asset::ModelLoadResult>& loadResults,
-                     Core::ResultQueue<OfficialRefreshResult>& officialRefreshResults,
-                     Core::ResultQueue<OfficialDownloadJobResult>& officialDownloadResults,
-                     Core::ResultQueue<OfficialProgressUpdate>& officialProgressResults,
-                     Core::ResultQueue<SaveHashJobResult>& hashResults) {
+                    Core::ResultQueue<Asset::ModelLoadResult>& loadResults,
+                    Core::ResultQueue<OfficialRefreshResult>& officialRefreshResults,
+                    Core::ResultQueue<OfficialDownloadJobResult>& officialDownloadResults,
+                    Core::ResultQueue<OfficialProgressUpdate>& officialProgressResults,
+                    Core::ResultQueue<SaveHashJobResult>& hashResults,
+                    Core::ResultQueue<AiJobResult>* aiResults) {
     DrainLoadResults(state, &renderer, loadResults);
     DrainSaveHashResults(state, hashResults);
     OfficialRefreshResult officialRefresh;
@@ -1110,8 +1432,8 @@ void DrainAppQueues(AppState& state, Renderer::IRenderer& renderer,
         } else {
             state.officialCatalog.LoadCache();
             state.officialCatalogStatus = officialRefresh.message.empty()
-                                             ? "清单刷新失败，已使用缓存"
-                                             : officialRefresh.message;
+                                              ? "清单刷新失败，已使用缓存"
+                                              : officialRefresh.message;
         }
     }
     OfficialProgressUpdate officialProgress;
@@ -1141,6 +1463,9 @@ void DrainAppQueues(AppState& state, Renderer::IRenderer& renderer,
         } else if (!officialDownload.message.empty()) {
             state.status = officialDownload.message;
         }
+    }
+    if (aiResults != nullptr) {
+        DrainAiResults(state, *aiResults);
     }
 }
 
@@ -1199,14 +1524,13 @@ void DestroyLibraryPreviewTextures(AppState& state, Renderer::IRenderer& rendere
 }
 
 void SubmitOfficialRefresh(AppState& state, Platform::Worker& worker, Platform::IHttpClient* http,
-                            Core::ResultQueue<OfficialRefreshResult>& results) {
+                           Core::ResultQueue<OfficialRefreshResult>& results) {
     if (state.officialRefreshInFlight) {
         return;
     }
     if (!state.officialCatalog.IsConfigured() || http == nullptr) {
-        state.officialCatalogStatus = state.officialCatalog.Manifest().assets.empty()
-                                          ? "官方地址未配置"
-                                          : "正在使用缓存清单";
+        state.officialCatalogStatus =
+            state.officialCatalog.Manifest().assets.empty() ? "官方地址未配置" : "正在使用缓存清单";
         return;
     }
     state.officialRefreshInFlight = true;
@@ -1237,10 +1561,10 @@ void SubmitOfficialRefresh(AppState& state, Platform::Worker& worker, Platform::
     });
 }
 
-void SubmitOfficialDownload(AppState& state, Platform::Worker& worker,
-                              Platform::IHttpClient* http, const std::string& assetId,
-                              Core::ResultQueue<OfficialDownloadJobResult>& downloadResults,
-                              Core::ResultQueue<OfficialProgressUpdate>& progressResults) {
+void SubmitOfficialDownload(AppState& state, Platform::Worker& worker, Platform::IHttpClient* http,
+                            const std::string& assetId,
+                            Core::ResultQueue<OfficialDownloadJobResult>& downloadResults,
+                            Core::ResultQueue<OfficialProgressUpdate>& progressResults) {
     const Asset::ManifestAsset* asset = state.officialCatalog.FindAsset(assetId);
     if (asset == nullptr || http == nullptr || state.officialCache.empty()) {
         state.status = "无法下载官方资产";
@@ -1256,8 +1580,7 @@ void SubmitOfficialDownload(AppState& state, Platform::Worker& worker,
     const Asset::OfficialEndpoints endpoints = MakeOfficialEndpoints();
     const std::string cache = state.officialCache;
     const Asset::ManifestAsset copied = *asset;
-    worker.Submit([http, endpoints, cache, copied, cancel, &downloadResults,
-                    &progressResults]() {
+    worker.Submit([http, endpoints, cache, copied, cancel, &downloadResults, &progressResults]() {
         OfficialDownloadJobResult result;
         result.assetId = copied.id;
         result.asset = copied;
@@ -1266,20 +1589,18 @@ void SubmitOfficialDownload(AppState& state, Platform::Worker& worker,
             downloadResults.Push(std::move(result));
             return;
         }
-        auto done = Asset::DownloadOfficialFiles(cache, endpoints, copied, *http, cancel.get(),
-                                                 [&](float value) {
-                                                     progressResults.Push({copied.id, value});
-                                                 });
+        auto done = Asset::DownloadOfficialFiles(
+            cache, endpoints, copied, *http, cancel.get(),
+            [&](float value) { progressResults.Push({copied.id, value}); });
         if (done.IsOk()) {
             result.ok = true;
             result.state = done.Value();
         } else {
             result.message = done.GetError().userMessage;
-            result.state.status =
-                result.message == Asset::OfficialCatalog::FailureMessage(
-                                      Asset::OfficialFailureKind::Cancelled)
-                    ? Asset::OfficialDownloadStatus::Cancelled
-                    : Asset::OfficialDownloadStatus::Failed;
+            result.state.status = result.message == Asset::OfficialCatalog::FailureMessage(
+                                                        Asset::OfficialFailureKind::Cancelled)
+                                      ? Asset::OfficialDownloadStatus::Cancelled
+                                      : Asset::OfficialDownloadStatus::Failed;
         }
         downloadResults.Push(std::move(result));
     });

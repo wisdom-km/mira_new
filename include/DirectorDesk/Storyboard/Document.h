@@ -17,6 +17,8 @@ class Document {
 public:
     // Storyboard consumes immutable script/link snapshots and owns preview lifecycle state.
     void ApplySource(const StoryboardSourceSnapshot& snapshot);
+    void SetLayoutMode(LayoutMode mode);
+    void SetCanvasWidth(float width);
     void Clear();
     void SetCollapsed(const std::string& sceneId, bool collapsed);
     void SetSelectedShot(const std::string& shotId);
@@ -60,6 +62,8 @@ private:
 
     StoryboardSourceSnapshot m_source;
     LayoutResult m_layout;
+    LayoutMode m_layoutMode = LayoutMode::Grid;
+    float m_canvasWidth = 0.0f;
     std::vector<std::string> m_collapsed;
     std::string m_selectedShotId;
     bool m_heldLastValid = false;

@@ -106,6 +106,14 @@ bool PreviewOk(const std::string& path) {
     return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp";
 }
 
+std::string PathFileName(const std::string& path) {
+    const std::size_t slash = path.find_last_of('/');
+    if (slash == std::string::npos) {
+        return path;
+    }
+    return path.substr(slash + 1);
+}
+
 } // namespace
 
 std::string PickLocale(const LocalizedText& text) {
@@ -158,8 +166,12 @@ ManifestParseResult ParseManifest(const std::string& jsonText) {
             result.diagnostics.emplace_back("root is not an object");
             return result;
         }
-        if (!root.contains("schemaVersion") || !root["schemaVersion"].is_number_integer() ||
-            root["schemaVersion"].get<int>() != 1) {
+        if (!root.contains("schemaVersion") || !root["schemaVersion"].is_number_integer()) {
+            result.diagnostics.emplace_back("unsupported schemaVersion");
+            return result;
+        }
+        const int schemaVersion = root["schemaVersion"].get<int>();
+        if (schemaVersion != 1 && schemaVersion != 2) {
             result.diagnostics.emplace_back("unsupported schemaVersion");
             return result;
         }
@@ -210,6 +222,12 @@ ManifestParseResult ParseManifest(const std::string& jsonText) {
             asset.format = item.value("format", "");
             asset.entrypoint = item.value("entrypoint", "");
             asset.preview = item.value("preview", "");
+            asset.kind = item.value("kind", "");
+            if (item.contains("rig") && item["rig"].is_object()) {
+                asset.rigType = item["rig"].value("type", "");
+                asset.rigSource = item["rig"].value("source", "");
+                asset.rigBoneCount = item["rig"].value("boneCount", 0);
+            }
             if (item.contains("license") && item["license"].is_object()) {
                 asset.license.spdx = item["license"].value("spdx", "");
                 asset.license.name = item["license"].value("name", "");
@@ -249,11 +267,25 @@ ManifestParseResult ParseManifest(const std::string& jsonText) {
                 }
             }
 
+            if (asset.kind.empty()) {
+                asset.kind = asset.format == "skill" ? "skill" : "model";
+            }
+            const bool skillAsset = asset.format == "skill" || asset.kind == "skill";
+            const bool formatOk = asset.format == "glb" || asset.format == "obj" ||
+                                  (schemaVersion >= 2 && asset.format == "skill");
+            const bool kindOk = asset.kind == "model" || asset.kind == "skill" ||
+                                asset.kind == "character";
+            const bool skillShapeOk = !skillAsset || (asset.format == "skill" && schemaVersion >= 2);
+            const bool characterShapeOk = asset.kind != "character" || asset.format == "glb";
+            const bool rigOk = asset.rigType.empty() || asset.rigType == "humanoid" ||
+                               asset.rigType == "custom" || asset.rigType == "none";
+            const bool licenseOk =
+                asset.license.spdx == "CC0-1.0" || asset.license.spdx == "CC-BY-4.0" ||
+                (skillAsset && (asset.license.spdx == "MIT" || asset.license.spdx == "Apache-2.0"));
             if (!IsAssetId(asset.id) || !IsSemVer(asset.version) || !HasName(asset.name) ||
-                categoryIds.count(asset.category) == 0 ||
-                (asset.format != "glb" && asset.format != "obj") || asset.files.empty() ||
-                FindFile(asset.files, asset.entrypoint) == nullptr ||
-                (asset.license.spdx != "CC0-1.0" && asset.license.spdx != "CC-BY-4.0") ||
+                categoryIds.count(asset.category) == 0 || !formatOk || !kindOk || !skillShapeOk ||
+                !characterShapeOk || !rigOk || asset.files.empty() ||
+                FindFile(asset.files, asset.entrypoint) == nullptr || !licenseOk ||
                 asset.author.name.empty()) {
                 result.diagnostics.emplace_back("rejected asset " + asset.id);
                 continue;
@@ -281,13 +313,20 @@ ManifestParseResult ParseManifest(const std::string& jsonText) {
                 continue;
             }
             const ManifestFile* entry = FindFile(asset.files, asset.entrypoint);
-            const std::string expectedExt = asset.format == "glb" ? ".glb" : ".obj";
-            if (entry == nullptr ||
-                entry->path.size() < expectedExt.size() ||
-                entry->path.compare(entry->path.size() - expectedExt.size(), expectedExt.size(),
-                                    expectedExt) != 0) {
-                result.diagnostics.emplace_back("rejected asset entrypoint " + asset.id);
-                continue;
+            if (skillAsset) {
+                const std::string fileName = PathFileName(asset.entrypoint);
+                if (entry == nullptr || fileName != "SKILL.md") {
+                    result.diagnostics.emplace_back("rejected asset entrypoint " + asset.id);
+                    continue;
+                }
+            } else {
+                const std::string expectedExt = asset.format == "glb" ? ".glb" : ".obj";
+                if (entry == nullptr || entry->path.size() < expectedExt.size() ||
+                    entry->path.compare(entry->path.size() - expectedExt.size(), expectedExt.size(),
+                                        expectedExt) != 0) {
+                    result.diagnostics.emplace_back("rejected asset entrypoint " + asset.id);
+                    continue;
+                }
             }
             assetKeys.insert(key);
             result.assets.push_back(std::move(asset));

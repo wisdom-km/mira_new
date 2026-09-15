@@ -14,12 +14,15 @@ target_include_directories(dd_ui
         "${PROJECT_SOURCE_DIR}/include"
 )
 
+find_package(imguizmo CONFIG REQUIRED)
+
 # UI may use Dear ImGui. It must not link Platform, GLFW, spdlog, or bgfx.
 target_link_libraries(dd_ui
     PUBLIC
         dd_core
     PRIVATE
         imgui::imgui
+        imguizmo::imguizmo
 )
 
 target_compile_features(dd_ui PUBLIC cxx_std_17)

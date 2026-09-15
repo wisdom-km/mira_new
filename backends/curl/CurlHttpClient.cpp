@@ -1,5 +1,4 @@
 // CurlHttpClient: Implementation for the DirectorDesk curl module.
-// This file owns project behavior only; keep platform and dependency boundaries explicit.
 
 #include "CurlHttpClient.h"
 
@@ -7,11 +6,11 @@
 
 #include <curl/curl.h>
 
-#include "DirectorDesk/Platform/Paths.h"
-
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace DirectorDesk::Backends {
 namespace {
@@ -66,6 +65,28 @@ Core::Error CurlError(CURLcode code, const std::string& extra) {
     return Core::Error::Make(Core::ErrorCode::IoFailure, extra, "HTTP 错误");
 }
 
+bool IsHttps(const std::string& url) {
+    return url.rfind("https://", 0) == 0;
+}
+
+curl_slist* AppendHeaders(curl_slist* list, const std::vector<Platform::HttpHeader>& headers,
+                          const std::string& contentType) {
+    std::vector<std::string> lines;
+    if (!contentType.empty()) {
+        lines.push_back("Content-Type: " + contentType);
+    }
+    for (const Platform::HttpHeader& header : headers) {
+        if (header.name.empty()) {
+            continue;
+        }
+        lines.push_back(header.name + ": " + header.value);
+    }
+    for (const std::string& line : lines) {
+        list = curl_slist_append(list, line.c_str());
+    }
+    return list;
+}
+
 class CurlHttpClient final : public Platform::IHttpClient {
 public:
     CurlHttpClient() {
@@ -77,7 +98,7 @@ public:
     }
 
     Core::Result<Platform::HttpGetResponse> Get(const Platform::HttpGetRequest& request) override {
-        if (request.url.rfind("https://", 0) != 0) {
+        if (!IsHttps(request.url)) {
             return Core::Result<Platform::HttpGetResponse>::Fail(Core::Error::Make(
                 Core::ErrorCode::InvalidArgument, "HTTP client only allows https",
                 "只允许 HTTPS 下载"));
@@ -106,6 +127,7 @@ public:
             state.memory = &response.body;
         }
 
+        curl_slist* headerList = AppendHeaders(nullptr, request.headers, {});
         curl_easy_setopt(curl.get(), CURLOPT_URL, request.url.c_str());
         curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 0L);
         curl_easy_setopt(curl.get(), CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
@@ -118,10 +140,66 @@ public:
         curl_easy_setopt(curl.get(), CURLOPT_NOPROGRESS, 0L);
         curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT_MS, static_cast<long>(request.timeoutMs));
         curl_easy_setopt(curl.get(), CURLOPT_USERAGENT, "DirectorDesk/0.1");
+        if (headerList != nullptr) {
+            curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headerList);
+        }
 
         const CURLcode code = curl_easy_perform(curl.get());
+        if (headerList != nullptr) {
+            curl_slist_free_all(headerList);
+        }
         if (state.file != nullptr) {
             file.close();
+        }
+        if (code != CURLE_OK) {
+            return Core::Result<Platform::HttpGetResponse>::Fail(
+                CurlError(code, curl_easy_strerror(code)));
+        }
+        long status = 0;
+        curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &status);
+        response.status = static_cast<int>(status);
+        response.bytesWritten = state.written;
+        return Core::Result<Platform::HttpGetResponse>::Ok(std::move(response));
+    }
+
+    Core::Result<Platform::HttpGetResponse> Post(const Platform::HttpPostRequest& request) override {
+        if (!IsHttps(request.url)) {
+            return Core::Result<Platform::HttpGetResponse>::Fail(Core::Error::Make(
+                Core::ErrorCode::InvalidArgument, "HTTP client only allows https",
+                "只允许 HTTPS 下载"));
+        }
+        std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> curl(curl_easy_init(),
+                                                                 curl_easy_cleanup);
+        if (!curl) {
+            return Core::Result<Platform::HttpGetResponse>::Fail(
+                Core::Error::Make(Core::ErrorCode::Internal, "curl_easy_init failed", "无法初始化网络"));
+        }
+
+        Platform::HttpGetResponse response;
+        CurlWriteState state;
+        state.memory = &response.body;
+        state.cancel = request.cancel;
+
+        curl_slist* headerList = AppendHeaders(nullptr, request.headers, request.contentType);
+        curl_easy_setopt(curl.get(), CURLOPT_URL, request.url.c_str());
+        curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 0L);
+        curl_easy_setopt(curl.get(), CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+        curl_easy_setopt(curl.get(), CURLOPT_SSL_VERIFYPEER, 1L);
+        curl_easy_setopt(curl.get(), CURLOPT_SSL_VERIFYHOST, 2L);
+        curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
+        curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, request.body.c_str());
+        curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, static_cast<long>(request.body.size()));
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &state);
+        curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT_MS, static_cast<long>(request.timeoutMs));
+        curl_easy_setopt(curl.get(), CURLOPT_USERAGENT, "DirectorDesk/0.1");
+        if (headerList != nullptr) {
+            curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headerList);
+        }
+
+        const CURLcode code = curl_easy_perform(curl.get());
+        if (headerList != nullptr) {
+            curl_slist_free_all(headerList);
         }
         if (code != CURLE_OK) {
             return Core::Result<Platform::HttpGetResponse>::Fail(

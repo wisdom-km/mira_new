@@ -1,6 +1,7 @@
 // AppState: Cross-frame App state extracted from Application::Run (FND-10 / CR-10).
 #pragma once
 
+#include "DirectorDesk/App/UserSettings.h"
 #include "DirectorDesk/Asset/Library.h"
 #include "DirectorDesk/Asset/LoaderRegistry.h"
 #include "DirectorDesk/Asset/ModelLoadResult.h"
@@ -29,6 +30,7 @@ enum class PendingProjectAction {
     Quit,
     New,
     Open,
+    ImportStoryboard,
 };
 
 struct LibraryPreviewGpu {
@@ -69,6 +71,28 @@ struct SaveHashJobResult {
     std::vector<FileHashResult> hashes;
 };
 
+struct DressingSnapshot {
+    std::vector<Scene::Node> nodes;
+    std::string selectedNodeId;
+    std::vector<Camera::CameraRig> cameras;
+    std::string selectedCameraId;
+    Camera::LightPresetKind light = Camera::LightPresetKind::Neutral;
+    std::vector<Link::ShotLink> links;
+    std::string selectionKind = "none";
+    std::string selectionId;
+    std::string selectionLabel;
+};
+
+struct AiJobResult {
+    std::string jobId;
+    std::string kind;
+    bool ok = false;
+    std::string outputPath;
+    std::string message;
+    std::string shotId;
+    std::string importJsonPath;
+};
+
 struct AppState {
     AppState();
     explicit AppState(std::string officialCacheRoot);
@@ -87,7 +111,7 @@ struct AppState {
     std::string status;
     std::string librarySearch;
     std::string libraryOriginFilter = "all";
-    std::string libraryViewMode = "list";
+    std::string libraryViewMode = "grid";
     std::string selectedLibraryAssetId;
     std::string officialCategory;
     std::string officialCatalogStatus;
@@ -96,6 +120,7 @@ struct AppState {
     std::string projectName = "未命名工程";
     std::string projectPath;
     std::vector<std::string> collapsedScenes;
+    std::string storyboardLayout = "grid";
     std::string pendingOpenPath;
     PendingProjectAction pendingAction = PendingProjectAction::None;
     bool projectDirty = false;
@@ -114,6 +139,8 @@ struct AppState {
     int exportStaleCount = 0;
     std::string exportPendingPath;
     bool exportPendingBoard = false;
+    bool exportPendingPackage = false;
+    std::string exportPendingShotId;
     Export::ShotResolution exportPendingResolution = Export::ShotResolution::Hd1080;
     std::string exportResolutionId = "1080p";
     float storyboardViewPanX = 32.0f;
@@ -137,6 +164,28 @@ struct AppState {
     std::string exampleGlb;
     std::string exampleScript;
     std::string exampleProject;
+    std::string exampleStoryboardImport;
+    std::string exampleSkill;
+    std::vector<std::string> importDiagnostics;
+    std::string pendingImportPath;
+    std::string pendingImportMode;
+    bool exportPendingPdf = false;
+    std::uint32_t viewportWidth = 1280;
+    std::uint32_t viewportHeight = 720;
+    std::vector<DressingSnapshot> undoStack;
+    std::vector<DressingSnapshot> redoStack;
+    std::string undoCoalesceKey;
+    UserSettings userSettings;
+    std::string userSettingsPath;
+    std::string aiJobId;
+    std::string aiJobKind;
+    std::string aiJobShotId;
+    std::string aiJobStatus;
+    std::string aiJobMessage;
+    float aiJobRatio = 0.0f;
+    bool aiBusy = false;
+    std::string lastAiOutputPath;
+    std::shared_ptr<std::atomic<bool>> aiCancel;
 };
 
 } // namespace DirectorDesk::App

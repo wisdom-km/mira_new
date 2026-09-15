@@ -178,7 +178,7 @@
   ],
   "lighting": { "preset": "warm" },
   "storyboard": {
-    "layout": "left-to-right",
+    "layout": "grid",
     "collapsedScenes": []
   }
 }

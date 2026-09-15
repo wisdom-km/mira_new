@@ -30,6 +30,8 @@ struct LibraryAsset {
     std::uint64_t fileSize = 0;
     std::uint64_t sourceMtime = 0;
     std::string sha256;
+    std::string version;
+    std::string entrypoint;
     bool sourceExists = true;
 };
 
@@ -44,6 +46,7 @@ public:
     bool Remove(const std::string& assetId);
     bool SetPreviewPath(const std::string& assetId, std::string previewPath);
     [[nodiscard]] const LibraryAsset* Find(const std::string& assetId) const;
+    [[nodiscard]] const LibraryAsset* FindBySourcePath(const std::string& sourcePath) const;
     [[nodiscard]] bool TryCachedHash(const std::string& sourcePath, const std::string& assetId,
                                       std::string& sha256) const;
     bool RecordContentHash(const std::string& sourcePath, const std::string& assetId,

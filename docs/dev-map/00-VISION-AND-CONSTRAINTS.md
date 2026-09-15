@@ -34,7 +34,7 @@
 5. **分镜画布**：根据剧本自动生成类似思维导图的 Scene/Shot 画布；剧本变化后动态重排；导演台调整后刷新关联 Shot 缩略图；点击镜头跳转相机（规格见 `modules/storyboard-canvas.md`）
 6. **工程文件持久化**：场景布局、机位、关联关系、剧本路径及画布折叠状态保存为 `.ddproj`（格式见 `modules/project-file.md`）
 7. **导出**：干净的单镜头参考图（透明 PNG、1080p / 2K）以及完整分镜总览 PNG；导出时隐藏应用 UI
-8. **AI 接口预留**：只定义供应商无关接口；测试可用 Null/Mock；不接入真实服务、密钥或 SDK
+8. **AI 接口**：供应商无关的 `IImageGenService` / `IVideoGenService`。P0 只提供 Null/Mock。Demo 之后允许经 `IHttpClient` 调用 OpenAI 兼容 HTTPS、在用户设置保存密钥、在软件内运行已安装 Skill（FOUNDATION F5，批准者 Wisdom 2026-09-15；FOUNDATION 版改写，见 foundation-upgrade/35 第四节）。禁止供应商 SDK 进公共头，禁止密钥进日志
 9. **基础设施**：统一日志（控制台 + 文件）、高度模块化、CI
 
 ## 五、明确不做（P0 红线）
@@ -48,14 +48,14 @@
 - 自研 UI 框架
 - 用户自行添加未审核的第三方 GitHub 源
 - 软件内直接提交模型到官方仓库
-- **Undo/Redo 系统**（P0 明确不做，Command 设计预留但不实现）
-- Linux 支持（P0 只做 Windows + macOS，架构不引入平台强耦合即可）
+- **完整通用 Undo/Redo**（P0 明确不做；FOUNDATION FND-42 仅 Scene / Camera / Link 置景快照栈，剧本文本不进栈，批准者 Wisdom 2026-09-15；FOUNDATION 版改写，见 foundation-upgrade/35 第四节）
+- Linux 支持（P0 只做 Windows；macOS 暂缓开发与验收，批准者 Wisdom 2026-09-15；架构不引入平台强耦合即可）
 
 ## 六、平台策略
 
-- **P0 平台：Windows（第一优先，先做先验证） + macOS**
+- **P0 平台：Windows（第一优先，先做先验证）**。macOS 暂缓开发与验收，待有 Mac 再开（批准者 Wisdom 2026-09-15；此前为 Windows + macOS）
 - Linux 列入后续演进，不在 P0 验收范围
-- CI 必须同时构建 Windows 与 macOS
+- CI 以 **Windows 为门禁**；macOS job 暂停（FOUNDATION 版改写，见 foundation-upgrade/35 第四节）
 
 ## 七、开源与商业化
 
@@ -64,6 +64,6 @@
 - 模式：Open Core。核心开源免费，后续通过官方资源包、预设、AI 增值服务商业化
 - 社区贡献模型：通过 GitHub Pull Request 提交到官方资产仓库，维护者审核合并
 
-## 八、后续演进方向（P0 之后，现在不做）
+## 八、后续演进方向（P0 之后）
 
-更多模型格式、第三方源（带审核机制）、资产库国内镜像源、文生图/图生视频 API 接入、镜头模板与智能辅助、简化版相机动画、Linux 支持、团队与云同步。
+文生图 / 图生视频 API 与 Skill 运行已在 FOUNDATION F5 接入（OpenAI 兼容 HTTPS + 本地 Skill）。仍不做：更多模型格式、第三方源（带审核机制）、资产库国内镜像源、镜头模板与智能辅助、简化版相机动画、Linux 支持、团队与云同步。

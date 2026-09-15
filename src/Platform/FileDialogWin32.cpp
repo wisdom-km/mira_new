@@ -102,10 +102,12 @@ Core::Result<std::string> ShowSaveDialog(const wchar_t* title, const COMDLG_FILT
 
 Core::Result<std::string> FileDialog::OpenModelFile() {
     const COMDLG_FILTERSPEC filters[] = {
+        {L"Models and Skills (*.glb; *.obj; SKILL.md)", L"*.glb;*.obj;SKILL.md"},
         {L"3D Models (*.glb; *.obj)", L"*.glb;*.obj"},
+        {L"Skills (SKILL.md)", L"SKILL.md"},
         {L"All files", L"*.*"},
     };
-    return ShowOpenDialog(L"Import Model", filters, 2);
+    return ShowOpenDialog(L"Import Model or Skill", filters, 4);
 }
 
 Core::Result<std::string> FileDialog::OpenMarkdownFile() {
@@ -114,6 +116,14 @@ Core::Result<std::string> FileDialog::OpenMarkdownFile() {
         {L"All files", L"*.*"},
     };
     return ShowOpenDialog(L"Open Script", filters, 2);
+}
+
+Core::Result<std::string> FileDialog::OpenJsonFile() {
+    const COMDLG_FILTERSPEC filters[] = {
+        {L"JSON (*.json)", L"*.json"},
+        {L"All files", L"*.*"},
+    };
+    return ShowOpenDialog(L"Import Storyboard", filters, 2);
 }
 
 Core::Result<std::string> FileDialog::SaveMarkdownFile() {
@@ -148,6 +158,24 @@ Core::Result<std::string> FileDialog::SavePngFile(const std::string& defaultName
         }
     }
     return ShowDialog(dialog, L"Export PNG", filters, 2, L"png");
+}
+
+Core::Result<std::string> FileDialog::SavePdfFile(const std::string& defaultName) {
+    const COMDLG_FILTERSPEC filters[] = {
+        {L"PDF (*.pdf)", L"*.pdf"},
+        {L"All files", L"*.*"},
+    };
+    IFileSaveDialog* dialog = nullptr;
+    CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
+    if (dialog != nullptr && !defaultName.empty()) {
+        const int size = MultiByteToWideChar(CP_UTF8, 0, defaultName.c_str(), -1, nullptr, 0);
+        if (size > 1) {
+            std::wstring wide(static_cast<std::size_t>(size - 1), L'\0');
+            MultiByteToWideChar(CP_UTF8, 0, defaultName.c_str(), -1, wide.data(), size);
+            dialog->SetFileName(wide.c_str());
+        }
+    }
+    return ShowDialog(dialog, L"Export PDF", filters, 2, L"pdf");
 }
 
 Core::Result<std::string> FileDialog::SaveProjectFile() {

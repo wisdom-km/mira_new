@@ -49,12 +49,14 @@ Camera::SubjectFrame SubjectFromScene(const Scene::Document& scene);
 Renderer::GpuModelDesc ToGpuModel(const Asset::ModelData& model);
 Renderer::RenderSceneView BuildSceneView(const Scene::Document& scene,
                                           const Camera::LightState& light, bool showGroundGrid,
-                                          bool showGroundAxes = false);
+                                          bool showGroundAxes = false, float uiScale = 1.0f);
 UI::UiPreferences ToUiPreferences(const UserSettings& settings);
 UserSettings FromUiPreferences(const UI::UiPreferences& preferences);
 const char* PreviewText(Storyboard::PreviewStatus status);
 const char* DiagnosticSeverityText(Script::DiagnosticSeverity severity);
 void PushExportLog(std::vector<UI::ExportLogView>& log, UI::ExportLogView entry);
+[[nodiscard]] bool IsSkillPath(const std::string& utf8Path);
+void InstallSkill(AppState& state, const std::string& utf8Path);
 void SubmitImport(AppState& state, Platform::Worker& worker,
                    Core::ResultQueue<Asset::ModelLoadResult>& results, const std::string& path);
 void ApplyLoadedModel(AppState& state, Renderer::IRenderer& renderer, Asset::ModelLoadResult result);
@@ -79,6 +81,8 @@ SaveProjectStatus RequestSaveProject(AppState& state, const std::string& path,
 void DrainSaveHashResults(AppState& state, Core::ResultQueue<SaveHashJobResult>& hashResults);
 bool OpenProjectAt(const std::string& path, AppState& state, Renderer::IRenderer* renderer,
                     Platform::Worker* worker, Core::ResultQueue<Asset::ModelLoadResult>* loadResults);
+void PersistUserSettings(AppState& state);
+void RememberLastProject(AppState& state, const std::string& path);
 void ApplyScriptLoad(Script::Document& script, const std::string& path, std::string& status);
 void HandleSaveScript(Script::Document& script, std::string& status);
 bool HandleExportTestPng(Renderer::IRenderer& renderer, const Camera::OrbitCamera& camera,
@@ -96,7 +100,12 @@ void SyncLibraryPreviewTextures(Renderer::IRenderer& renderer,
                                  std::unordered_map<std::string, std::string>& failed);
 bool ExportShotPng(AppState& state, Renderer::IRenderer& renderer, std::uint32_t fbW,
                     std::uint32_t fbH, const std::string& path, Export::ShotResolution resolution);
+bool ExportShotPackage(AppState& state, Renderer::IRenderer& renderer, std::uint32_t fbW,
+                       std::uint32_t fbH, const std::string& path, Export::ShotResolution resolution,
+                       const std::string& shotId);
 bool ExportBoardPng(AppState& state, const std::string& path);
+bool ExportBoardPdf(AppState& state, const std::string& path);
+void ApplyStoryboardImport(AppState& state, const std::string& utf8Path, const std::string& mode);
 void TickStoryboardGpu(AppState& state, Renderer::IRenderer& renderer);
 void MaybeRequestStoryboardThumbnail(AppState& state, Renderer::IRenderer& renderer);
 void DestroyLibraryPreviewTextures(AppState& state, Renderer::IRenderer& renderer);
@@ -112,6 +121,8 @@ void DrainAppQueues(AppState& state, Renderer::IRenderer& renderer,
                       Core::ResultQueue<OfficialRefreshResult>& officialRefreshResults,
                       Core::ResultQueue<OfficialDownloadJobResult>& officialDownloadResults,
                       Core::ResultQueue<OfficialProgressUpdate>& officialProgressResults,
-                      Core::ResultQueue<SaveHashJobResult>& hashResults);
+                      Core::ResultQueue<SaveHashJobResult>& hashResults,
+                      Core::ResultQueue<AiJobResult>* aiResults = nullptr);
+void DrainAiResults(AppState& state, Core::ResultQueue<AiJobResult>& aiResults);
 
 } // namespace DirectorDesk::App

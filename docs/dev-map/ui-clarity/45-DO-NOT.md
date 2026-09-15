@@ -7,13 +7,13 @@
 
 | 不要做 | 依据 |
 |--------|------|
-| 接线真实 AI、画「AI 生成」按钮、运行 Skill、起子进程 | `../07` AI 冻结 |
+| 接线供应商 SDK、把密钥写入日志、MCP 入站 | `../07`；F5 只允许 `IHttpClient` 出站 |
 | 新建 `src/<Module>/` 或 CMake 目标 | `../07` 模块数锁定 |
 | 第 3 个本版新 Command | Wisdom Q9：上限 `SelectAdjacentShot` + `RevealPath` |
 | 未打 `v0.1.3` 就开 FOUNDATION F1 | `../foundation-upgrade/34` / `36` |
 | 依赖的 `FND-xx` 未完成就做对应 U1/U2 行 | [`44`](44-LANDING-CHECKLIST.md) |
 | UIC-32 在 F2 之前 | Q6 |
-| Undo / 时间轴 / 自由连线 / ImGuizmo | `../00`；FND-41/42 仍待批准 |
+| 时间轴 / 自由连线 | `../00`。ImGuizmo / 置景 Undo 由 FOUNDATION FND-41/42 落地（Wisdom 2026-09-15 批准） |
 | 升 `.ddproj` 格式版本 | FOUNDATION 保持 1；UIC-32 若改 `storyboard.layout` 枚举须先改 `modules/` 并由 Wisdom 再看一眼 |
 | 为图标引入 vcpkg 或运行时下载字体 | Q3：仓库内子集 TTF |
 | 把取景框 / 网格偏好写进工程文件 | Q10：用户目录，且排在 U2 末 |

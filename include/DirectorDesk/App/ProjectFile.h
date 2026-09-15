@@ -80,7 +80,7 @@ struct ProjectSnapshot {
     std::string activeCamera;
     std::vector<ProjectShotLink> shotLinks;
     std::string lightingPreset = "neutral";
-    std::string storyboardLayout = "left-to-right";
+    std::string storyboardLayout = "grid";
     std::vector<std::string> collapsedScenes;
     std::vector<std::string> diagnostics;
 };

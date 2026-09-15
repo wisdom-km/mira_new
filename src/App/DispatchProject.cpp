@@ -20,6 +20,7 @@ void ContinuePendingProjectAction(AppState& state, DispatchServices& services) {
         ResetProject(state.scene, state.cameras, state.links, state.script, *services.renderer,
                      state.projectId, state.projectName, state.projectPath, state.collapsedScenes,
                      state.projectDirty);
+        state.storyboardLayout = "grid";
         BeginProjectGeneration(state);
         state.storyboard.Clear();
         state.selectedLibraryAssetId.clear();
@@ -39,6 +40,14 @@ void ContinuePendingProjectAction(AppState& state, DispatchServices& services) {
     } else if (action == PendingProjectAction::Quit) {
         if (services.requestClose) {
             services.requestClose();
+        }
+    } else if (action == PendingProjectAction::ImportStoryboard) {
+        const std::string path = state.pendingImportPath;
+        const std::string mode = state.pendingImportMode;
+        state.pendingImportPath.clear();
+        state.pendingImportMode.clear();
+        if (!path.empty()) {
+            ApplyStoryboardImport(state, path, mode);
         }
     }
 }
@@ -142,6 +151,8 @@ bool TryDispatchProject(AppState& state, const Core::Command& command, DispatchS
     if (std::holds_alternative<Core::CancelProjectPromptCommand>(command)) {
         state.pendingAction = PendingProjectAction::None;
         state.pendingOpenPath.clear();
+        state.pendingImportPath.clear();
+        state.pendingImportMode.clear();
         state.proceedAfterSave = false;
         return true;
     }

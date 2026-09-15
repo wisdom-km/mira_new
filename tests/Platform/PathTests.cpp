@@ -68,3 +68,18 @@ TEST_CASE("CreateDirectories rejects an empty path", "[platform][paths]") {
     REQUIRE_FALSE(result.IsOk());
     REQUIRE(result.GetError().code == DirectorDesk::Core::ErrorCode::InvalidArgument);
 }
+
+TEST_CASE("ListRegularFiles lists UTF-8 names", "[platform][paths]") {
+    auto temp = DirectorDesk::Platform::Paths::TemporaryDirectory();
+    REQUIRE(temp.IsOk());
+    const std::string dir =
+        DirectorDesk::Platform::Paths::Join(temp.Value(), "导演台列表 DirectorDesk");
+    REQUIRE(DirectorDesk::Platform::Paths::CreateDirectories(dir).IsOk());
+    const std::string file =
+        DirectorDesk::Platform::Paths::Join(dir, "说明.txt");
+    REQUIRE(DirectorDesk::Platform::Paths::WriteTextFile(file, "ok").IsOk());
+    auto listed = DirectorDesk::Platform::Paths::ListRegularFiles(dir);
+    REQUIRE(listed.IsOk());
+    REQUIRE(listed.Value().size() == 1);
+    REQUIRE(DirectorDesk::Platform::Paths::FileName(listed.Value()[0]) == "说明.txt");
+}

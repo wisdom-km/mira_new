@@ -5,9 +5,15 @@
 
 #include "DirectorDesk/Storyboard/Types.h"
 
+#include <string>
 #include <vector>
 
 namespace DirectorDesk::Storyboard {
+
+enum class LayoutMode {
+    LeftToRight,
+    Grid,
+};
 
 struct LayoutMetrics {
     float pad = 32.0f;
@@ -17,6 +23,7 @@ struct LayoutMetrics {
     float rootH = 64.0f;
     float sceneW = 240.0f;
     float sceneH = 80.0f;
+    float bannerH = 40.0f;
     float shotW = 220.0f;
     float shotH = 168.0f;
     float minZoom = 0.35f;
@@ -24,9 +31,15 @@ struct LayoutMetrics {
 };
 
 [[nodiscard]] const LayoutMetrics& DefaultLayoutMetrics();
+[[nodiscard]] LayoutMode ParseLayoutMode(const std::string& id);
+[[nodiscard]] const char* LayoutModeId(LayoutMode mode);
+[[nodiscard]] int GridColumnCount(float canvasWidth,
+                                  const LayoutMetrics& metrics = DefaultLayoutMetrics());
 [[nodiscard]] LayoutResult BuildLayout(const StoryboardSourceSnapshot& snapshot,
                                        const LayoutMetrics& metrics = DefaultLayoutMetrics(),
-                                       bool expandAll = false);
+                                       bool expandAll = false,
+                                       LayoutMode mode = LayoutMode::LeftToRight,
+                                       float canvasWidth = 0.0f);
 [[nodiscard]] bool CardsOverlap(const LayoutResult& layout);
 [[nodiscard]] std::vector<std::string> VisibleCardIds(const LayoutResult& layout,
                                                       const ViewRect& view);

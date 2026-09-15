@@ -15,4 +15,7 @@ public:
     static ParseResult Parse(const std::string& markdown);
 };
 
+[[nodiscard]] bool TryParseMetaLine(const std::string& line, std::string& key, std::string& value);
+[[nodiscard]] std::string ComposeShotMetaLine(const std::vector<ShotMeta>& meta);
+
 } // namespace DirectorDesk::Script

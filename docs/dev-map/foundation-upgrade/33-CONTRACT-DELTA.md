@@ -38,6 +38,26 @@ struct ImportStoryboardCommand {};
 
 // 直接按路径导入。mode ∈ {"replace", "append"}
 struct ImportStoryboardFromPathCommand { std::string utf8Path; std::string mode = "append"; };
+
+// ---- F4 · 角色包与体验 ----
+
+struct UndoCommand {};
+struct RedoCommand {};
+struct ExportStoryboardPdfCommand {};
+
+// ---- F5 · AI 解冻 ----
+
+struct GenerateShotImageCommand { std::string shotId; };
+struct GenerateShotVideoCommand { std::string shotId; };
+struct CancelAiJobCommand {};
+struct SetAiSettingsCommand {
+    std::string provider;
+    std::string baseUrl;
+    std::string apiKey;
+    std::string imageModel;
+    std::string videoModel;
+};
+struct RunSkillCommand { std::string assetId; };
 ```
 
 Skill 分发**不需要新 Command**：`DownloadOfficialAssetCommand` / `CancelOfficialDownloadCommand` / `SetOfficialCategoryCommand` 已覆盖；只是资产的 `format` 变成 `skill`。
@@ -54,6 +74,14 @@ Skill 分发**不需要新 Command**：`DownloadOfficialAssetCommand` / `CancelO
 | `ExportShotPackageCommand` | App 组装 `Export::ShotPackageInput`（当前相机、场景节点、剧本正文与 meta、分辨率）→ 离屏渲染 → `Export::WriteShotPackage` | 复用现有导出路径对话框与覆盖确认；写 `exportLog`（`label = "package"`） | 「已导出镜头包 <path>」 |
 | `ImportStoryboardCommand` | `Platform` 文件对话框 → 推 `ImportStoryboardFromPathCommand` | — | — |
 | `ImportStoryboardFromPathCommand` | 读文件 → `Script::ImportStoryboard(json)` → 按 `mode` 生成 Markdown → 走 `SetScriptTextCommand` 同一条路径 | 若当前剧本 dirty 且 `mode == "replace"`，先弹保存提示（复用工程提示三件套的模式） | 「已导入 N 场 M 镜」；失败列前三条诊断 |
+| `UndoCommand` | 弹出置景快照栈，恢复 Scene / Camera / Link | 剧本文本不动；空栈静默 | 「已撤销」 |
+| `RedoCommand` | 弹出重做栈 | 同上 | 「已重做」 |
+| `ExportStoryboardPdfCommand` | App 组装每页格子图 → `Export::WriteBoardPdf` | 复用导出路径与覆盖确认；写 `exportLog`（`label = "pdf"`） | 「已导出分镜 PDF <path>」 |
+| `GenerateShotImageCommand` | 组装 `ImageGenRequest`（提示词来自 meta / 正文，参考图为当前镜头 PNG）；`mock` 本地拷贝，`openai-compat` 经 Worker 调 HTTPS | 无密钥且非 mock 则拒绝；写 `exportLog`（`label = "ai-image"`） | 「已生成图像 <path>」或错误 |
+| `GenerateShotVideoCommand` | 同上，走 `VideoGenRequest` | 同上；`label = "ai-video"` | 「已生成视频 <path>」 |
+| `CancelAiJobCommand` | 取消进行中的生成 | 空闲时静默 | 「已取消生成」 |
+| `SetAiSettingsCommand` | 写入 `UserSettings` 的 AI 字段并保存 `settings.json`；`apiKey` 空表示保留原密钥 | 不进 `.ddproj`；不记日志 | 「已保存 AI 设置」 |
+| `RunSkillCommand` | `AI::RunSkill`：`copy-output` 同步导入；`openai-compat-json` 用文本模型经 Worker 调 chat completions，成功则 append 导入 | 无密钥且非 mock 则拒绝；无 `skill.json` 则提示在 Agent 中运行 | 「已导入 N 场 M 镜」 |
 
 ## 二、新增 `AppViewState` 字段
 
@@ -84,6 +112,29 @@ struct AppViewState {
 
     // F3 · 导入结果诊断（导入后一帧到用户关闭之间有效）
     const std::vector<std::string>* importDiagnostics = nullptr;
+
+    // F4
+    bool canUndo = false;
+    bool canRedo = false;
+    bool gizmoActive = false;
+    float gizmoView[16] = {};
+    float gizmoProj[16] = {};
+    float gizmoWorld[16] = {};
+
+    // F5
+    const char* aiProvider = "openai-compat";
+    const char* aiBaseUrl = "";
+    const char* aiImageModel = "";
+    const char* aiVideoModel = "";
+    const char* aiChatModel = "";
+    bool aiHasApiKey = false;
+    bool aiBusy = false;
+    const char* aiJobStatus = "";
+    const char* aiJobMessage = "";
+    float aiJobRatio = 0.0f;
+    const char* lastAiOutputPath = "";
+    bool canGenerateAi = false;
+    bool canRunSelectedSkill = false;
 };
 
 // 既有结构的增量
@@ -102,6 +153,12 @@ struct SceneNodeView {
     // ... 现有 ...
     bool visible = true;
     bool hasSkin = false;   // F4：角色包静态显示徽标
+};
+
+struct LibraryAssetView {
+    // ... 现有 ...
+    bool canRunSkill = false; // F5：安装目录有 skill.json
+    bool skillUsesLlm = false; // FND-56：builtin openai-compat-json
 };
 ```
 
@@ -270,9 +327,12 @@ A 坐在窗边，看向街道。
 | 导入来源（`source.tool`） | 不持久化；只出现在 status 与诊断 |
 | Skill 安装位置 | 官方资产缓存目录，不进工程 |
 | `.ddproj` 格式版本 | **本版保持 1** |
+| AI 密钥与端点 | 用户目录 `settings.json`，不进工程 |
 
 ## 十、不要顺手做的事
 
+- 不要把供应商 SDK 链进公共头；AI HTTP 只走 `IHttpClient`。
+- 不要把 API 密钥写进日志或 `.ddproj`。
 - 不要让 Script 依赖 Storyboard、Storyboard 依赖 Script（导入只生成文本）。
 - 不要在 Export 里 include Script / Scene / Camera 头；镜头包输入全部由 App 装成值对象。
 - 不要为 Skill 新建 `src/Skill/`——它就是一种官方资产。

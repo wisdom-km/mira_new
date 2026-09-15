@@ -79,7 +79,7 @@
     "preset": "studio-basic"
   },
   "storyboard": {
-    "layout": "left-to-right",
+    "layout": "grid",
     "collapsedScenes": ["scene-street-night"]
   }
 }
@@ -135,7 +135,7 @@
 - `parent` 必须引用现有 Node 且场景图不得成环
 - `activeCamera` 可为 `null`，否则必须引用现有 Camera
 - 每个 Shot 最多关联一个 Camera；悬空 Shot/Camera Link 保留为诊断但不激活
-- `storyboard.layout` 在 P0 只接受 `left-to-right`
+- `storyboard.layout` 接受 `grid`（默认）或 `left-to-right`（兼容旧工程）（UI-CLARITY UIC-32 版改写，见 ui-clarity/45 第四节）
 - `storyboard.collapsedScenes` 只保存合法 Scene ID；悬空 ID 在加载时忽略并诊断
 - 分镜节点坐标、缩放、平移和缩略图是可重建数据，不得写入工程文件
 - 未知字段忽略；缺少可选字段使用文档默认值

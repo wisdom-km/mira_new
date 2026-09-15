@@ -309,6 +309,33 @@ TEST_CASE("Selecting a shot is reflected on the document", "[script][document]")
     REQUIRE(document.SelectedShotId() == "shot-b");
 }
 
+TEST_CASE("SetShotMeta rewrites only that metadata line", "[script][document][meta]") {
+    DirectorDesk::Script::Document document;
+    REQUIRE(document
+                .LoadFromText("## [scene:scene-a] 场\n### [shot:shot-a] 镜\n> 景别: 中景\n> 运镜: 推\n\n正文。\n")
+                .IsOk());
+    const std::string before = document.Text();
+    REQUIRE(document.SetShotMeta("shot-a", "景别", "特写"));
+    REQUIRE(document.PublishedSnapshot().scenes[0].shots[0].meta[0].value == "特写");
+    REQUIRE(document.Text().find("> 景别: 特写") != std::string::npos);
+    REQUIRE(document.Text().find("> 运镜: 推") != std::string::npos);
+    REQUIRE(document.Text().find("正文。") != std::string::npos);
+    std::size_t changed = 0;
+    std::size_t i = 0;
+    std::size_t j = 0;
+    const std::string after = document.Text();
+    while (i < before.size() && j < after.size()) {
+        if (before[i] != after[j]) {
+            ++changed;
+        }
+        ++i;
+        ++j;
+    }
+    REQUIRE(after.size() == before.size());
+    REQUIRE(changed > 0);
+    REQUIRE(changed <= 6);
+}
+
 TEST_CASE("UTF-8 BOM file loads from a Chinese path", "[script][document]") {
     const std::string dir = MakeCaseDir("bom");
     const std::string path = DirectorDesk::Platform::Paths::Join(dir, "带BOM剧本.md");

@@ -19,8 +19,13 @@ struct FrameStrings {
     std::vector<std::string> officialCategories;
     std::vector<UI::StoryboardCardView> storyboardCards;
     std::vector<UI::ExportIssueView> exportIssues;
+    std::vector<UI::ShotMetaView> selectedShotMeta;
+    std::vector<std::string> importDiagnostics;
     std::string selectedShotLinkedCamera;
     std::unordered_map<std::string, std::string> libraryPreviewPaths;
+    UI::ShotHudView shotHud;
+    std::string shotHudTitle;
+    std::string shotHudCamera;
 };
 
 void BuildViewState(AppState& state, UI::AppViewState& viewState, FrameStrings& frame);

@@ -48,7 +48,15 @@ std::string Fnv1aHex(const std::string& text) {
 }
 
 const char* OriginJson(AssetOrigin origin) {
-    return Library::OriginId(origin);
+    switch (origin) {
+    case AssetOrigin::OnlineCache:
+        return "official";
+    case AssetOrigin::Builtin:
+        return "builtin";
+    case AssetOrigin::User:
+    default:
+        return "local";
+    }
 }
 
 bool FingerprintMatches(const std::string& sourcePath, std::uint64_t sourceMtime,
@@ -69,6 +77,18 @@ void StampFingerprint(LibraryAsset& asset, const std::string& sourcePath) {
     auto size = Platform::Paths::FileSize(sourcePath);
     if (size.IsOk()) {
         asset.fileSize = size.Value();
+    }
+}
+
+void CopySkillSidecars(const std::string& srcSkillPath, const std::string& destDir) {
+    const std::string srcDir = Platform::Paths::Parent(srcSkillPath);
+    const char* names[] = {"skill.json", "storyboard-import.json", "prompt.md"};
+    for (const char* name : names) {
+        const std::string src = Platform::Paths::Join(srcDir, name);
+        if (Platform::Paths::Exists(src)) {
+            auto copied = Platform::Paths::CopyFileUtf8(src, Platform::Paths::Join(destDir, name));
+            (void)copied;
+        }
     }
 }
 
@@ -95,8 +115,12 @@ bool Library::TryParseOrigin(const std::string& id, AssetOrigin& out) {
         out = AssetOrigin::User;
         return true;
     }
-    if (id == "online") {
+    if (id == "online" || id == "official") {
         out = AssetOrigin::OnlineCache;
+        return true;
+    }
+    if (id == "local") {
+        out = AssetOrigin::User;
         return true;
     }
     return false;
@@ -155,13 +179,15 @@ Core::Result<void> Library::LoadIndex() {
             asset.sourcePath = item.value("sourcePath", "");
             asset.format = item.value("format", "");
             AssetOrigin origin = AssetOrigin::User;
-            TryParseOrigin(item.value("origin", "user"), origin);
+            TryParseOrigin(item.value("origin", "local"), origin);
             asset.origin = origin;
             asset.category = item.value("category", "uncategorized");
             asset.previewPath = item.value("previewPath", "");
             asset.fileSize = item.value("sourceSize", item.value("fileSize", 0ull));
             asset.sourceMtime = item.value("sourceMtime", 0ull);
             asset.sha256 = item.value("sha256", "");
+            asset.version = item.value("version", "");
+            asset.entrypoint = item.value("entrypoint", "");
             if (item.contains("tags") && item["tags"].is_array()) {
                 for (const nlohmann::json& tag : item["tags"]) {
                     if (tag.is_string()) {
@@ -205,6 +231,12 @@ Core::Result<void> Library::Save() const {
         if (!asset.sha256.empty()) {
             item["sha256"] = asset.sha256;
         }
+        if (!asset.version.empty()) {
+            item["version"] = asset.version;
+        }
+        if (!asset.entrypoint.empty()) {
+            item["entrypoint"] = asset.entrypoint;
+        }
         item["tags"] = asset.tags;
         assets.push_back(std::move(item));
     }
@@ -237,6 +269,13 @@ const LibraryAsset* Library::Find(const std::string& assetId) const {
         }
     }
     return nullptr;
+}
+
+const LibraryAsset* Library::FindBySourcePath(const std::string& sourcePath) const {
+    if (sourcePath.empty()) {
+        return nullptr;
+    }
+    return FindByKey(Platform::Paths::StableKey(sourcePath));
 }
 
 bool Library::TryCachedHash(const std::string& sourcePath, const std::string& assetId,
@@ -313,26 +352,56 @@ Core::Result<LibraryAsset> Library::Import(const std::string& utf8Path, AssetOri
             Core::Error::Make(Core::ErrorCode::NotFound, "Asset file does not exist", "源文件不存在"));
     }
     const std::string extension = Platform::Paths::ExtensionLower(utf8Path);
-    if (extension != ".glb" && extension != ".obj") {
+    const std::string fileName = Platform::Paths::FileName(utf8Path);
+    const bool skill = fileName == "SKILL.md" || fileName == "skill.md";
+    if (extension != ".glb" && extension != ".obj" && !skill) {
         return Core::Result<LibraryAsset>::Fail(Core::Error::Make(
-            Core::ErrorCode::Unsupported, "Unsupported library format", "资源库只支持 GLB/OBJ"));
+            Core::ErrorCode::Unsupported, "Unsupported library format",
+            "资源库只支持 GLB/OBJ/SKILL.md"));
     }
 
     const std::string key = Platform::Paths::StableKey(utf8Path);
     if (const LibraryAsset* existing = FindByKey(key)) {
+        if (skill) {
+            CopySkillSidecars(utf8Path, Platform::Paths::Parent(existing->sourcePath));
+        }
         return Core::Result<LibraryAsset>::Ok(*existing);
     }
 
     LibraryAsset asset;
     asset.id = MakeId(utf8Path);
+    if (const LibraryAsset* existing = Find(asset.id)) {
+        if (skill) {
+            CopySkillSidecars(utf8Path, Platform::Paths::Parent(existing->sourcePath));
+        }
+        return Core::Result<LibraryAsset>::Ok(*existing);
+    }
     asset.name = Platform::Paths::Stem(utf8Path);
     auto canonical = Platform::Paths::WeaklyCanonical(utf8Path);
     asset.sourcePath = canonical.IsOk() ? canonical.Value() : utf8Path;
-    asset.format = extension == ".glb" ? "glb" : "obj";
+    asset.format = skill ? "skill" : (extension == ".glb" ? "glb" : "obj");
     asset.origin = origin;
-    asset.category = origin == AssetOrigin::Builtin ? "builtin" : "uncategorized";
+    asset.category = skill ? "skill" : (origin == AssetOrigin::Builtin ? "builtin" : "uncategorized");
+    asset.entrypoint = skill ? "SKILL.md" : "";
+    if (skill) {
+        const std::string folder = Platform::Paths::FileName(Platform::Paths::Parent(utf8Path));
+        asset.name = folder.empty() ? "Skill" : folder;
+        if (folder == "storyboard") {
+            asset.name = "分镜 Skill";
+        }
+        const std::string destDir =
+            Platform::Paths::Join(Platform::Paths::Join(m_directory, "skills"), asset.id);
+        const std::string destPath = Platform::Paths::Join(destDir, "SKILL.md");
+        auto copied = Platform::Paths::CopyFileUtf8(utf8Path, destPath);
+        if (!copied.IsOk()) {
+            return Core::Result<LibraryAsset>::Fail(copied.GetError());
+        }
+        CopySkillSidecars(utf8Path, destDir);
+        asset.sourcePath = destPath;
+        asset.entrypoint = "SKILL.md";
+    }
     asset.sourceExists = true;
-    StampFingerprint(asset, utf8Path);
+    StampFingerprint(asset, asset.sourcePath);
 
     const std::string sidecarPng =
         Platform::Paths::Join(Platform::Paths::Parent(utf8Path), asset.name + ".png");

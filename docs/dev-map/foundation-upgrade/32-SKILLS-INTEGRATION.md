@@ -1,7 +1,7 @@
 # 32 - Skills 融合方案（SKILLS INTEGRATION）
 
 > 回答 Wisdom 的三个问题：`shuohao-skills` 这类东西怎么进 DirectorDesk；「剧本 + 分镜 + 导演台」怎么融成一条线；将来带骨骼的角色包怎么预留。
-> 硬前提：`../07` 第二节 **AI 冻结**。DirectorDesk 在本版内**不运行** Skill、不调用任何模型、不起子进程。它做两件事：**消费 Skill 的产出**（导入分镜 JSON）、**分发 Skill**（像分发官方模型一样下载到本机）。
+> 硬前提（FOUNDATION F5 改写，Wisdom 2026-09-15）：L1 / L2 不变。**L3 已解冻**：运行 Skill 落在 AI 模块（`skill.json` + 子进程或内置拷贝），产出仍是 L1 的 `storyboard-import.json`。图像/视频生成走 OpenAI 兼容 HTTPS，不嵌供应商 SDK。
 
 ## 一、`shuohao-skills` 是什么（对本项目有意义的部分）
 
@@ -15,7 +15,7 @@
 
 ```text
 ┌──────────────────────────────────────────────────────────────────┐
-│ L3  运行 Skill（子进程 / MCP / 真实模型调用）   ← 冻结，本版不做   │
+│ L3  运行 Skill（子进程 / 内置拷贝产出 JSON）   ← F5 · FND-55          │
 ├──────────────────────────────────────────────────────────────────┤
 │ L2  分发 Skill（官方清单 format=skill → 下载到本机 → 资源库可见） │  F3 · FND-32/33
 ├──────────────────────────────────────────────────────────────────┤
@@ -38,14 +38,15 @@
 ### L2 · 分发：Skill 是一种官方资产（Asset 名词）
 
 - `asset-manifest` 升到 2：`format` 允许 `skill`，`entrypoint` 为 `SKILL.md`，`files[]` 列出脚本与模板。**下载、SHA-256 校验、原子缓存、取消、状态机全部复用 `OfficialCatalog`**，一行不改。
-- 缓存位置沿用 `<用户数据目录>/DirectorDesk/assets/official/<skill-id>/<version>/`。资源库多一个类别「Skills」；检查器显示 `SKILL.md` 的前 N 行（纯文本渲染，不解析 Markdown）+ 「复制安装路径」+ 「打开所在文件夹」。
+- 缓存位置沿用 `<用户数据目录>/DirectorDesk/assets/official/<skill-id>/<version>/`。~~资源库多一个类别「Skills」；检查器显示 `SKILL.md` 的前 N 行~~ → **UI 宿主已改**（UI-CLARITY [`47`](../ui-clarity/47-FULL-FLOW-AUDIT.md) 5.1 / 6.5，2026-09-15）：Skill **不在资源库网格出现**，管理（装 / 卸 / 从官方获取 / 设默认 / README / 打开文件夹）在 `编辑 → 设置… → Skills` 页（UIC-59）；运行在编剧模式「分镜」段（UIC-60）。`Asset::Library` 仍索引 Skill，只是 `LibraryPanel` 按 `kind` 过滤。分发管线不变。
 - 用户把这个路径交给自己的 Agent（Claude Code / Codex 的 skills 目录）。**DirectorDesk 不替用户装进 Agent**——各 Agent 的目录约定不同，装错比不装更糟。
 - Wisdom 的 Skill 仓库（或 fork 的 `shuohao-skills`）只要在官方清单里登记一条 `format: skill` 的资产，就能被发现与下载。「更好的 Skill」加进来 = 清单加一行。
 
-### L3 · 运行：不做，但把接缝留对
+### L3 · 运行：AI 模块（F5）
 
-- 将来解冻 AI 时，运行 Skill 的正确落点是 **AI 模块**（它现在是空岛），以「子进程 + 读回 JSON 文件」的形式，而不是嵌 Node 运行时。它的输出仍然是 L1 的 `storyboard-import.json`——所以 L1 做好了，L3 的接缝就已经存在。
-- 本版不允许：画「运行 Skill」按钮、在设置里留 Node 路径、在 `AppViewState` 加 Skill 运行状态字段。（`../08` 第十节：为变化预留接缝，不为幻想预留房间。）
+- 运行 Skill 的落点是 **AI 模块**：`copy-output`、`openai-compat-json`（文本 LLM）或 `argv` 子进程。输出仍然是 L1 的 `storyboard-import.json`。
+- 「运行 Skill」（UIC-60 后为编剧模式「生成分镜 ▾」）只在安装目录存在合法 `skill.json` 时启用。没有描述文件的 Skill 仍只打开文件夹，交给外部 Agent。
+- 不做 MCP 服务端、不嵌 Node 运行时。
 
 ## 三、「剧本 + 分镜 + 导演台」融成一条线
 
@@ -57,7 +58,7 @@
 | 出口 | 一张 PNG | 镜头包：PNG + 相机（含焦距）+ 场景节点 + 剧本正文 + 元数据 + 提示词 | FND-21 |
 | 中间 | 卡片只有标题 | 卡片显示元数据行；镜头条同样 | FND-22 |
 
-一个完整回合于是变成：Agent 跑 Skill 出 JSON → DirectorDesk 导入 → 摆机位 → 导出镜头包 → Agent 拿镜头包喂视频模型。DirectorDesk 全程没有调过任何 AI，红线不动。
+一个完整回合：安装或下载 Skill → 可在软件内运行（有 `skill.json`）或在 Agent 里跑 → 导入 JSON → 摆机位 → 导出镜头包 / 在软件内生成图像或视频。
 
 ## 四、角色资产包（含骨骼）的预留方式
 

@@ -5,6 +5,7 @@
 
 #include "DirectorDesk/Core/Error.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -188,6 +189,27 @@ Core::Result<void> Paths::CopyFileUtf8(const std::string& fromUtf8, const std::s
             IoError("copy_file failed: " + ec.message(), "无法复制文件"));
     }
     return Core::Result<void>::Ok();
+}
+
+Core::Result<std::vector<std::string>> Paths::ListRegularFiles(const std::string& utf8Directory) {
+    if (utf8Directory.empty() || !IsDirectory(utf8Directory)) {
+        return Core::Result<std::vector<std::string>>::Fail(Core::Error::Make(
+            Core::ErrorCode::NotFound, "directory does not exist", "目录不存在"));
+    }
+    std::vector<std::string> files;
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(ToPath(utf8Directory), ec)) {
+        if (ec) {
+            return Core::Result<std::vector<std::string>>::Fail(
+                IoError("directory_iterator failed: " + ec.message(), "无法列出目录"));
+        }
+        std::error_code fileEc;
+        if (entry.is_regular_file(fileEc) && !fileEc) {
+            files.push_back(FromPath(entry.path()));
+        }
+    }
+    std::sort(files.begin(), files.end());
+    return Core::Result<std::vector<std::string>>::Ok(std::move(files));
 }
 
 Core::Result<std::string> Paths::WeaklyCanonical(const std::string& utf8Path) {

@@ -40,8 +40,8 @@ Core::Result<std::string> FileDialog::OpenModelFile() {
         panel.canChooseFiles = YES;
         panel.canChooseDirectories = NO;
         panel.allowsMultipleSelection = NO;
-        SetAllowedExtensions(panel, @[ @"glb", @"obj" ]);
-        panel.title = @"Import Model";
+        SetAllowedExtensions(panel, @[ @"glb", @"obj", @"md" ]);
+        panel.title = @"Import Model or Skill";
         const NSModalResponse response = [panel runModal];
         if (response != NSModalResponseOK) {
             return Core::Result<std::string>::Ok(std::string{});
@@ -58,6 +58,22 @@ Core::Result<std::string> FileDialog::OpenMarkdownFile() {
         panel.allowsMultipleSelection = NO;
         SetAllowedExtensions(panel, @[ @"md" ]);
         panel.title = @"Open Script";
+        const NSModalResponse response = [panel runModal];
+        if (response != NSModalResponseOK) {
+            return Core::Result<std::string>::Ok(std::string{});
+        }
+        return PathFromUrl(panel.URL);
+    }
+}
+
+Core::Result<std::string> FileDialog::OpenJsonFile() {
+    @autoreleasepool {
+        NSOpenPanel* panel = [NSOpenPanel openPanel];
+        panel.canChooseFiles = YES;
+        panel.canChooseDirectories = NO;
+        panel.allowsMultipleSelection = NO;
+        SetAllowedExtensions(panel, @[ @"json" ]);
+        panel.title = @"Import Storyboard";
         const NSModalResponse response = [panel runModal];
         if (response != NSModalResponseOK) {
             return Core::Result<std::string>::Ok(std::string{});
@@ -105,6 +121,24 @@ Core::Result<std::string> FileDialog::SavePngFile(const std::string& defaultName
             panel.nameFieldStringValue = [NSString stringWithUTF8String:defaultName.c_str()];
         } else {
             panel.nameFieldStringValue = @"export.png";
+        }
+        const NSModalResponse response = [panel runModal];
+        if (response != NSModalResponseOK) {
+            return Core::Result<std::string>::Ok(std::string{});
+        }
+        return PathFromUrl(panel.URL);
+    }
+}
+
+Core::Result<std::string> FileDialog::SavePdfFile(const std::string& defaultName) {
+    @autoreleasepool {
+        NSSavePanel* panel = [NSSavePanel savePanel];
+        SetAllowedExtensions(panel, @[ @"pdf" ]);
+        panel.title = @"Export PDF";
+        if (!defaultName.empty()) {
+            panel.nameFieldStringValue = [NSString stringWithUTF8String:defaultName.c_str()];
+        } else {
+            panel.nameFieldStringValue = @"storyboard.pdf";
         }
         const NSModalResponse response = [panel runModal];
         if (response != NSModalResponseOK) {

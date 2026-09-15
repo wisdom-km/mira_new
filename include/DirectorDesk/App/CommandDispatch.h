@@ -14,6 +14,7 @@
 
 namespace DirectorDesk::Platform {
 class Worker;
+class IHttpClient;
 }
 
 namespace DirectorDesk::App {
@@ -32,15 +33,23 @@ struct DispatchServices {
     std::function<void(const std::string& assetId)> cancelOfficialDownload;
     std::function<Core::Result<std::string>()> openModelFile;
     std::function<Core::Result<std::string>()> openMarkdownFile;
+    std::function<Core::Result<std::string>()> openJsonFile;
     std::function<Core::Result<std::string>()> openProjectFile;
     std::function<Core::Result<std::string>()> saveProjectFile;
     std::function<Core::Result<std::string>(const std::string& suggestedName)> savePngFile;
     std::function<bool(const std::string& path, Export::ShotResolution)> exportShotTo;
+    std::function<bool(const std::string& path, Export::ShotResolution, const std::string& shotId)>
+        exportShotPackageTo;
     std::function<bool(const std::string& path)> exportBoardTo;
+    std::function<bool(const std::string& path)> exportBoardPdfTo;
+    std::function<Core::Result<std::string>(const std::string& suggestedName)> savePdfFile;
+    Platform::IHttpClient* http = nullptr;
+    Core::ResultQueue<AiJobResult>* aiResults = nullptr;
 };
 
 void Dispatch(AppState& state, const Core::Command& command, DispatchServices& services);
 
+bool TryDispatchUndo(AppState& state, const Core::Command& command, DispatchServices& services);
 bool TryDispatchProject(AppState& state, const Core::Command& command, DispatchServices& services);
 bool TryDispatchScript(AppState& state, const Core::Command& command, DispatchServices& services);
 bool TryDispatchScene(AppState& state, const Core::Command& command, DispatchServices& services);
@@ -48,10 +57,12 @@ bool TryDispatchCamera(AppState& state, const Core::Command& command, DispatchSe
 bool TryDispatchLibrary(AppState& state, const Core::Command& command, DispatchServices& services);
 bool TryDispatchExport(AppState& state, const Core::Command& command, DispatchServices& services);
 bool TryDispatchWorkspace(AppState& state, const Core::Command& command, DispatchServices& services);
+bool TryDispatchAi(AppState& state, const Core::Command& command, DispatchServices& services);
 
 void RecordShotSelection(AppState& state, const std::string& shotId);
 void SelectFirstShotIfNone(AppState& state);
 void RefreshBoard(AppState& state);
 void ContinuePendingProjectAction(AppState& state, DispatchServices& services);
+void ApplyStoryboardImport(AppState& state, const std::string& utf8Path, const std::string& mode);
 
 } // namespace DirectorDesk::App

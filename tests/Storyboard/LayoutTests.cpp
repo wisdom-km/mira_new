@@ -197,3 +197,45 @@ TEST_CASE("Fit and focus keep a selected shot in view", "[storyboard][layout]") 
     REQUIRE(sx > -card->w);
     REQUIRE(sx < 800);
 }
+
+TEST_CASE("ComposePdfPages rasterizes A4 landscape pages", "[storyboard][pdf]") {
+    const auto layout = DirectorDesk::Storyboard::BuildLayout(CafeSnapshot());
+    DirectorDesk::Storyboard::BoardComposeRequest request;
+    request.layout = layout;
+    auto pdf = DirectorDesk::Storyboard::ComposePdfPages(request, 6);
+    REQUIRE(pdf.IsOk());
+    REQUIRE_FALSE(pdf.Value().pages.empty());
+    REQUIRE(pdf.Value().pages[0].width == 1684);
+    REQUIRE(pdf.Value().pages[0].height == 1190);
+    REQUIRE(pdf.Value().pages[0].rgba.size() == 1684u * 1190u * 4u);
+}
+
+TEST_CASE("Grid layout places shots in rows under scene banners", "[storyboard][layout][uic32]") {
+    const auto layout = DirectorDesk::Storyboard::BuildLayout(
+        CafeSnapshot(), DirectorDesk::Storyboard::DefaultLayoutMetrics(), false,
+        DirectorDesk::Storyboard::LayoutMode::Grid, 900.0f);
+    REQUIRE_FALSE(DirectorDesk::Storyboard::CardsOverlap(layout));
+    REQUIRE(DirectorDesk::Storyboard::FindCard(layout, "storyboard-root") == nullptr);
+    const auto* scene = DirectorDesk::Storyboard::FindCard(layout, "scene-cafe-day");
+    const auto* first = DirectorDesk::Storyboard::FindCard(layout, "shot-cafe-001");
+    const auto* second = DirectorDesk::Storyboard::FindCard(layout, "shot-cafe-002");
+    const auto* street = DirectorDesk::Storyboard::FindCard(layout, "shot-street-001");
+    REQUIRE(scene != nullptr);
+    REQUIRE(first != nullptr);
+    REQUIRE(second != nullptr);
+    REQUIRE(street != nullptr);
+    REQUIRE(first->y > scene->y);
+    REQUIRE(first->y == second->y);
+    REQUIRE(second->x > first->x);
+    REQUIRE(street->y > first->y);
+
+    const auto narrow = DirectorDesk::Storyboard::BuildLayout(
+        CafeSnapshot(), DirectorDesk::Storyboard::DefaultLayoutMetrics(), false,
+        DirectorDesk::Storyboard::LayoutMode::Grid, 280.0f);
+    const auto* a = DirectorDesk::Storyboard::FindCard(narrow, "shot-cafe-001");
+    const auto* b = DirectorDesk::Storyboard::FindCard(narrow, "shot-cafe-002");
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    REQUIRE(a->y < b->y);
+    REQUIRE(DirectorDesk::Storyboard::GridColumnCount(280.0f) == 1);
+}

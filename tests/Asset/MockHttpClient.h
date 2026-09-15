@@ -23,6 +23,8 @@ public:
     };
 
     std::unordered_map<std::string, Route> routes;
+    std::string lastPostUrl;
+    std::string lastPostBody;
 
     Core::Result<Platform::HttpGetResponse> Get(const Platform::HttpGetRequest& request) override {
         if (request.cancel != nullptr && request.cancel->load()) {
@@ -62,6 +64,34 @@ public:
         } else {
             response.body = route.body;
         }
+        return Core::Result<Platform::HttpGetResponse>::Ok(std::move(response));
+    }
+
+    Core::Result<Platform::HttpGetResponse> Post(const Platform::HttpPostRequest& request) override {
+        lastPostUrl = request.url;
+        lastPostBody = request.body;
+        if (request.cancel != nullptr && request.cancel->load()) {
+            return Core::Result<Platform::HttpGetResponse>::Fail(
+                Core::Error::Make(Core::ErrorCode::IoFailure, "cancelled", "已取消"));
+        }
+        const auto found = routes.find(request.url);
+        if (found == routes.end()) {
+            return Core::Result<Platform::HttpGetResponse>::Fail(
+                Core::Error::Make(Core::ErrorCode::IoFailure, "missing route", "网络不可达"));
+        }
+        const Route& route = found->second;
+        if (route.timeout) {
+            return Core::Result<Platform::HttpGetResponse>::Fail(
+                Core::Error::Make(Core::ErrorCode::IoFailure, "timeout", "下载超时"));
+        }
+        if (route.unreachable) {
+            return Core::Result<Platform::HttpGetResponse>::Fail(
+                Core::Error::Make(Core::ErrorCode::IoFailure, "unreachable", "网络不可达"));
+        }
+        Platform::HttpGetResponse response;
+        response.status = route.status;
+        response.body = route.body;
+        response.bytesWritten = route.body.size();
         return Core::Result<Platform::HttpGetResponse>::Ok(std::move(response));
     }
 };

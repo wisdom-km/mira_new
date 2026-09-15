@@ -26,12 +26,16 @@ public:
     void Shutdown();
     void BeginFrame();
     void Submit(std::uint32_t framebufferWidth, std::uint32_t framebufferHeight);
+    void ApplyUiScale(float uiScale);
+    [[nodiscard]] float ContentScale() const;
+    [[nodiscard]] unsigned PrimaryMonitorWidth() const;
 
 private:
     Core::Result<void> CreateResources();
     void DestroyResources();
 
     bool m_initialized = false;
+    void* m_glfwWindow = nullptr;
     std::string m_shaderDirectory;
     std::uint8_t m_viewId = 255;
     std::uint16_t m_program = 0xFFFFu;

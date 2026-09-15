@@ -148,14 +148,14 @@ struct ImGuiVertex {
     }
 };
 
+ImGuiStyle g_baseStyle;
+
 void LoadUiFont(GLFWwindow* window) {
     float xScale = 1.0f;
     float yScale = 1.0f;
     if (window != nullptr) {
         glfwGetWindowContentScale(window, &xScale, &yScale);
     }
-    const float scale = xScale > 0.05f ? xScale : 1.0f;
-    ImGui::GetStyle().ScaleAllSizes(scale);
 
     auto fontPath = Platform::Paths::UiFontFile();
     if (!fontPath.IsOk()) {
@@ -181,16 +181,15 @@ void LoadUiFont(GLFWwindow* window) {
     config.PixelSnapH = true;
     config.FontDataOwnedByAtlas = true;
     constexpr float kBodyPx = 14.0f;
-    const float bodyPx = kBodyPx * scale;
     ImFont* font = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(
-        copy, static_cast<int>(bytes.Value().size()), bodyPx, &config);
+        copy, static_cast<int>(bytes.Value().size()), kBodyPx, &config);
     if (font == nullptr) {
         DD_LOG_WARN("Failed to load UI font {}", fontPath.Value());
         return;
     }
-    ImGui::GetStyle().FontSizeBase = bodyPx;
+    ImGui::GetStyle().FontSizeBase = kBodyPx;
     DD_LOG_INFO("Loaded UI font {} at {:.1f}px (DPI scale {:.2f}x{:.2f})", fontPath.Value(),
-                bodyPx, xScale, yScale);
+                kBodyPx, xScale, yScale);
 
     auto iconPath = Platform::Paths::UiIconFontFile();
     if (!iconPath.IsOk()) {
@@ -214,9 +213,9 @@ void LoadUiFont(GLFWwindow* window) {
     merge.OversampleH = 1;
     merge.OversampleV = 1;
     merge.FontDataOwnedByAtlas = true;
-    merge.GlyphMinAdvanceX = bodyPx;
+    merge.GlyphMinAdvanceX = kBodyPx;
     ImFont* icons = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(
-        iconCopy, static_cast<int>(iconBytes.Value().size()), bodyPx, &merge, kLucideDdRanges);
+        iconCopy, static_cast<int>(iconBytes.Value().size()), kBodyPx, &merge, kLucideDdRanges);
     if (icons == nullptr) {
         DD_LOG_WARN("Failed to merge UI icon font {}", iconPath.Value());
         return;
@@ -410,9 +409,12 @@ Core::Result<void> ImGuiGlfwBackend::Init(Platform::Window& window,
     io.IniFilename = nullptr;
     ImGui::StyleColorsDark();
     ApplyDirectorDeskStyle();
+    g_baseStyle = ImGui::GetStyle();
+    m_glfwWindow = glfwWindow;
     LoadUiFont(glfwWindow);
 
     if (!ImGui_ImplGlfw_InitForOther(glfwWindow, true)) {
+        m_glfwWindow = nullptr;
         ImGui::DestroyContext();
         return Core::Result<void>::Fail(Core::Error::Make(Core::ErrorCode::Internal,
                                                           "ImGui_ImplGlfw_InitForOther failed",
@@ -423,10 +425,12 @@ Core::Result<void> ImGuiGlfwBackend::Init(Platform::Window& window,
     if (!resources.IsOk()) {
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
+        m_glfwWindow = nullptr;
         return resources;
     }
 
     m_initialized = true;
+    ApplyUiScale(1.0f);
     DD_LOG_INFO("ImGui bgfx backend initialized");
     return Core::Result<void>::Ok();
 }
@@ -475,7 +479,43 @@ void ImGuiGlfwBackend::Shutdown() {
     DestroyResources();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+    m_glfwWindow = nullptr;
     m_initialized = false;
+}
+
+void ImGuiGlfwBackend::ApplyUiScale(float uiScale) {
+    if (ImGui::GetCurrentContext() == nullptr) {
+        return;
+    }
+    const float dpi = ContentScale();
+    const float user = uiScale >= 0.5f ? uiScale : 1.0f;
+    const float combined = dpi * user;
+    ImGui::GetStyle() = g_baseStyle;
+    ImGui::GetStyle().ScaleAllSizes(combined);
+    ImGui::GetStyle().FontSizeBase = 14.0f * combined;
+    DD_LOG_INFO("Applied UI scale {:.2f} (DPI {:.2f}, combined {:.2f})", user, dpi, combined);
+}
+
+float ImGuiGlfwBackend::ContentScale() const {
+    float xScale = 1.0f;
+    float yScale = 1.0f;
+    if (m_glfwWindow != nullptr) {
+        glfwGetWindowContentScale(static_cast<GLFWwindow*>(m_glfwWindow), &xScale, &yScale);
+    }
+    (void)yScale;
+    return xScale > 0.05f ? xScale : 1.0f;
+}
+
+unsigned ImGuiGlfwBackend::PrimaryMonitorWidth() const {
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    if (monitor == nullptr) {
+        return 0;
+    }
+    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+    if (mode == nullptr || mode->width <= 0) {
+        return 0;
+    }
+    return static_cast<unsigned>(mode->width);
 }
 
 void ImGuiGlfwBackend::BeginFrame() {

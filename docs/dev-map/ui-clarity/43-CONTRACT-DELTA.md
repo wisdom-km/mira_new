@@ -59,6 +59,7 @@ struct AppViewState {
     const ShotHudView* shotHud = nullptr;     // UIC-21；无选中镜头时 nullptr
     int scriptSelectedLineStart = 0;          // UIC-22；1-based 含；0 = 不高亮
     int scriptSelectedLineEnd = 0;
+    bool projectIsEmpty = false;              // UIC-43；无路径、无剧本文本、无用户添加节点（默认立方体也算空）
 };
 ```
 
@@ -69,6 +70,7 @@ struct AppViewState {
 | `LibraryAssetView.previewTexture` | App 主线程把 sidecar PNG / 官方 `preview` 上传为纹理；不可见条目保持 `0xFFFF` | UIC-20；`03` 已决策预览来源 |
 | `ShotHudView.focalLength35mm` | 与镜头包同一公式：`12 / tan(vfov_rad / 2)`（FOUNDATION `33` 五），在 App 或 Export 纯函数里算，UI 不重算 | UIC-21、FND-21 |
 | `scriptSelectedLineStart/End` | FND-15 解析器给出的当前镜头文本行号 | UIC-22、FND-15 |
+| `projectIsEmpty` | App：无工程路径、无剧本文本、无用户添加节点（无 `sourcePath` / `libraryAssetId` 的占位立方体算空） | UIC-43 |
 | `selectionKind == "asset"`（字符串） | U0：`SelectLibraryAssetCommand` 写入；`SelectShot` / `SelectNode` / `SelectCamera` 清掉资产选中 | UIC-11；**不是新字段** |
 | `SelectionKind::Asset`（枚举） | FND-17 与字符串取值一并写入枚举 | UIC-26 |
 
@@ -96,6 +98,7 @@ U0 **不改** `Command.h`，**不改** `SelectionKind` 枚举，只给已有 `se
 | 3D 背景 | — | `0x2b2b2e` | 视口与**非透明**导出（Q5）；透明导出仍 `0x00000000` |
 | 取景框外 | — | `0x141414` × 90% | letterbox 暗幕 |
 | 网格主线 | — | `0x5a5a60` | |
+（UI-CLARITY UIC-48：主线改为 `0x6a6a72`，线宽随 `uiScale`。）
 | 网格次线 | — | `0x3c3c42` | |
 | X 轴 | — | `0xb04a4a` | 降饱和 |
 | Z 轴 | — | `0x4a6ab0` | 降饱和 |
@@ -109,6 +112,7 @@ Dock：单窗口节点 `ImGuiDockNodeFlags_AutoHideTabBar`。
 ## 四、字号层级（U0 · UIC-08）
 
 只 **AddFont 一次**（系统 CJK，如 `msyh.ttc`）。启动读 `glfwGetWindowContentScale`，以 `body * scale` 为默认尺寸，并 `style.ScaleAllSizes(scale)`。其余档在绘制处用 ImGui 1.92 动态字号：`ImGui::PushFont(nullptr, sizePx * scale)`（`src/UI/UiFonts.h`；`scale` 取 `style.FontSizeBase / 14`，不要把 `GetFontSize()` 传给 `PushFont`）。跨屏 DPI 变化本版不处理。
+（UI-CLARITY UIC-47：`scale` = DPI × `uiScale`。`uiScale` 来自 `settings.json`；切换时从保存的基准 style 再 `ScaleAllSizes`，避免叠乘。）
 
 | 名 | 100% DPI 像素 | 用途 |
 |----|---------------|------|
@@ -153,12 +157,15 @@ InvisibleButton 覆盖整个 available（暗幕也可拖轨道）
 视图菜单关闭「锁定导出比例」时：退回「RT = available」（0.1.2 行为），便于对照。
 
 `镜头条###ShotStrip` 不是 dock 窗口：`BeginViewportSideBar(viewport, ImGuiDir_Down, 132.0f)`。`ApplyDockLayout` 不再切 `dockBottom`。状态栏同样是 Down SideBar（28px），视觉贴在镜头条之下。设计基准 1280×800。
+（UI-CLARITY UIC-48：132 / 28 / 40 为设计像素，绘制时 × `UiScale()`；窗口宽 ≥1920 时镜头条格 208×117。）
 
 ## 七、持久化
 
 | 项 | 决定 |
 |----|------|
 | 取景框开关、网格、三分线、左栏折叠、3D 背景选项 | U0–U1：**进程内**。UIC-34 写入用户数据目录（非 `.ddproj`） |
+| `uiScale`（界面缩放 100/125/150/200） | UIC-47：`settings.json` 数字 `1` / `1.25` / `1.5` / `2`。缺键=未设置；首启 `max(窗口宽, 主显示器宽) ≥ 2400` 且 contentScale≈1.0 则默认 `1.25` |
+| `openLastProject` / `lastProjectPath` / `defaultExportDirectory` / `exportResolutionId` / `exportTransparent` | UIC-49：用户目录 `settings.json`，不进 `.ddproj`。分辨率与透明同时走既有 `SelectExportResolution` / `SetExportTransparent` |
 | `workspaceModeId` / 选择 | 仍不进工程 |
 | `.ddproj` | **不升版本** |
 | Lucide TTF | 仓库资源，ISC 声明在 `03` |

@@ -458,8 +458,8 @@ Core::Result<ProjectSnapshot> ProjectFile::Parse(const std::string& jsonText,
         snapshot.lightingPreset = root["lighting"].value("preset", "neutral");
     }
     if (root.contains("storyboard") && root["storyboard"].is_object()) {
-        snapshot.storyboardLayout = root["storyboard"].value("layout", "left-to-right");
-        if (snapshot.storyboardLayout != "left-to-right") {
+        snapshot.storyboardLayout = root["storyboard"].value("layout", "grid");
+        if (snapshot.storyboardLayout != "left-to-right" && snapshot.storyboardLayout != "grid") {
             return Core::Result<ProjectSnapshot>::Fail(
                 ParseError("unsupported storyboard layout", "不支持的分镜布局"));
         }

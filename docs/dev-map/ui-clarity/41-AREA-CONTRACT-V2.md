@@ -22,7 +22,7 @@
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-比例：左 18%（最小 220px）· 右 22%（最小 280px）· 底栏**固定 132px**（SideBar，不是 dock 比例）。设计与验收基准 **1280×800**（以及 1920×1080）；1024 宽不作验收。U0 不做窄窗图标条 / 浮层（U2 + UIC-33）。
+比例：左 **300–420px**（1280 宽下限 280px）· 右 **340–480px**（UIC-46）· 底栏**固定 132px**（SideBar，不是 dock 比例）。设计与验收基准 **1280×800**（以及 1920×1080 / 2560×1440）；1024 宽不作验收。U0 不做窄窗图标条 / 浮层（U2 + UIC-33）。
 
 ## 二、每个格子写死
 
@@ -50,6 +50,7 @@
 | 主按钮 | 编剧「保存剧本」· 置景「导入模型 ▾」· 掌机「导出镜头 ▾」（1080p / 2K / 镜头包（FND-21 后）/ 设置…）· 审片「导出总览 ▾」 |
 | 主 Command | `SetWorkspaceModeCommand` · `ExportCurrentShotCommand` · `ExportStoryboardBoardCommand` · `SaveScriptCommand` · `ImportModelCommand` · U2：`SelectAdjacentShotCommand` |
 | 比例 | 全宽 × 40px |
+（UI-CLARITY UIC-48：40px 为设计像素 × `UiScale()`。）
 | 读 | `workspaceModeId` · `scriptScenes` · `storyboardCards` · `selectedShotLinkedCamera` · `selectionId` |
 | 去掉 | 「N 镜 / M 已成镜」文字（改到 `STATUS_BAR` 右侧） |
 
@@ -62,9 +63,11 @@
 | 控件 | **两段固定**：镜头表 + 场景（对象 + 相机子段）。段头：caption 大写灰字 + 右侧 `+`，**不用**蓝色 `CollapsingHeader` 填色 |
 | 镜头行 | 左侧 3px accent 竖条 = 当前；右侧三点状态等宽对齐 |
 | 主 Command | 既有 `Select*` / `Insert*` / `DeleteShot` / `AddCamera` / `RemoveCamera` · 拖镜头到相机行 = `LinkShotToCameraCommand` · U1：`SetNodeVisible` / `DuplicateNode` / `DeleteNode` · U2：双击镜头 = `SetWorkspaceModeCommand{"shoot"}` + `SelectShotCommand` |
-| 比例 | 左栏 18% × 上段（置景时库升高则镜头表仍在） |
+| 比例 | 左栏 300–420px × 上段（置景时库升高则镜头表仍在；UIC-46） |
 | 读 | `scriptScenes` · `nodes` · `cameras` · `storyboardCards` · U1：`SceneNodeView.visible` |
 | 四模式 | **都显示两段**。编剧：「场景」默认折叠。审片：左栏默认收成 dock 最小宽度，视图菜单「折叠左栏」可切换。48px 图标条与窄窗浮层挪到 U2（跟 UIC-33）。不再按模式删掉一整段 |
+
+> **UIC-54 补节**：左栏改为同一 dock 节点上的三个 tab：`镜头表`（`层级###Hierarchy`）、`场景`（`场景###SceneTree`）、`资源库`（`资源库###Library`）。区域 ID 与 `###Hierarchy` / `###Library` 窗口后缀不改；`SceneTree` 属于 `LEFT_HIERARCHY`。该节点不设 `AutoHideTabBar`。模式切换只改默认激活 tab（编剧 / 掌机 → 镜头表，置景 → 场景）。审片窄窗仍用 48px 图标条 + 浮层。
 
 ### `LEFT_LIBRARY`
 
@@ -73,7 +76,7 @@
 | 宿主 | `资源库###Library` |
 | 归属 | `LibraryPanel` |
 | 控件 | **一排**：`[本地 \| 在线]` segmented + 搜索占满 + `⋯` 溢出（导入 / 刷新 / 列表·网格 / 清理缺失）。下一排：分类 chips（可横滚） |
-| 网格 | U0 仍可用色块占位；U1 用 `previewTexture` 96×72 |
+| 网格 | 默认网格（UIC-45）；U1 用 `previewTexture` 96×72；`⋯` 可切回列表 |
 | 主 Command | 既有 Library 系列全部保留 |
 | 比例 | 左栏下段；置景升高，编剧 / 审片隐藏 |
 | 读 | 既有 library 字段 · U1：`LibraryAssetView.previewTexture` |
@@ -105,18 +108,20 @@
 | 归属 | `WorkspacePanel` |
 | 规则 | **同一时刻只一张面孔**。U0 起禁止把资产块追加在其他面孔下面（修 1089–1091） |
 | 面孔 | 见下表 |
-| 比例 | 右栏 22%，最小 280px |
+| 比例 | 右栏 340–480px（UIC-46） |
 | 读 | `selectionKind` / `selectionId` / `selectionLabel` · 各域快照 · U1 元数据 / 显隐 |
 
 | 面孔 | 何时 | 内容 | 去掉 |
 |------|------|------|------|
-| 镜头 | 选中镜头（掌机 / 置景） | 标题（名 + 场次灰字）→ 相机下拉 + 「新建机位」主按钮 + 解绑 → 机位预设 3×2 → U1 元数据 → 底条：预览状态 + 「刷新预览」 | 灯光、分辨率、透明、导出按钮 |
+| 镜头 | 选中镜头（掌机 / 置景） | 标题（名 + 场次灰字）→ 相机下拉 + 「新建机位」主按钮 + 解绑 → 机位预设 3×2 → U1 元数据（两列：左标签右输入，UIC-42）→ 底条：预览状态 + 「刷新预览」 | 灯光、分辨率、透明、导出按钮 |
 | 场景对象 | 选中节点 | 名称 → `DragFloat3` + 复位 → 对齐（落地 / 面向相机 / 居中，FND-13 已含按钮）→ U1 显隐 / 复制 / 删除 | 长说明改 tooltip |
 | 相机 | 选中相机 | 名称 → 设为取景 → 占用列表 → 可关联列表 | — |
 | 场景 | 置景且无选中，或点「场景」段头（U0：面板本地 bool，见 `43` 一） | **灯光**（Q8 从镜头面孔搬来）→ 背景 → 网格开关 | — |
-| 资产 | U0：`selectionKind == "asset"` | 大预览 → 名称 / 来源 / 格式 / 许可 → 「加入场景」主按钮 | 不再追加 |
-| 导出 | 审片 | 16:9 监视器 → 分辨率下拉 + 透明背景 + 背景 → 未就绪清单 → 「导出总览」主按钮 | 「导出镜头」（在顶栏） |
-| 剧本 | 编剧 | 场 / 镜统计 → 诊断（行号可点）→ FND-31 后「从分镜 JSON 导入」 | — |
+| 资产 | U0：`selectionKind == "asset"`；**只对模型 / 角色**（U3 UIC-59 后资源库不再列 Skill，无 Skill 面孔） | 大预览 → 名称 / 来源 / 格式 / 许可 → 「加入场景」主按钮 | 不再追加；U3：AI 供应商块、`SKILL.md` 全文 |
+| 导出 | 审片 | 16:9 监视器 → 分辨率下拉 + 透明背景 + 背景 → 未就绪清单 → 「导出总览」主按钮 | 「导出镜头」（在顶栏）；U3：AI 供应商块（进设置） |
+| 剧本 | 编剧 | 场 / 镜统计 → 诊断（行号可点）→ **分镜**段（U3 UIC-60）：`[生成分镜 ▾]` 主按钮（默认 Skill + 下拉切换）+ 「从分镜 JSON 导入…」+ 就地状态行 / 「打开设置」 | — |
+
+**检查器只放选中对象的属性与作用于它的功能**（`47` 5.1）。全局配置（AI 供应商、界面缩放、默认导出、Skill 管理）一律在 `编辑 → 设置…`（`Ctrl+,`）模态，五页：常规 / 视口 / 导出 / AI / Skills（`47` 6.5）。该模态由 `WorkspacePanel` 承载，不占区域 ID。
 | 空 | 无选中 | 上手三步纵排（真图标，不 `SameLine`）+ 快捷键两列表格 | `[x]` 字符 |
 
 ### `BOTTOM_STRIP`
@@ -124,9 +129,10 @@
 | 项 | 内容 |
 |----|------|
 | 宿主 | `BeginViewportSideBar(viewport, ImGuiDir_Down, 132.0f)`，窗口名仍为 `镜头条###ShotStrip`（**ID 不改**）。不是 dock 窗口。`ApplyDockLayout` 不再切 `dockBottom`。状态栏同为 Down SideBar，贴在镜头条之下 |
-| 掌机 / 置景 | 固定 132px；格 176×99（16:9）+ 标题 + 三图标；当前格 accent 边；横滚 |
+| 掌机 / 置景 | 固定 132px；格 176×99（16:9）+ 一行「序号 名称」+ 三点状态（UIC-44）；当前格 accent 边；横滚 |
+（UI-CLARITY UIC-48：栏高与格均为设计像素 × `UiScale()`；窗口宽 ≥1920 格 208×117。）
 | 编剧 | **不 `Begin`**（Q7） |
-| 审片 | 「导出记录」：结果图标 + 镜头名 + 文件名；U2 起 `[打开][文件夹]` 发 `RevealPathCommand` |
+| 审片 | 有导出记录才 `Begin`「导出记录」；无记录不占 132px（UIC-44 / B-11） |
 | 空工程 | 与左栏一起隐藏（UIC-17） |
 | 主 Command | `SelectShotCommand` · `RefreshStoryboardThumbnailCommand` · U2：`RevealPathCommand` |
 | 读 | `storyboardCards` · `exportLog` |
@@ -137,6 +143,7 @@
 |----|------|
 | 宿主 | `BeginViewportSideBar(ImGuiDir_Down, 28.0f)`，视觉贴底、在镜头条之下。Down 从底边占位，实现时先建本条再建镜头条 |
 | 控件 | 高 **28px**。左：状态点（成功绿 / 警告橙 / 信息灰）+ 文字；导出成功时 U2 附打开链接。中：导入 / `加载模型 x/y`（FND-11）。右：`N 镜 · M 就绪` + dirty 点 |
+（UI-CLARITY UIC-48：28px 为设计像素 × `UiScale()`。）
 | 主 Command | U0 无；U2：`RevealPathCommand` |
 | 读 | `statusText` · `importInProgress` · `scriptScenes` · `storyboardCards` · U1：`sceneLoadPending/Total` |
 | 去掉 | 工程全路径、`VIEW W×H`、「尚未保存」 |
@@ -145,8 +152,8 @@
 
 | 区域 | `script` | `set` | `shoot` | `review` |
 |------|----------|-------|---------|----------|
-| `LEFT_HIERARCHY` | 两段都在；场景折叠 | 两段都在 | 两段都在 | 默认最小宽度，视图菜单可展开 |
-| `LEFT_LIBRARY` | 隐藏 | 升主 | 下段 | 隐藏 |
+| `LEFT_HIERARCHY` | 默认激活镜头表 tab | 默认激活场景 tab | 默认激活镜头表 tab | 图标条；展开后三 tab |
+| `LEFT_LIBRARY` | 同节点第三个 tab | 同节点第三个 tab | 同节点第三个 tab | 图标条浮层 |
 | `BOTTOM_STRIP` | **隐藏** | 132px 镜头条 | 132px 镜头条 | 导出记录 |
 | `CENTER_STAGE` | 剧本（文件名工具条） | 取景框视口 | 取景框 LIVE | 分镜总览（短期画法） |
 | `RIGHT_INSPECTOR` | 剧本面孔 | 节点 / 场景 | 镜头 | 导出 + 监视器 |

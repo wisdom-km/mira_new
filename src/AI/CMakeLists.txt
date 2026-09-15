@@ -1,12 +1,15 @@
 # CMakeLists: Project source file for the DirectorDesk AI module.
-# This file owns project behavior only; keep platform and dependency boundaries explicit.
 
 add_library(dd_ai
     Types.cpp
     NullServices.cpp
     MockServices.cpp
+    HttpCompatible.cpp
+    SkillRunner.cpp
 )
 add_library(DirectorDesk::ai ALIAS dd_ai)
+
+find_package(nlohmann_json CONFIG REQUIRED)
 
 target_include_directories(dd_ai
     PUBLIC
@@ -16,6 +19,9 @@ target_include_directories(dd_ai
 target_link_libraries(dd_ai
     PUBLIC
         dd_core
+        dd_platform
+    PRIVATE
+        nlohmann_json::nlohmann_json
 )
 
 target_compile_features(dd_ai PUBLIC cxx_std_17)

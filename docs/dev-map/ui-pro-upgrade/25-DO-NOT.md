@@ -7,13 +7,13 @@
 
 | 不要做 | 依据 |
 |--------|------|
-| 接线真实 AI（连「AI 生成」按钮都不要画） | `../07` 第二节：AI 模块冻结，不接线、不扩展、不在面板留入口 |
+| 接线真实 AI（连「AI 生成」按钮都不要画） | **本版当时冻结。** FOUNDATION F5 已解冻，以 `../07` 与 foundation-upgrade/35 第四节为准 |
 | 新建 CMake 目标或 `src/<Module>/` | `../07` 第二节：模块集合锁定。本版所有改动落在 UI / Core / App 三个已有目标 |
 | 拆 `src/App/Application.cpp` | UI-PRO 期间暂缓。（FOUNDATION 版改写，见 foundation-upgrade/35 第四节：允许在 App 目标内分文件，仍不新建模块） |
-| Undo / Redo | `../00` 第五节 P0 明确不做 |
+| 完整通用 Undo / Redo | `../00` 第五节 P0 明确不做。（FOUNDATION 版改写，见 foundation-upgrade/35 第四节：FND-42 仅 Scene / Camera / Link） |
 | 完整时间轴、相机动画、关键帧 | `../00` 第五节 |
 | 自由绘制 / 任意连线画布 | `../00` 第五节：分镜画布只由剧本自动生成结构 |
-| ImGuizmo 或任何第三方 UI 组件 | `../03` 已确认决策：变换入口用 `DragFloat3` |
+| 在公共头或非 UI 目标引入 ImGuizmo | `../03`；FND-41 只允许 `src/UI/*.cpp` + vcpkg（FOUNDATION 版改写，见 foundation-upgrade/35 第四节） |
 | 改 `.ddproj` 格式 | 要先改 `../modules/project-file.md` 并由 Wisdom 批准；本版 `workspaceModeId` 不持久化 |
 | 第二套配色 / 换字体方案 | 调色板已在 `backends/imgui/ImGuiGlfwBackend.cpp` 落地，本版沿用 |
 | 为假想需求预留空面板、空模式、空开关 | `../08` 第十节：为变化预留接缝，不为幻想预留房间 |

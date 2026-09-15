@@ -5,6 +5,7 @@
 
 #include "DirectorDesk/Core/Command.h"
 #include "UiChrome.h"
+#include "UiFonts.h"
 #include "UiIcons.h"
 
 #include <algorithm>
@@ -37,7 +38,7 @@ void DrawAssetContextMenu(const LibraryAssetView& asset, Core::CommandQueue& com
 void DrawAssetRow(const LibraryAssetView& asset, Core::CommandQueue& commands, bool grid) {
     const std::string label = asset.name + "##" + asset.id;
     if (grid) {
-        constexpr ImVec2 kThumb(96.0f, 72.0f);
+        const ImVec2 kThumb(UiPx(96.0f), UiPx(72.0f));
         constexpr ImU32 kCellBg = IM_COL32(0x2A, 0x2A, 0x2F, 255);
         constexpr ImU32 kCellBorder = IM_COL32(0x36, 0x36, 0x3C, 255);
         constexpr ImU32 kAccent = IM_COL32(216, 154, 74, 255);
@@ -49,7 +50,7 @@ void DrawAssetRow(const LibraryAssetView& asset, Core::CommandQueue& commands, b
             commands.Push(Core::SelectLibraryAssetCommand{asset.id});
         }
         DrawAssetContextMenu(asset, commands);
-        if (ImGui::BeginDragDropSource()) {
+        if (asset.canAddToScene && ImGui::BeginDragDropSource()) {
             ImGui::SetDragDropPayload("DD_ASSET_ID", asset.id.c_str(), asset.id.size() + 1);
             ImGui::TextUnformatted(asset.name.c_str());
             ImGui::EndDragDropSource();
@@ -70,7 +71,11 @@ void DrawAssetRow(const LibraryAssetView& asset, Core::CommandQueue& commands, b
         ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + kThumb.x);
         ImGui::TextUnformatted(asset.name.c_str());
         ImGui::PopTextWrapPos();
-        ImGui::TextColored(kMuted, "%s", asset.origin.c_str());
+        if (asset.hasSkin) {
+            ImGui::TextColored(kMuted, "%s  ·  含骨骼", asset.origin.c_str());
+        } else {
+            ImGui::TextColored(kMuted, "%s", asset.origin.c_str());
+        }
         ImGui::EndGroup();
         ImGui::PopID();
         return;
@@ -80,13 +85,17 @@ void DrawAssetRow(const LibraryAssetView& asset, Core::CommandQueue& commands, b
         commands.Push(Core::SelectLibraryAssetCommand{asset.id});
     }
     DrawAssetContextMenu(asset, commands);
-    if (ImGui::BeginDragDropSource()) {
+    if (asset.canAddToScene && ImGui::BeginDragDropSource()) {
         ImGui::SetDragDropPayload("DD_ASSET_ID", asset.id.c_str(), asset.id.size() + 1);
         ImGui::TextUnformatted(asset.name.c_str());
         ImGui::EndDragDropSource();
     }
     ImGui::SameLine();
-    ImGui::TextDisabled("%s  ·  %s", asset.format.c_str(), asset.status.c_str());
+    if (asset.hasSkin) {
+        ImGui::TextDisabled("%s  ·  %s  ·  含骨骼", asset.format.c_str(), asset.status.c_str());
+    } else {
+        ImGui::TextDisabled("%s  ·  %s", asset.format.c_str(), asset.status.c_str());
+    }
 }
 
 bool DrawSegment(const char* label, bool selected) {
@@ -103,14 +112,9 @@ bool DrawSegment(const char* label, bool selected) {
 } // namespace
 
 void LibraryPanel::Draw(const AppViewState& state, Core::CommandQueue& commands) {
-    const char* mode = state.workspaceModeId != nullptr && state.workspaceModeId[0] != '\0'
-                           ? state.workspaceModeId
-                           : "shoot";
-    const bool noProject = state.projectPath == nullptr || state.projectPath[0] == '\0';
-    const bool noNodes = state.nodes == nullptr || state.nodes->empty();
-    const bool empty = noProject && !state.scriptHasSnapshot && noNodes;
+    const bool empty = state.projectIsEmpty;
     LeftRailState& rail = CurrentLeftRail();
-    if (empty || std::strcmp(mode, "script") == 0 || std::strcmp(mode, "review") == 0) {
+    if (empty) {
         return;
     }
     if (rail.iconBar && rail.overlay != LeftRailOverlay::Library) {
@@ -133,7 +137,7 @@ void LibraryPanel::Draw(const AppViewState& state, Core::CommandQueue& commands)
     DrawPanelCaption("资源库");
     const char* origin = state.libraryOriginFilter != nullptr ? state.libraryOriginFilter : "all";
     const bool online = std::strcmp(origin, "online") == 0;
-    const char* viewMode = state.libraryViewMode != nullptr ? state.libraryViewMode : "list";
+    const char* viewMode = state.libraryViewMode != nullptr ? state.libraryViewMode : "grid";
     const bool grid = std::strcmp(viewMode, "grid") == 0;
 
     if (DrawSegment("本地", !online)) {
@@ -241,8 +245,11 @@ void LibraryPanel::Draw(const AppViewState& state, Core::CommandQueue& commands)
         int column = 0;
         int visible = 0;
         const int gridColumns =
-            std::max(2, static_cast<int>(ImGui::GetContentRegionAvail().x / 104.0f));
+            std::max(2, static_cast<int>(ImGui::GetContentRegionAvail().x / UiPx(104.0f)));
         for (const LibraryAssetView& asset : *state.libraryAssets) {
+            if (asset.kind == "skill" || asset.format == "skill") {
+                continue;
+            }
             if (IsIndexMissing(asset)) {
                 continue;
             }
@@ -258,8 +265,19 @@ void LibraryPanel::Draw(const AppViewState& state, Core::CommandQueue& commands)
             }
         }
         if (visible == 0) {
-            ImGui::TextUnformatted(online ? "没有可显示的官方资产。"
-                                          : "资源库为空。导入模型后会保留在这里。");
+            if (online) {
+                ImGui::TextUnformatted(state.officialConfigured
+                                           ? "当前分类没有可显示的官方模型。"
+                                           : "未配置官方清单，无法列出在线模型。");
+                if (ImGui::Button("刷新", ImVec2(-1.0f, 0.0f))) {
+                    commands.Push(Core::RefreshOfficialCatalogCommand{});
+                }
+            } else {
+                ImGui::TextUnformatted("还没有模型。导入模型，或从在线清单下载。");
+                if (ImGui::Button("导入模型", ImVec2(-1.0f, 0.0f))) {
+                    commands.Push(Core::ImportModelCommand{});
+                }
+            }
         }
     }
     ImGui::End();

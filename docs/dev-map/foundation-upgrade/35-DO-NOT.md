@@ -7,18 +7,17 @@
 
 | 不要做 | 依据 |
 |--------|------|
-| 在软件内运行 Skill（Node / Python 子进程）、内嵌任何脚本运行时 | `../07` 第二节 AI 冻结；[`32`](32-SKILLS-INTEGRATION.md) L3 |
-| MCP 服务端、HTTP API、任何让外部 Agent 驱动软件的通道 | 同上；镜头包 JSON 是本版唯一的对外接口 |
-| 「运行 Skill」按钮、Node 路径设置、Skill 运行状态快照字段 | `../08` 第十节：不为幻想预留房间 |
-| 新建 `src/<Module>/` 或 CMake 目标（含 `src/Skill/`、`src/Import/`） | `../07` 第二节；Skill 是官方资产，导入落在 Script，镜头包落在 Export |
-| 升 `.ddproj` 格式版本 | 本版所需字段（`visible`、`official`）在版本 1 里都已定义，是代码没实现 |
+| MCP 服务端、HTTP API、任何让外部 Agent 驱动软件的通道 | 镜头包 JSON 与 AI HTTPS 出站是对外接口；不做入站控制面 |
+| 新建 `src/<Module>/` 或 CMake 目标（含 `src/Skill/`、`src/Import/`） | `../07` 第二节；Skill 是官方资产，导入落在 Script，镜头包落在 Export，运行落在 AI |
+| 升 `.ddproj` 格式版本 | 本版所需字段（`visible`、`official`）在版本 1 里都已定义 |
 | 深度图 / 法线图 / 姿态图导出 | 镜头包 v2 议题 |
 | 运行时蒙皮、骨骼动画、姿态编辑器 | F4 只做静态显示；姿态用预烘焙 GLB 切换 |
 | 时间轴、关键帧、自由绘制、多人协作 | `../00` 第五节 |
 | 把 `AppViewState` 改成增量 / 脏标记更新 | 当前无性能问题 |
 | 「智能合并」导入的分镜与现有剧本 | 只做 `replace` / `append`；合并是 Agent 的活 |
 | 给 `meta` 做 schema 或枚举校验 | 键是自由文本；约定只在 UI 快捷项 |
-| 未批准就动 F4 的 FND-41 / 42 / 43 | 各自涉及第三方依赖或 `00` 红线 |
+| 在未写入契约的情况下给 Undo 进剧本文本 | FND-42：只快照 Scene / Camera / Link |
+| 供应商 SDK 进公共头、密钥写进日志 | F5：只走 `IHttpClient` + `settings.json` |
 
 ## 二、不要保留的「自用 Demo」习惯
 
@@ -62,8 +61,10 @@
 | 「工程文件仍用既有内置哈希」 | `../03` 决策表 | 统一 `Core::Sha256` | 同上 |
 | `script-format` 1.0「P0 不解析…时长、镜头运动等语义」 | `../modules/script-format.md` 第五节 | 1.1：镜头元数据以引用块表达，仍不解析人物 / 对白 / 情绪 | 同上 |
 | `asset-manifest` 1「`format` 仅 `glb` 或 `obj`」 | `../modules/asset-manifest.md` | 2：增加 `skill`、`kind`、`rig` | 同上 |
-| 「Phase 2 变换入口 数值 DragFloat3；不引入 ImGuizmo」 | `../03` 决策表 | **未改**。FND-41 待批准 | — |
-| 「P0 不做 Undo」 | `../00` 第五节 | **未改**。FND-42 待批准 | — |
+| 「Phase 2 变换入口 数值 DragFloat3；不引入 ImGuizmo」 | `../03` 决策表 | **视口 Gizmo 用 ImGuizmo（vcpkg），只出现在 `src/UI/*.cpp`；输出仍走 `SetNodeTransformCommand`；检查器 DragFloat3 保留** | Wisdom 2026-09-15 |
+| 「P0 不做 Undo」 | `../00` 第五节 | **置景 Undo/Redo：App 快照栈仅 Scene / Camera / Link；剧本文本不进栈** | Wisdom 2026-09-15 |
+| 「P0 平台 Windows + macOS；CI 必须双绿」 | `../00` 第六节、`../01` CI、`../02` 门禁 | **P0 验收只要求 Windows**；macOS 暂缓开发、云测与实机回归 | Wisdom 2026-09-15 |
+| 「AI 冻结：不接线真实服务、不运行 Skill」 | `../00` 第四节 8、`../07` 第二节、[`32`](32-SKILLS-INTEGRATION.md) L3 | **解冻 AI 模块**：OpenAI 兼容 HTTPS + 密钥进 `settings.json`；L3 按 `skill.json` 运行（内置拷贝或子进程），产出仍走 L1。禁止 SDK 进公共头、禁止 MCP、禁止密钥进日志 | Wisdom 2026-09-15 |
 
 执行模型改这几处旧文字时，必须在被改的那一行后加 `（FOUNDATION 版改写，见 foundation-upgrade/35 第四节）`，不要静默替换。
 
@@ -72,4 +73,4 @@
 1. 本文件夹与 `../00`–`../08` 冲突且不在第四节表内：以 `../00`–`../08` 为准，停工报告。
 2. 本文件夹与 `../ui-pro-upgrade/` 冲突：界面主次与区域 ID 以 `ui-pro-upgrade` 为准；新 Command 与格式以本文件夹 [`33`](33-CONTRACT-DELTA.md) 为准。
 3. 代码与文档冲突：停工，由 Wisdom 决定改哪边（`../08` 第八节）。
-4. 某任务做到一半发现要新建模块或运行外部程序：落点切错了，回 [`34`](34-LANDING-CHECKLIST.md) 重拆，不要继续。
+4. 某任务做到一半发现要新建模块：落点切错了，回 [`34`](34-LANDING-CHECKLIST.md) 重拆，不要继续。Skill 子进程只允许经 `Platform::RunProcess`。

@@ -13,6 +13,8 @@ add_library(dd_app
     DispatchLibrary.cpp
     DispatchExport.cpp
     DispatchWorkspace.cpp
+    DispatchAi.cpp
+    UndoStack.cpp
     ViewStateBuilder.cpp
     ProjectFile.cpp
     ProjectBinding.cpp
@@ -59,6 +61,7 @@ endif()
 target_compile_definitions(dd_app PRIVATE
     "DD_OFFICIAL_MANIFEST_URL=\"${DD_OFFICIAL_MANIFEST_URL}\""
     "DD_OFFICIAL_ASSET_BASE_URL=\"${DD_OFFICIAL_ASSET_BASE_URL}\""
+    "DD_PROJECT_VERSION=\"${PROJECT_VERSION}\""
 )
 
 target_compile_features(dd_app PUBLIC cxx_std_17)

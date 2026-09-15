@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace DirectorDesk::Storyboard {
 
@@ -24,6 +25,12 @@ struct BoardComposeResult {
     bool scaledToMax = false;
 };
 
-Core::Result<BoardComposeResult> ComposeBoard(const BoardComposeRequest& request);
+struct BoardPdfResult {
+    std::vector<ImageBuffer> pages;
+};
+
+[[nodiscard]] Core::Result<BoardComposeResult> ComposeBoard(const BoardComposeRequest& request);
+[[nodiscard]] Core::Result<BoardPdfResult> ComposePdfPages(const BoardComposeRequest& request,
+                                                           int cellsPerPage = 6);
 
 } // namespace DirectorDesk::Storyboard

@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cctype>
 #include <set>
+#include <unordered_map>
 #include <utility>
 
 namespace DirectorDesk::Script {
@@ -176,12 +177,92 @@ void AddDiagnostic(ParseResult& result, DiagnosticSeverity severity, int line, c
     result.diagnostics.push_back(std::move(diagnostic));
 }
 
+bool ParseMetaLine(const std::string& line, std::string& key, std::string& value) {
+    const std::string trimmed = Trim(line);
+    if (trimmed.empty() || trimmed[0] != '>') {
+        return false;
+    }
+    const std::string rest = Trim(trimmed.substr(1));
+    const std::size_t fullColon = rest.find("：");
+    const std::size_t halfColon = rest.find(':');
+    std::size_t keyEnd = std::string::npos;
+    std::size_t valueStart = std::string::npos;
+    if (fullColon != std::string::npos && (halfColon == std::string::npos || fullColon < halfColon)) {
+        keyEnd = fullColon;
+        valueStart = fullColon + 3;
+    } else if (halfColon != std::string::npos) {
+        keyEnd = halfColon;
+        valueStart = halfColon + 1;
+    } else {
+        return false;
+    }
+    key = Trim(rest.substr(0, keyEnd));
+    value = valueStart <= rest.size() ? Trim(rest.substr(valueStart)) : std::string();
+    return !key.empty();
+}
+
+void ExtractShotMeta(Shot& shot, ParseResult& result) {
+    std::vector<std::string> lines;
+    std::string current;
+    for (char ch : shot.body) {
+        if (ch == '\n') {
+            lines.push_back(std::move(current));
+            current.clear();
+        } else {
+            current.push_back(ch);
+        }
+    }
+    if (!shot.body.empty()) {
+        lines.push_back(std::move(current));
+    }
+    std::size_t i = 0;
+    while (i < lines.size() && Trim(lines[i]).empty()) {
+        ++i;
+    }
+    std::vector<ShotMeta> meta;
+    while (i < lines.size()) {
+        std::string key;
+        std::string value;
+        if (!ParseMetaLine(lines[i], key, value)) {
+            break;
+        }
+        bool replaced = false;
+        for (ShotMeta& item : meta) {
+            if (item.key == key) {
+                item.value = std::move(value);
+                replaced = true;
+                break;
+            }
+        }
+        if (replaced) {
+            AddDiagnostic(result, DiagnosticSeverity::Warning, shot.headingLine + static_cast<int>(i) + 1,
+                          "script.duplicate-meta-key", "元数据键重复，已保留最后一次");
+        } else {
+            meta.push_back(ShotMeta{std::move(key), std::move(value)});
+        }
+        ++i;
+    }
+    if (i < lines.size() && Trim(lines[i]).empty()) {
+        ++i;
+    }
+    std::string body;
+    for (std::size_t n = i; n < lines.size(); ++n) {
+        if (!body.empty()) {
+            body += '\n';
+        }
+        body += lines[n];
+    }
+    shot.meta = std::move(meta);
+    shot.body = std::move(body);
+}
+
 void FlushShot(ParseResult& result, Scene* scene, Shot& shot, bool& hasShot, int lastContentLine) {
     if (!hasShot || scene == nullptr) {
         return;
     }
     shot.lineStart = shot.headingLine;
     shot.lineEnd = lastContentLine >= shot.headingLine ? lastContentLine : shot.headingLine;
+    ExtractShotMeta(shot, result);
     if (Trim(shot.body).empty()) {
         AddDiagnostic(result, DiagnosticSeverity::Hint, shot.headingLine, "script.empty-shot-body",
                       "镜头正文为空");
@@ -199,6 +280,64 @@ void CloseScene(Scene* scene, int lastContentLine) {
 }
 
 } // namespace
+
+namespace {
+
+std::string TrimPublic(const std::string& value) {
+    std::size_t begin = 0;
+    while (begin < value.size() &&
+           std::isspace(static_cast<unsigned char>(value[begin])) != 0) {
+        ++begin;
+    }
+    std::size_t end = value.size();
+    while (end > begin && std::isspace(static_cast<unsigned char>(value[end - 1])) != 0) {
+        --end;
+    }
+    return value.substr(begin, end - begin);
+}
+
+} // namespace
+
+bool TryParseMetaLine(const std::string& line, std::string& key, std::string& value) {
+    const std::string trimmed = TrimPublic(line);
+    if (trimmed.empty() || trimmed[0] != '>') {
+        return false;
+    }
+    const std::string rest = TrimPublic(trimmed.substr(1));
+    const std::size_t fullColon = rest.find("：");
+    const std::size_t halfColon = rest.find(':');
+    std::size_t keyEnd = std::string::npos;
+    std::size_t valueStart = std::string::npos;
+    if (fullColon != std::string::npos && (halfColon == std::string::npos || fullColon < halfColon)) {
+        keyEnd = fullColon;
+        valueStart = fullColon + 3;
+    } else if (halfColon != std::string::npos) {
+        keyEnd = halfColon;
+        valueStart = halfColon + 1;
+    } else {
+        return false;
+    }
+    key = TrimPublic(rest.substr(0, keyEnd));
+    value = valueStart <= rest.size() ? TrimPublic(rest.substr(valueStart)) : std::string();
+    return !key.empty();
+}
+
+std::string ComposeShotMetaLine(const std::vector<ShotMeta>& meta) {
+    static const char* kPreferred[] = {"景别", "运镜", "时长"};
+    std::string line;
+    for (const char* preferred : kPreferred) {
+        for (const ShotMeta& item : meta) {
+            if (item.key == preferred && !TrimPublic(item.value).empty()) {
+                if (!line.empty()) {
+                    line += " · ";
+                }
+                line += item.value;
+                break;
+            }
+        }
+    }
+    return line;
+}
 
 ParseResult Parser::Parse(const std::string& markdown) {
     ParseResult result;

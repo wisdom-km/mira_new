@@ -30,7 +30,7 @@ DirectorDesk 已走完 P0 主路径，仍处于可加、可删功能的 Demo 阶
 | 控制面 | Core、Platform、Renderer、`backends/` | 保留，不为整洁而重写 |
 | 主路径落点 | Script、Scene、Camera、Asset、Storyboard、UI、Export、App | 保留；新功能填进这些名词 |
 | 薄但独立 | Link | 保留类型与测试；不要往里堆逻辑；不必为了「少一个库」而合并 |
-| 预留空岛 | AI | **冻结**：不接线、不扩展、不在面板留入口。接入真实供应商前当它不存在 |
+| 预留空岛 | AI | **已解冻**（Wisdom 2026-09-15）：填进现有 `IImageGenService` / `IVideoGenService` 与 Skill 运行；不新建模块；无供应商 SDK |
 
 允许新建模块的条件（需同时满足至少两条，并先修订本文件与 `03`）：
 
@@ -61,7 +61,7 @@ DirectorDesk 已走完 P0 主路径，仍处于可加、可删功能的 Demo 阶
 | `.ddproj` 读写、跨模块一致性 | App（`ProjectFile` / `ProjectBinding`） | 各域私自写自己的工程格式 |
 | 路径、对话框、线程、HTTP | Platform | 业务模块里的 `wchar_t` / curl |
 | 真正画出来 | `IRenderer` + `backends/bgfx` | Export / UI 公共头 |
-| 文生图 / 视频 | AI 接口（当前冻结） | 面板里供应商 SDK |
+| 文生图 / 视频 / 运行 Skill | AI 模块（HTTPS 适配器 + `skill.json`） | 面板里供应商 SDK；后台改场景 |
 
 边界与接口签名见 `01-ARCHITECTURE-MAP.md`。数据格式见 `modules/`。
 
@@ -93,7 +93,7 @@ DirectorDesk 已走完 P0 主路径，仍处于可加、可删功能的 Demo 阶
 
 只藏按钮、留下死命令和死字段，视为未完成删除。
 
-AI 模块现阶段不删库，只冻结：Demo 闭环未使用，删构建收益小；真要做供应商时再打开。
+AI 模块已解冻：适配器留在 `src/AI/`，密钥留在用户设置，UI 只发 Command。仍不删库、不新建第 14 个 CMake 目标。
 
 ## 六、一票否决
 
@@ -105,7 +105,7 @@ AI 模块现阶段不删库，只冻结：Demo 闭环未使用，删构建收益
 - 后台线程改场景图、UI 或 Renderer
 - 新格式靠中心化 `if (ext == …)` 而不是注册表
 - 为单个按钮或单个预设新建 CMake 库
-- 在冻结解除前给 AI 接真实网络、密钥 UI 或供应商 SDK
+- 供应商 SDK 进公共头、密钥写入日志，或后台线程改 Scene / UI / Renderer
 
 ## 七、与范围文件的关系
 

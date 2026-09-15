@@ -6,6 +6,7 @@
 #include "DirectorDesk/Core/Error.h"
 #include "DirectorDesk/Platform/Paths.h"
 
+#include <cmath>
 #include <nlohmann/json.hpp>
 
 namespace DirectorDesk::App {
@@ -16,6 +17,21 @@ bool ReadBool(const nlohmann::json& root, const char* key, bool fallback) {
         return fallback;
     }
     return root[key].get<bool>();
+}
+
+std::string ReadString(const nlohmann::json& root, const char* key, const std::string& fallback) {
+    if (!root.contains(key) || !root[key].is_string()) {
+        return fallback;
+    }
+    return root[key].get<std::string>();
+}
+
+std::string ReadProvider(const nlohmann::json& root) {
+    const std::string id = ReadString(root, "aiProvider", "openai-compat");
+    if (id == "mock") {
+        return "mock";
+    }
+    return "openai-compat";
 }
 
 std::string ReadBackground(const nlohmann::json& root) {
@@ -29,7 +45,43 @@ std::string ReadBackground(const nlohmann::json& root) {
     return "neutral";
 }
 
+std::string ReadExportResolution(const nlohmann::json& root) {
+    const std::string id = ReadString(root, "exportResolutionId", "1080p");
+    if (id == "2k") {
+        return "2k";
+    }
+    return "1080p";
+}
+
 } // namespace
+
+float SanitizeUiScale(float value) {
+    if (value <= 0.0f) {
+        return 0.0f;
+    }
+    const float allowed[] = {1.0f, 1.25f, 1.5f, 2.0f};
+    float best = 1.0f;
+    float bestDist = 1.0e9f;
+    for (float allowedValue : allowed) {
+        const float dist = std::fabs(allowedValue - value);
+        if (dist < bestDist) {
+            bestDist = dist;
+            best = allowedValue;
+        }
+    }
+    return best;
+}
+
+float ResolveUiScale(float stored, unsigned windowWidth, float contentScale) {
+    const float sanitized = SanitizeUiScale(stored);
+    if (sanitized > 0.0f) {
+        return sanitized;
+    }
+    if (windowWidth >= 2400 && contentScale > 0.95f && contentScale < 1.05f) {
+        return 1.25f;
+    }
+    return 1.0f;
+}
 
 UserSettings DefaultUserSettings() {
     return {};
@@ -67,6 +119,22 @@ Core::Result<UserSettings> LoadUserSettings(const std::string& utf8Path) {
     settings.showThirds = ReadBool(root, "showThirds", settings.showThirds);
     settings.showSafeFrame = ReadBool(root, "showSafeFrame", settings.showSafeFrame);
     settings.viewportBackground = ReadBackground(root);
+    settings.aiProvider = ReadProvider(root);
+    settings.aiBaseUrl = ReadString(root, "aiBaseUrl", settings.aiBaseUrl);
+    settings.aiApiKey = ReadString(root, "aiApiKey", settings.aiApiKey);
+    settings.aiImageModel = ReadString(root, "aiImageModel", settings.aiImageModel);
+    settings.aiVideoModel = ReadString(root, "aiVideoModel", settings.aiVideoModel);
+    settings.aiChatModel = ReadString(root, "aiChatModel", settings.aiChatModel);
+    if (root.contains("uiScale") && root["uiScale"].is_number()) {
+        settings.uiScale = SanitizeUiScale(root["uiScale"].get<float>());
+    }
+    settings.openLastProject = ReadBool(root, "openLastProject", settings.openLastProject);
+    settings.lastProjectPath = ReadString(root, "lastProjectPath", settings.lastProjectPath);
+    settings.defaultExportDirectory =
+        ReadString(root, "defaultExportDirectory", settings.defaultExportDirectory);
+    settings.exportResolutionId = ReadExportResolution(root);
+    settings.exportTransparent = ReadBool(root, "exportTransparent", settings.exportTransparent);
+    settings.defaultSkillId = ReadString(root, "defaultSkillId", settings.defaultSkillId);
     return Core::Result<UserSettings>::Ok(settings);
 }
 
@@ -91,6 +159,20 @@ Core::Result<void> SaveUserSettings(const std::string& utf8Path, const UserSetti
     root["showSafeFrame"] = settings.showSafeFrame;
     root["viewportBackground"] =
         settings.viewportBackground == "dark" ? "dark" : "neutral";
+    root["aiProvider"] = settings.aiProvider == "mock" ? "mock" : "openai-compat";
+    root["aiBaseUrl"] = settings.aiBaseUrl;
+    root["aiApiKey"] = settings.aiApiKey;
+    root["aiImageModel"] = settings.aiImageModel;
+    root["aiVideoModel"] = settings.aiVideoModel;
+    root["aiChatModel"] = settings.aiChatModel;
+    root["uiScale"] = SanitizeUiScale(settings.uiScale > 0.0f ? settings.uiScale : 1.0f);
+    root["openLastProject"] = settings.openLastProject;
+    root["lastProjectPath"] = settings.lastProjectPath;
+    root["defaultExportDirectory"] = settings.defaultExportDirectory;
+    root["exportResolutionId"] =
+        settings.exportResolutionId == "2k" ? "2k" : "1080p";
+    root["exportTransparent"] = settings.exportTransparent;
+    root["defaultSkillId"] = settings.defaultSkillId;
     const std::string tempPath = utf8Path + ".tmp";
     auto written = Platform::Paths::WriteTextFile(tempPath, root.dump(2));
     if (!written.IsOk()) {

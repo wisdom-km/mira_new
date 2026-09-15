@@ -193,3 +193,68 @@ TEST_CASE("Fenced headings stay inside the shot line range", "[script][parser]")
     REQUIRE(parsed.snapshot.scenes[0].shots[0].lineEnd == 5);
     REQUIRE(parsed.snapshot.scenes[0].shots[1].lineStart == 6);
 }
+
+TEST_CASE("Shot metadata uses halfwidth and fullwidth colons", "[script][parser][meta]") {
+    const auto parsed = DirectorDesk::Script::Parser::Parse(
+        "## [scene:scene-a] 场\n### [shot:shot-a] 镜\n> 景别: 中景\n> 运镜：推\n\n正文。\n");
+    REQUIRE(parsed.completed);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].meta.size() == 2);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].meta[0].key == "景别");
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].meta[0].value == "中景");
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].meta[1].key == "运镜");
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].meta[1].value == "推");
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].body.find("正文") != std::string::npos);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].body.find("景别") == std::string::npos);
+}
+
+TEST_CASE("Empty metadata value is kept", "[script][parser][meta]") {
+    const auto parsed = DirectorDesk::Script::Parser::Parse(
+        "## [scene:scene-a] 场\n### [shot:shot-a] 镜\n> 提示词:\n\n正文\n");
+    REQUIRE(parsed.completed);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].meta.size() == 1);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].meta[0].key == "提示词");
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].meta[0].value.empty());
+}
+
+TEST_CASE("Duplicate metadata keys keep the last and warn", "[script][parser][meta]") {
+    const auto parsed = DirectorDesk::Script::Parser::Parse(
+        "## [scene:scene-a] 场\n### [shot:shot-a] 镜\n> 景别: 远景\n> 景别: 特写\n正文\n");
+    REQUIRE(parsed.completed);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].meta.size() == 1);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].meta[0].value == "特写");
+    REQUIRE(FindCode(parsed, "script.duplicate-meta-key") != nullptr);
+}
+
+TEST_CASE("Metadata without a blank line still stops at body", "[script][parser][meta]") {
+    const auto parsed = DirectorDesk::Script::Parser::Parse(
+        "## [scene:scene-a] 场\n### [shot:shot-a] 镜\n> 时长: 3s\nA 走向门口。\n");
+    REQUIRE(parsed.completed);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].meta.size() == 1);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].meta[0].value == "3s");
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].body.find("门口") != std::string::npos);
+}
+
+TEST_CASE("Scene blockquotes are not shot metadata", "[script][parser][meta]") {
+    const auto parsed = DirectorDesk::Script::Parser::Parse(
+        "## [scene:scene-a] 场\n> 不是镜头元数据\n### [shot:shot-a] 镜\n正文\n");
+    REQUIRE(parsed.completed);
+    REQUIRE(parsed.snapshot.scenes[0].body.find("不是镜头元数据") != std::string::npos);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].meta.empty());
+}
+
+TEST_CASE("CRLF metadata lines parse", "[script][parser][meta]") {
+    const auto parsed = DirectorDesk::Script::Parser::Parse(
+        "## [scene:scene-a] 场\r\n### [shot:shot-a] 镜\r\n> 景别: 中景\r\n\r\n正文\r\n");
+    REQUIRE(parsed.completed);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].meta.size() == 1);
+    REQUIRE(parsed.snapshot.scenes[0].shots[0].meta[0].value == "中景");
+}
+
+TEST_CASE("ComposeShotMetaLine joins preferred keys", "[script][parser][meta]") {
+    using DirectorDesk::Script::ShotMeta;
+    const std::string line = DirectorDesk::Script::ComposeShotMetaLine(
+        {ShotMeta{"提示词", "x"}, ShotMeta{"景别", "中景"}, ShotMeta{"运镜", "推"},
+         ShotMeta{"时长", "3s"}});
+    REQUIRE(line == "中景 · 推 · 3s");
+    REQUIRE(DirectorDesk::Script::ComposeShotMetaLine({}).empty());
+}

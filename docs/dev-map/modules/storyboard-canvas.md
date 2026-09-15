@@ -59,7 +59,8 @@
 
 ## 四、布局与导航
 
-- 默认从左到右：剧本根 → Scene → Shot
+- 默认 `grid`：每场一条横幅，其下镜头按列换行（列数由画布宽度决定，约 4–6 列；过窄时降到 1 列）
+- `left-to-right` 仍可从 `.ddproj` 读取，用于兼容旧工程
 - 同一 Scene 下的 Shot 严格遵循 Markdown 顺序
 - 新增、删除、折叠或展开节点后自动重排，节点不得重叠
 - 保持当前选中 Shot 尽量不跳出可视区域；必要时平滑聚焦
@@ -124,7 +125,7 @@ Storyboard UI 只能发送 Command，至少包括：
 
 `.ddproj` 只保存：
 
-- 布局方向（P0 固定/默认 `left-to-right`，为兼容保留字段）
+- 布局方向（默认 `grid`；兼容读取 `left-to-right`）
 - 折叠的 Scene ID
 
 不保存：

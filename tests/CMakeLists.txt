@@ -2,6 +2,7 @@
 # This file owns project behavior only; keep platform and dependency boundaries explicit.
 
 find_package(Catch2 CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 add_executable(DirectorDeskTests
     Core/ResultTests.cpp
@@ -21,6 +22,7 @@ add_executable(DirectorDeskTests
     Scene/TransformTests.cpp
     Script/ParserTests.cpp
     Script/DocumentTests.cpp
+    Script/ImportStoryboardTests.cpp
     Link/ShotLinkTests.cpp
     App/ProjectFileTests.cpp
     App/ProjectBindingTests.cpp
@@ -30,6 +32,8 @@ add_executable(DirectorDeskTests
     Storyboard/LayoutTests.cpp
     Export/ShotExportTests.cpp
     AI/ServiceTests.cpp
+    AI/HttpCompatTests.cpp
+    AI/SkillRunnerTests.cpp
 )
 
 target_include_directories(DirectorDeskTests PRIVATE
@@ -52,6 +56,7 @@ target_link_libraries(DirectorDeskTests
         dd_export
         dd_ai
         Catch2::Catch2WithMain
+        nlohmann_json::nlohmann_json
 )
 
 dd_set_strict_warnings(DirectorDeskTests)
@@ -59,6 +64,7 @@ target_compile_definitions(DirectorDeskTests PRIVATE
     "DD_EXAMPLE_CUBE_GLB=\"${PROJECT_SOURCE_DIR}/examples/models/cube.glb\""
     "DD_EXAMPLE_CAFE_SCRIPT=\"${PROJECT_SOURCE_DIR}/examples/scripts/cafe.md\""
     "DD_EXAMPLE_CAFE_PROJECT=\"${PROJECT_SOURCE_DIR}/examples/cafe.ddproj\""
+    "DD_EXAMPLE_STORYBOARD_IMPORT=\"${PROJECT_SOURCE_DIR}/examples/storyboard-import.example.json\""
 )
 
 add_test(NAME DirectorDeskTests COMMAND DirectorDeskTests)

@@ -39,6 +39,7 @@ struct ShotSource {
     std::string cameraId;
     bool cameraExists = false;
     int indexInScene = 1;
+    std::string metaLine;
 };
 
 struct SceneSource {
@@ -79,6 +80,7 @@ struct LayoutCard {
     LinkStatus link = LinkStatus::Unlinked;
     PreviewStatus preview = PreviewStatus::Missing;
     ExportStatus exported = ExportStatus::NotExported;
+    std::string metaLine;
 };
 
 struct LayoutEdge {

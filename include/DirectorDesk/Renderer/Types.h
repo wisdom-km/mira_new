@@ -66,6 +66,8 @@ struct RenderSceneView {
     bool showTestMesh = true;
     bool showGroundGrid = false;
     bool showGroundAxes = false;
+    float groundGridLineWidth = 1.0f;
+    float groundAxisLineWidth = 2.0f;
     RenderLight light;
     std::vector<RenderMeshInstance> instances;
 };

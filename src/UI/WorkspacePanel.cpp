@@ -10,11 +10,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <ImGuizmo.h>
 #include <string>
 
 namespace DirectorDesk::UI {
@@ -37,10 +39,22 @@ bool ModeIs(const AppViewState& state, const char* id) {
     return std::strcmp(ModeId(state), id) == 0;
 }
 
-bool ProjectIsEmpty(const AppViewState& state) {
-    const bool noProject = state.projectPath == nullptr || state.projectPath[0] == '\0';
-    const bool noNodes = state.nodes == nullptr || state.nodes->empty();
-    return noProject && !state.scriptHasSnapshot && noNodes;
+void FormatShotHud(const AppViewState& state, char* out, std::size_t outSize) {
+    if (state.shotHud == nullptr) {
+        std::snprintf(out, outSize, "%s", "未选镜头");
+        return;
+    }
+    const char* title = state.shotHud->shotTitle != nullptr ? state.shotHud->shotTitle : "";
+    const char* camera =
+        state.shotHud->cameraName != nullptr && state.shotHud->cameraName[0] != '\0'
+            ? state.shotHud->cameraName
+            : "无机位";
+    if (state.shotHud->focalLength35mm > 0.0f) {
+        std::snprintf(out, outSize, "%s · %s · %.0fmm", title, camera,
+                      state.shotHud->focalLength35mm);
+    } else {
+        std::snprintf(out, outSize, "%s · %s", title, camera);
+    }
 }
 
 const char* KindId(const AppViewState& state) {
@@ -48,20 +62,12 @@ const char* KindId(const AppViewState& state) {
                                                                             : "none";
 }
 
-bool KindIs(const AppViewState& state, const char* id) {
-    return std::strcmp(KindId(state), id) == 0;
+bool KindIs(const AppViewState& state, SelectionKind kind) {
+    return state.selectionKindEnum == kind;
 }
 
 const StoryboardCardView* FindShotCard(const AppViewState& state, const std::string& shotId) {
-    if (state.storyboardCards == nullptr || shotId.empty()) {
-        return nullptr;
-    }
-    for (const StoryboardCardView& card : *state.storyboardCards) {
-        if (card.kind == "shot" && card.shotId == shotId) {
-            return &card;
-        }
-    }
-    return nullptr;
+    return FindShotCardById(state.storyboardCards, shotId);
 }
 
 const ScriptShotView* FindSelectedShot(const AppViewState& state,
@@ -128,12 +134,11 @@ void CountShots(const AppViewState& state, int& shotCount, int& readyCount) {
         return;
     }
     for (const StoryboardCardView& card : *state.storyboardCards) {
-        if (card.kind != "shot") {
+        if (card.kindEnum != CardKind::Shot) {
             continue;
         }
         ++shotCount;
-        if (card.link != nullptr && std::strcmp(card.link, "已关联") == 0 &&
-            card.preview != nullptr && std::strcmp(card.preview, "就绪") == 0) {
+        if (card.linked && card.previewEnum == PreviewStatus::Ready) {
             ++readyCount;
         }
     }
@@ -147,12 +152,9 @@ void DrawStatusDots(const StoryboardCardView* card) {
             ImGui::SetTooltip("%s", tip);
         }
     };
-    const bool linked =
-        card != nullptr && card->link != nullptr && std::strcmp(card->link, "已关联") == 0;
-    const bool preview =
-        card != nullptr && card->preview != nullptr && std::strcmp(card->preview, "就绪") == 0;
-    const bool exported =
-        card != nullptr && card->exported != nullptr && std::strcmp(card->exported, "已导出") == 0;
+    const bool linked = card != nullptr && card->linkEnum == LinkStatus::Linked;
+    const bool preview = card != nullptr && card->previewEnum == PreviewStatus::Ready;
+    const bool exported = card != nullptr && card->exportEnum == ExportStatus::Exported;
     icon(linked, Icon::Camera, linked ? "已关联机位" : "无机位");
     icon(preview, Icon::Image, preview ? "预览就绪" : "预览未就绪");
     icon(exported, Icon::Download, exported ? "已导出" : "未导出");
@@ -210,8 +212,45 @@ bool ModalButton(const char* label) {
     return pressed;
 }
 
+constexpr float kLeftPanelMin = 300.0f;
+constexpr float kLeftPanelMax = 420.0f;
+constexpr float kLeftPanelNarrowMin = 280.0f;
+constexpr float kRightPanelMin = 340.0f;
+constexpr float kRightPanelMax = 480.0f;
+constexpr float kRightPanelNarrowMin = 280.0f;
+constexpr float kCollapsedLeft = 72.0f;
+
+float ClampedLeftWidth(float windowW, bool collapsed) {
+    const float s = UiScale();
+    if (collapsed) {
+        return kCollapsedLeft * s;
+    }
+    float width = 360.0f * s;
+    width = std::clamp(width, kLeftPanelMin * s, kLeftPanelMax * s);
+    if (windowW <= 1280.0f) {
+        width = std::clamp(width, kLeftPanelNarrowMin * s, kLeftPanelMax * s);
+        width = std::min(width, windowW * 0.30f);
+        width = std::max(width, kLeftPanelNarrowMin * s);
+    }
+    return width;
+}
+
+float ClampedRightWidth(float windowW) {
+    const float s = UiScale();
+    float width = 400.0f * s;
+    width = std::clamp(width, kRightPanelMin * s, kRightPanelMax * s);
+    if (windowW <= 1280.0f) {
+        width = std::min(width, kRightPanelMin * s);
+        width = std::max(width, kRightPanelNarrowMin * s);
+    }
+    if (windowW >= 2560.0f) {
+        width = std::min(width, kRightPanelMax * s);
+    }
+    return width;
+}
+
 void ApplyDockLayout(ImGuiID dockspaceId, const ImVec2& size, const char* modeId, bool force,
-                    bool leftCollapsed, bool empty, bool iconBar) {
+                     bool leftCollapsed, bool empty, bool iconBar) {
     if (!force && ImGui::DockBuilderGetNode(dockspaceId) != nullptr) {
         return;
     }
@@ -221,29 +260,27 @@ void ApplyDockLayout(ImGuiID dockspaceId, const ImVec2& size, const char* modeId
     ImGui::DockBuilderSetNodeSize(dockspaceId, size);
 
     const bool script = std::strcmp(modeId, "script") == 0;
-    const bool set = std::strcmp(modeId, "set") == 0;
     const bool review = std::strcmp(modeId, "review") == 0;
 
     ImGuiID dockCenter = dockspaceId;
     ImGuiID dockLeft = 0;
     ImGuiID dockRight = 0;
+    const float leftPx = ClampedLeftWidth(size.x, leftCollapsed || iconBar);
+    const float rightPx = ClampedRightWidth(size.x);
     if (!empty && !iconBar) {
-        const float leftRatio =
-            leftCollapsed ? std::min(0.08f, 72.0f / std::max(size.x, 1.0f)) : 0.18f;
+        const float leftRatio = leftPx / std::max(size.x, 1.0f);
         ImGui::DockBuilderSplitNode(dockCenter, ImGuiDir_Left, leftRatio, &dockLeft, &dockCenter);
+        ImGui::DockBuilderSetNodeSize(dockLeft, ImVec2(leftPx, size.y));
     }
-    ImGui::DockBuilderSplitNode(dockCenter, ImGuiDir_Right, 0.22f, &dockRight, &dockCenter);
+    const float remain = std::max(size.x - ((!empty && !iconBar) ? leftPx : 0.0f), 1.0f);
+    ImGui::DockBuilderSplitNode(dockCenter, ImGuiDir_Right, rightPx / remain, &dockRight,
+                                &dockCenter);
+    ImGui::DockBuilderSetNodeSize(dockRight, ImVec2(rightPx, size.y));
 
     if (dockLeft != 0) {
-        if (script || review) {
-            ImGui::DockBuilderDockWindow("Hierarchy", dockLeft);
-        } else {
-            ImGuiID dockLibrary = 0;
-            ImGui::DockBuilderSplitNode(dockLeft, ImGuiDir_Down, set ? 0.70f : 0.42f, &dockLibrary,
-                                        &dockLeft);
-            ImGui::DockBuilderDockWindow("Hierarchy", dockLeft);
-            ImGui::DockBuilderDockWindow("Library", dockLibrary);
-        }
+        ImGui::DockBuilderDockWindow("Hierarchy", dockLeft);
+        ImGui::DockBuilderDockWindow("SceneTree", dockLeft);
+        ImGui::DockBuilderDockWindow("Library", dockLeft);
     }
     ImGui::DockBuilderDockWindow("Inspector", dockRight);
     if (script) {
@@ -270,24 +307,41 @@ ImVec2 FitExportFrame(const ImVec2& available, const char* resolutionId) {
     return ImVec2(available.x, available.x / aspect);
 }
 
-void ApplyLeftColumnWidth(ImGuiID dockspaceId, float columnWidth, bool collapsed) {
-    ImGuiDockNode* root = ImGui::DockBuilderGetNode(dockspaceId);
-    if (root == nullptr || !root->IsSplitNode() || root->ChildNodes[0] == nullptr) {
+void ApplyPanelPixelWidths(ImGuiID dockspaceId, float windowW, bool collapsed, bool empty,
+                           bool iconBar) {
+    (void)dockspaceId;
+    const float rightPx = ClampedRightWidth(windowW);
+    if (ImGuiWindow* inspector = ImGui::FindWindowByName("检查器###Inspector")) {
+        if (inspector->DockNode != nullptr &&
+            std::abs(inspector->DockNode->Size.x - rightPx) >= 8.0f) {
+            ImGui::DockBuilderSetNodeSize(inspector->DockNode->ID,
+                                          ImVec2(rightPx, inspector->DockNode->Size.y));
+        }
+    }
+    if (empty || iconBar) {
         return;
     }
-    ImGuiDockNode* left = root->ChildNodes[0];
-    const float target = collapsed ? 72.0f : std::max(220.0f, columnWidth * 0.18f);
-    if (std::abs(left->Size.x - target) < 8.0f) {
-        return;
+    const float leftPx = ClampedLeftWidth(windowW, collapsed);
+    if (ImGuiWindow* hierarchy = ImGui::FindWindowByName("层级###Hierarchy")) {
+        if (hierarchy->DockNode != nullptr) {
+            ImGuiDockNode* left = hierarchy->DockNode;
+            if (std::abs(left->Size.x - leftPx) >= 8.0f) {
+                ImGui::DockBuilderSetNodeSize(left->ID, ImVec2(leftPx, left->Size.y));
+            }
+        }
     }
-    ImGui::DockBuilderSetNodeSize(left->ID, ImVec2(target, left->Size.y));
 }
 
 void ApplyAutoHideTabBar(ImGuiDockNode* node) {
     if (node == nullptr) {
         return;
     }
-    node->SetLocalFlags(node->LocalFlags | ImGuiDockNodeFlags_AutoHideTabBar);
+    const bool keepTabs = !node->IsSplitNode() && node->Windows.Size >= 2;
+    if (keepTabs) {
+        node->SetLocalFlags(node->LocalFlags & ~ImGuiDockNodeFlags_AutoHideTabBar);
+    } else {
+        node->SetLocalFlags(node->LocalFlags | ImGuiDockNodeFlags_AutoHideTabBar);
+    }
     if (node->IsSplitNode()) {
         ApplyAutoHideTabBar(node->ChildNodes[0]);
         ApplyAutoHideTabBar(node->ChildNodes[1]);
@@ -306,13 +360,13 @@ void DrawModeButton(const AppViewState& state, Core::CommandQueue& commands, con
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.165f, 0.165f, 0.184f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.165f, 0.165f, 0.184f, 1.0f));
     }
-    if (ImGui::Button(label, ImVec2(0.0f, 28.0f)) && !current && enabled) {
+    if (ImGui::Button(label, ImVec2(0.0f, UiPx(28.0f))) && !current && enabled) {
         commands.Push(Core::SetWorkspaceModeCommand{id});
     }
     if (current) {
         const ImVec2 min = ImGui::GetItemRectMin();
         const ImVec2 max = ImGui::GetItemRectMax();
-        ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(min.x, max.y - 2.0f), max,
+        ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(min.x, max.y - UiPx(2.0f)), max,
                                                   ImGui::GetColorU32(kAccent));
         ImGui::PopStyleColor(3);
     }
@@ -327,7 +381,7 @@ bool DrawPrimaryButton(const char* label) {
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.922f, 0.698f, 0.373f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, kAccent);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.071f, 0.071f, 0.078f, 1.0f));
-    const bool pressed = ImGui::Button(label, ImVec2(0.0f, 32.0f));
+    const bool pressed = ImGui::Button(label, ImVec2(0.0f, UiPx(32.0f)));
     ImGui::PopStyleColor(4);
     return pressed;
 }
@@ -371,8 +425,18 @@ void DrawOnboardingStep(bool done, const char* label) {
 void DrawOnboarding(const AppViewState& state, Core::CommandQueue& commands) {
     ImGui::TextUnformatted("无选择");
     ImGui::SeparatorText("上手三步");
-    const bool step1 = state.scriptHasSnapshot;
-    const bool step2 = state.nodes != nullptr && !state.nodes->empty();
+    bool scriptOpened = state.scriptPath != nullptr && state.scriptPath[0] != '\0';
+    if (!scriptOpened && state.scriptText != nullptr) {
+        for (const char* p = state.scriptText; *p != '\0'; ++p) {
+            if (*p != ' ' && *p != '\t' && *p != '\n' && *p != '\r') {
+                scriptOpened = true;
+                break;
+            }
+        }
+    }
+    const bool step1 = scriptOpened;
+    const bool step2 =
+        !state.projectIsEmpty && state.nodes != nullptr && !state.nodes->empty();
     const bool step3 =
         state.selectedShotLinkedCamera != nullptr && state.selectedShotLinkedCamera[0] != '\0';
 
@@ -383,6 +447,13 @@ void DrawOnboarding(const AppViewState& state, Core::CommandQueue& commands) {
     if (state.exampleScriptPath != nullptr && state.exampleScriptPath[0] != '\0') {
         if (ImGui::Button("示例剧本", ImVec2(-1.0f, 0.0f))) {
             commands.Push(Core::LoadScriptFromPathCommand{state.exampleScriptPath});
+        }
+    }
+    if (state.exampleStoryboardImportPath != nullptr &&
+        state.exampleStoryboardImportPath[0] != '\0') {
+        if (ImGui::Button("导入示例分镜", ImVec2(-1.0f, 0.0f))) {
+            commands.Push(
+                Core::ImportStoryboardFromPathCommand{state.exampleStoryboardImportPath, "append"});
         }
     }
 
@@ -400,8 +471,10 @@ void DrawOnboarding(const AppViewState& state, Core::CommandQueue& commands) {
     if (ImGui::BeginTable("OnboardingKeys", 2, ImGuiTableFlags_SizingStretchProp)) {
         ImGui::TableSetupColumn("key", ImGuiTableColumnFlags_WidthFixed, 88.0f);
         ImGui::TableSetupColumn("action", ImGuiTableColumnFlags_WidthStretch);
-        const char* rows[][2] = {{"Ctrl+N", "新建"}, {"Ctrl+O", "打开"},   {"Ctrl+S", "保存"},
-                                 {"Ctrl+I", "导入"}, {"Ctrl+E", "导出"},   {"[ ] / ↑↓", "切镜"},
+        char adjKeys[48];
+        std::snprintf(adjKeys, sizeof(adjKeys), "[ ] / %s%s", Icon::ChevronUp, Icon::ChevronDown);
+        const char* rows[][2] = {{"Ctrl+N", "新建"},  {"Ctrl+O", "打开"}, {"Ctrl+S", "保存"},
+                                 {"Ctrl+I", "导入"},  {"Ctrl+E", "导出"}, {adjKeys, "切镜"},
                                  {"左键", "旋转视口"}};
         for (const auto& row : rows) {
             ImGui::TableNextRow();
@@ -411,6 +484,40 @@ void DrawOnboarding(const AppViewState& state, Core::CommandQueue& commands) {
             ImGui::TextUnformatted(row[1]);
         }
         ImGui::EndTable();
+    }
+}
+
+void DrawMetaField(const std::string& shotId, const std::string& key, const std::string& current,
+                   Core::CommandQueue& commands) {
+    ImGui::TableNextRow();
+    ImGui::TableSetColumnIndex(0);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(key.c_str());
+    ImGui::TableSetColumnIndex(1);
+
+    const std::string label = "##shot-meta-" + shotId + "-" + key;
+    const ImGuiID id = ImGui::GetID(label.c_str());
+    static ImGuiID activeId = 0;
+    static char activeBuffer[512];
+    char local[512];
+    char* buffer = activeId == id ? activeBuffer : local;
+    if (activeId != id) {
+        const std::size_t copy =
+            current.size() < sizeof(local) - 1 ? current.size() : sizeof(local) - 1;
+        std::memcpy(local, current.data(), copy);
+        local[copy] = '\0';
+    }
+    ImGui::SetNextItemWidth(-1.0f);
+    ImGui::InputText(label.c_str(), buffer, 512);
+    if (ImGui::IsItemActivated()) {
+        std::memcpy(activeBuffer, buffer, sizeof(activeBuffer));
+        activeId = id;
+    }
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+        commands.Push(Core::SetShotMetaCommand{shotId, key, activeBuffer});
+        activeId = 0;
+    } else if (ImGui::IsItemDeactivated()) {
+        activeId = 0;
     }
 }
 
@@ -450,6 +557,9 @@ void DrawAssetInspector(const LibraryAssetView& asset, Core::CommandQueue& comma
     if (!asset.author.empty()) {
         ImGui::Text("作者: %s", asset.author.c_str());
     }
+    if (asset.hasSkin || asset.kind == "character") {
+        ImGui::TextDisabled("含骨骼（静态显示）");
+    }
     ImGui::Text("状态: %s  %.0f%%", asset.status.c_str(), asset.progress * 100.0f);
     if (asset.canDownload && ImGui::Button("下载")) {
         commands.Push(Core::DownloadOfficialAssetCommand{asset.id});
@@ -469,8 +579,55 @@ void DrawAssetInspector(const LibraryAssetView& asset, Core::CommandQueue& comma
     }
 }
 
+bool DrawAiInspector(const AppViewState& state, Core::CommandQueue& commands,
+                     const std::string& shotId) {
+    ImGui::SeparatorText("AI");
+    bool openSettings = false;
+    if (state.aiBusy) {
+        ImGui::TextWrapped("%s  %.0f%%",
+                           state.aiJobMessage != nullptr && state.aiJobMessage[0] != '\0'
+                               ? state.aiJobMessage
+                               : "生成中",
+                           state.aiJobRatio * 100.0f);
+        if (ImGui::Button("取消生成", ImVec2(-1.0f, 0.0f))) {
+            commands.Push(Core::CancelAiJobCommand{});
+        }
+    } else {
+        if (ImGui::Button("生成此镜图像", ImVec2(-1.0f, 0.0f))) {
+            if (state.canGenerateAi) {
+                commands.Push(Core::GenerateShotImageCommand{shotId});
+            }
+        }
+        if (ImGui::Button("生成此镜视频", ImVec2(-1.0f, 0.0f))) {
+            if (state.canGenerateAi) {
+                commands.Push(Core::GenerateShotVideoCommand{shotId});
+            }
+        }
+        if (!state.canGenerateAi) {
+            ImGui::TextColored(kWarning, "未配置 API 密钥");
+            ImGui::SameLine();
+            if (ImGui::SmallButton("打开设置##ai-warn")) {
+                openSettings = true;
+            }
+        }
+    }
+    if (state.lastAiOutputPath != nullptr && state.lastAiOutputPath[0] != '\0') {
+        ImGui::TextWrapped("%s", state.lastAiOutputPath);
+        if (ImGui::Button("打开生成结果", ImVec2(-1.0f, 0.0f))) {
+            commands.Push(Core::RevealPathCommand{state.lastAiOutputPath, false});
+        }
+    }
+    if (state.canGenerateAi || state.aiBusy) {
+        if (ImGui::Button("打开设置", ImVec2(-1.0f, 0.0f))) {
+            openSettings = true;
+        }
+    }
+    return openSettings;
+}
+
 void DrawShotInspector(const AppViewState& state, Core::CommandQueue& commands,
-                       const ScriptShotView& shot, const ScriptSceneView* scene) {
+                       const ScriptShotView& shot, const ScriptSceneView* scene,
+                       bool* openSettings) {
     ImGui::PushID(shot.id.c_str());
     ImGui::TextUnformatted(shot.title.c_str());
     if (scene != nullptr) {
@@ -514,8 +671,8 @@ void DrawShotInspector(const AppViewState& state, Core::CommandQueue& commands,
     ImGui::TextDisabled("机位预设");
     const float spacing = ImGui::GetStyle().ItemSpacing.x;
     const float presetWidth = (ImGui::GetContentRegionAvail().x - spacing * 2.0f) / 3.0f;
-    static constexpr const char* kPresetIds[] = {"front",         "side",     "over-shoulder",
-                                                 "top",           "close-up", "eye-level"};
+    static constexpr const char* kPresetIds[] = {"front", "side",     "over-shoulder",
+                                                 "top",   "close-up", "eye-level"};
     static constexpr const char* kPresetLabels[] = {"正视", "侧面", "过肩", "俯视", "特写", "平视"};
     for (int i = 0; i < 6; ++i) {
         if (i % 3 != 0) {
@@ -528,17 +685,24 @@ void DrawShotInspector(const AppViewState& state, Core::CommandQueue& commands,
     const StoryboardCardView* card = FindShotCard(state, shot.id);
     ImGui::SeparatorText("预览");
     const char* previewLabel = "无";
-    if (card != nullptr && card->preview != nullptr) {
-        if (std::strcmp(card->preview, "就绪") == 0) {
+    if (card != nullptr) {
+        switch (card->previewEnum) {
+        case PreviewStatus::Ready:
             previewLabel = "最新";
-        } else if (std::strcmp(card->preview, "过期") == 0) {
+            break;
+        case PreviewStatus::Stale:
             previewLabel = "需刷新";
-        } else if (std::strcmp(card->preview, "失败") == 0) {
+            break;
+        case PreviewStatus::Failed:
             previewLabel = "失败";
-        } else if (std::strcmp(card->preview, "缺失") == 0) {
+            break;
+        case PreviewStatus::Rendering:
+            previewLabel = "渲染中";
+            break;
+        case PreviewStatus::Missing:
+        default:
             previewLabel = "无";
-        } else {
-            previewLabel = card->preview;
+            break;
         }
     }
     ImGui::Text("预览: %s", previewLabel);
@@ -546,11 +710,53 @@ void DrawShotInspector(const AppViewState& state, Core::CommandQueue& commands,
     if (ImGui::SmallButton("刷新预览")) {
         commands.Push(Core::RefreshStoryboardThumbnailCommand{shot.id});
     }
+    ImGui::SeparatorText("元数据");
+    static const char* kMetaKeys[] = {"景别", "运镜", "时长", "提示词", "负面提示词"};
+    auto metaValue = [&](const char* key) -> std::string {
+        if (state.selectedShotMeta == nullptr) {
+            return {};
+        }
+        for (const ShotMetaView& item : *state.selectedShotMeta) {
+            if (item.key == key) {
+                return item.value;
+            }
+        }
+        return {};
+    };
+    // 47 B-03 写 56px；「负面提示词」五字在 14px 下约 70px，加内边距用 80。
+    const float metaLabelWidth =
+        std::max(56.0f, ImGui::CalcTextSize("负面提示词").x + 8.0f);
+    if (ImGui::BeginTable("shot-meta", 2, ImGuiTableFlags_SizingStretchProp)) {
+        ImGui::TableSetupColumn("label", ImGuiTableColumnFlags_WidthFixed, metaLabelWidth);
+        ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_WidthStretch);
+        for (const char* key : kMetaKeys) {
+            DrawMetaField(shot.id, key, metaValue(key), commands);
+        }
+        if (state.selectedShotMeta != nullptr) {
+            for (const ShotMetaView& item : *state.selectedShotMeta) {
+                bool preferred = false;
+                for (const char* key : kMetaKeys) {
+                    if (item.key == key) {
+                        preferred = true;
+                        break;
+                    }
+                }
+                if (preferred) {
+                    continue;
+                }
+                DrawMetaField(shot.id, item.key, item.value, commands);
+            }
+        }
+        ImGui::EndTable();
+    }
+    if (DrawAiInspector(state, commands, shot.id) && openSettings != nullptr) {
+        *openSettings = true;
+    }
     ImGui::PopID();
 }
 
-void PushNodeTransform(Core::CommandQueue& commands, const std::string& nodeId, const float position[3],
-                       const float euler[3], const float scale[3]) {
+void PushNodeTransform(Core::CommandQueue& commands, const std::string& nodeId,
+                       const float position[3], const float euler[3], const float scale[3]) {
     Core::SetNodeTransformCommand transform;
     transform.nodeId = nodeId;
     transform.position[0] = position[0];
@@ -565,11 +771,15 @@ void PushNodeTransform(Core::CommandQueue& commands, const std::string& nodeId, 
     commands.Push(transform);
 }
 
-void DrawNodeInspector(const AppViewState& state, Core::CommandQueue& commands, const NodeView& node) {
+void DrawNodeInspector(const AppViewState& state, Core::CommandQueue& commands,
+                       const NodeView& node) {
     ImGui::PushID(node.id.c_str());
     ImGui::TextUnformatted(node.name.c_str());
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
         ImGui::SetTooltip("对象为所有镜头共享");
+    }
+    if (node.hasSkin) {
+        ImGui::TextDisabled("含骨骼（静态显示）");
     }
     float position[3] = {node.position[0], node.position[1], node.position[2]};
     float euler[3] = {node.eulerDegrees[0], node.eulerDegrees[1], node.eulerDegrees[2]};
@@ -703,7 +913,8 @@ void DrawCameraInspector(const AppViewState& state, Core::CommandQueue& commands
     ImGui::PopID();
 }
 
-void DrawDeliveryInspector(const AppViewState& state, Core::CommandQueue& commands) {
+void DrawDeliveryInspector(const AppViewState& state, Core::CommandQueue& commands,
+                           bool* openSettings) {
     if (state.viewportTextureIndex != 0xFFFFu) {
         const ImVec2 avail = ImGui::GetContentRegionAvail();
         const float monitorW = avail.x;
@@ -740,20 +951,20 @@ void DrawDeliveryInspector(const AppViewState& state, Core::CommandQueue& comman
             ImGui::PushID(issue.shotId.c_str());
             const char* reasonText = "";
             if (issue.reason != nullptr) {
-                if (std::strcmp(issue.reason, "未关联相机") == 0) {
+                if (std::strcmp(issue.reason, "unlinked-camera") == 0) {
                     reasonText = "无机位";
-                } else if (std::strcmp(issue.reason, "缩略图过期") == 0) {
+                } else if (std::strcmp(issue.reason, "preview-stale") == 0) {
                     reasonText = "预览需刷新";
-                } else if (std::strcmp(issue.reason, "缺少缩略图") == 0) {
+                } else if (std::strcmp(issue.reason, "preview-missing") == 0) {
                     reasonText = "预览无";
-                } else if (std::strcmp(issue.reason, "渲染失败") == 0) {
+                } else if (std::strcmp(issue.reason, "preview-failed") == 0) {
                     reasonText = "预览失败";
                 } else {
                     reasonText = issue.reason;
                 }
             }
             ImGui::TextWrapped("%s · %s", issue.shotTitle.c_str(), reasonText);
-            if (issue.reason != nullptr && std::strcmp(issue.reason, "未关联相机") == 0) {
+            if (issue.reason != nullptr && std::strcmp(issue.reason, "unlinked-camera") == 0) {
                 if (ImGui::SmallButton("新建机位")) {
                     commands.Push(Core::BindShotToNewCameraCommand{issue.shotId});
                 }
@@ -770,9 +981,22 @@ void DrawDeliveryInspector(const AppViewState& state, Core::CommandQueue& comman
     if (ImGui::Button("导出总览", ImVec2(-1.0f, 0.0f))) {
         commands.Push(Core::ExportStoryboardBoardCommand{});
     }
+    if (ImGui::Button("导出总览 PDF", ImVec2(-1.0f, 0.0f))) {
+        commands.Push(Core::ExportStoryboardPdfCommand{});
+    }
+    if (ImGui::Button("导出镜头包", ImVec2(-1.0f, 0.0f))) {
+        commands.Push(Core::ExportShotPackageCommand{});
+    }
+    const ScriptShotView* liveShot = FindSelectedShot(state, nullptr);
+    if (DrawAiInspector(state, commands, liveShot != nullptr ? liveShot->id : std::string()) &&
+        openSettings != nullptr) {
+        *openSettings = true;
+    }
 }
 
-void DrawScriptInspector(const AppViewState& state) {
+void DrawScriptInspector(const AppViewState& state, Core::CommandQueue& commands,
+                         std::string* defaultSkillId, bool* prefsDirty, bool* openSettings,
+                         int* settingsPage) {
     int scenes = 0;
     int shots = 0;
     if (state.scriptScenes != nullptr) {
@@ -787,15 +1011,117 @@ void DrawScriptInspector(const AppViewState& state) {
     ImGui::SeparatorText("诊断");
     if (state.scriptDiagnostics == nullptr || state.scriptDiagnostics->empty()) {
         ImGui::TextUnformatted("无");
-        return;
+    } else {
+        for (const ScriptDiagnosticView& diagnostic : *state.scriptDiagnostics) {
+            ImGui::TextColored(kAccent, "%s  L%d  [%s]",
+                               diagnostic.severity != nullptr && diagnostic.severity[0] != '\0'
+                                   ? diagnostic.severity
+                                   : "提示",
+                               diagnostic.line, diagnostic.code != nullptr ? diagnostic.code : "");
+            ImGui::TextWrapped("%s", diagnostic.message != nullptr ? diagnostic.message : "");
+        }
     }
-    for (const ScriptDiagnosticView& diagnostic : *state.scriptDiagnostics) {
-        ImGui::TextColored(kAccent, "%s  L%d  [%s]",
-                           diagnostic.severity != nullptr && diagnostic.severity[0] != '\0'
-                               ? diagnostic.severity
-                               : "提示",
-                           diagnostic.line, diagnostic.code != nullptr ? diagnostic.code : "");
-        ImGui::TextWrapped("%s", diagnostic.message != nullptr ? diagnostic.message : "");
+    ImGui::SeparatorText("分镜");
+    const std::string preferredSkill = defaultSkillId != nullptr ? *defaultSkillId : "";
+    const LibraryAssetView* defaultSkill = nullptr;
+    const LibraryAssetView* firstSkill = nullptr;
+    if (state.libraryAssets != nullptr) {
+        for (const LibraryAssetView& asset : *state.libraryAssets) {
+            if (!asset.canRunSkill) {
+                continue;
+            }
+            if (firstSkill == nullptr) {
+                firstSkill = &asset;
+            }
+            if (!preferredSkill.empty() && asset.id == preferredSkill) {
+                defaultSkill = &asset;
+                break;
+            }
+        }
+    }
+    if (defaultSkill == nullptr) {
+        defaultSkill = firstSkill;
+    }
+    const float rowW = ImGui::GetContentRegionAvail().x;
+    const float chevronW = UiPx(28.0f);
+    if (ImGui::Button("生成分镜", ImVec2(rowW - chevronW - 4.0f, 0.0f))) {
+        if (defaultSkill == nullptr) {
+            if (openSettings != nullptr) {
+                *openSettings = true;
+            }
+            if (settingsPage != nullptr) {
+                *settingsPage = 4;
+            }
+        } else if (defaultSkill->skillUsesLlm && !state.canGenerateAi) {
+            if (openSettings != nullptr) {
+                *openSettings = true;
+            }
+            if (settingsPage != nullptr) {
+                *settingsPage = 3;
+            }
+        } else {
+            commands.Push(Core::RunSkillCommand{defaultSkill->id});
+        }
+    }
+    ImGui::SameLine(0.0f, 4.0f);
+    if (ImGui::Button(Icon::ChevronDown, ImVec2(chevronW, 0.0f))) {
+        ImGui::OpenPopup("##storyboard-skill-menu");
+    }
+    if (ImGui::BeginPopup("##storyboard-skill-menu")) {
+        if (state.libraryAssets != nullptr) {
+            for (const LibraryAssetView& asset : *state.libraryAssets) {
+                if (!asset.canRunSkill) {
+                    continue;
+                }
+                const bool selected = preferredSkill == asset.id ||
+                                      (preferredSkill.empty() && defaultSkill == &asset);
+                if (ImGui::MenuItem(asset.name.c_str(), nullptr, selected)) {
+                    if (defaultSkillId != nullptr) {
+                        *defaultSkillId = asset.id;
+                    }
+                    if (prefsDirty != nullptr) {
+                        *prefsDirty = true;
+                    }
+                    commands.Push(Core::RunSkillCommand{asset.id});
+                }
+            }
+        }
+        ImGui::EndPopup();
+    }
+    if (defaultSkill == nullptr) {
+        ImGui::TextColored(kWarning, "未安装分镜 Skill");
+        ImGui::SameLine();
+        if (ImGui::SmallButton("打开设置##skill")) {
+            if (openSettings != nullptr) {
+                *openSettings = true;
+            }
+            if (settingsPage != nullptr) {
+                *settingsPage = 4;
+            }
+        }
+    } else if (defaultSkill->skillUsesLlm && !state.canGenerateAi) {
+        ImGui::TextColored(kWarning, "未配置 API 密钥");
+        ImGui::SameLine();
+        if (ImGui::SmallButton("打开设置##skill-ai")) {
+            if (openSettings != nullptr) {
+                *openSettings = true;
+            }
+            if (settingsPage != nullptr) {
+                *settingsPage = 3;
+            }
+        }
+    }
+    if (ImGui::Button("从分镜 JSON 导入...", ImVec2(-1.0f, 0.0f))) {
+        commands.Push(Core::ImportStoryboardCommand{"append"});
+    }
+    if (ImGui::Button("替换导入 JSON...", ImVec2(-1.0f, 0.0f))) {
+        commands.Push(Core::ImportStoryboardCommand{"replace"});
+    }
+    if (state.importDiagnostics != nullptr && !state.importDiagnostics->empty()) {
+        ImGui::SeparatorText("导入诊断");
+        for (const std::string& line : *state.importDiagnostics) {
+            ImGui::TextWrapped("%s", line.c_str());
+        }
     }
 }
 
@@ -817,8 +1143,8 @@ void DrawLeftIconBar(const AppViewState& state, LeftRailState& rail) {
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoDecoration;
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(4.0f, 8.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 8.0f));
-    if (ImGui::BeginViewportSideBar("##LeftIconBar", viewport, ImGuiDir_Left, 48.0f, sideFlags)) {
-        const float btn = 40.0f;
+    if (ImGui::BeginViewportSideBar("##LeftIconBar", viewport, ImGuiDir_Left, UiPx(48.0f), sideFlags)) {
+        const float btn = UiPx(40.0f);
         auto railBtn = [&](const char* icon, const char* tip, LeftRailOverlay id) {
             const bool on = rail.overlay == id;
             if (on) {
@@ -846,14 +1172,13 @@ void DrawLeftIconBar(const AppViewState& state, LeftRailState& rail) {
         const ImVec2 barPos = ImGui::GetWindowPos();
         const ImVec2 barSize = ImGui::GetWindowSize();
         rail.overlayPos = ImVec2(barPos.x + barSize.x, viewport->WorkPos.y);
-        rail.overlaySize = ImVec2(280.0f, viewport->WorkSize.y);
+        rail.overlaySize = ImVec2(UiPx(280.0f), viewport->WorkSize.y);
         ImGui::End();
     }
     ImGui::PopStyleVar(2);
 }
 
-void DrawHierarchyBody(const AppViewState& state, Core::CommandQueue& commands,
-                       bool* sceneHeaderClicked) {
+void DrawShotList(const AppViewState& state, Core::CommandQueue& commands) {
     bool shotAddClicked = false;
     if (BeginSection("镜头表", true, nullptr, &shotAddClicked)) {
         if (state.scriptScenes == nullptr || state.scriptScenes->empty()) {
@@ -876,6 +1201,13 @@ void DrawHierarchyBody(const AppViewState& state, Core::CommandQueue& commands,
                         if (ImGui::Selectable(label.c_str(), shot.selected)) {
                             commands.Push(Core::SelectShotCommand{shot.id});
                         }
+                        if (shot.selected) {
+                            static std::string scrolled;
+                            if (scrolled != shot.id) {
+                                ImGui::SetScrollHereY(0.5f);
+                                scrolled = shot.id;
+                            }
+                        }
                         if (ImGui::BeginPopupContextItem()) {
                             if (ImGui::MenuItem("在此后插入镜头")) {
                                 commands.Push(Core::InsertShotCommand{shot.id});
@@ -892,8 +1224,24 @@ void DrawHierarchyBody(const AppViewState& state, Core::CommandQueue& commands,
             }
         }
     }
+    if (shotAddClicked) {
+        ImGui::OpenPopup("##hierarchy-shots-add");
+    }
+    if (ImGui::BeginPopup("##hierarchy-shots-add")) {
+        if (ImGui::MenuItem("场次")) {
+            commands.Push(Core::InsertSceneCommand{});
+        }
+        if (ImGui::MenuItem("镜头")) {
+            commands.Push(Core::InsertShotCommand{});
+        }
+        ImGui::EndPopup();
+    }
+}
+
+void DrawSceneTree(const AppViewState& state, Core::CommandQueue& commands,
+                   bool* sceneHeaderClicked) {
     bool sceneAddClicked = false;
-    if (BeginSection("场景", !ModeIs(state, "script"), sceneHeaderClicked, &sceneAddClicked)) {
+    if (BeginSection("场景", true, sceneHeaderClicked, &sceneAddClicked)) {
         if (state.nodes == nullptr || state.nodes->empty()) {
             ImGui::TextDisabled("场景是空的。把资源库里的模型拖到画面里");
             if (ImGui::SmallButton("导入模型")) {
@@ -902,10 +1250,12 @@ void DrawHierarchyBody(const AppViewState& state, Core::CommandQueue& commands,
         } else {
             for (const NodeView& node : *state.nodes) {
                 ImGui::PushID(node.id.c_str());
-                const std::string nodeLabel =
-                    std::string(Icon::Box) + "  " + node.name + "##sel";
+                const std::string nodeLabel = std::string(Icon::Box) + "  " + node.name +
+                                              (node.hasSkin ? "  含骨骼" : "") + "##sel";
+                const float nameWidth =
+                    std::max(1.0f, ImGui::GetContentRegionAvail().x - UiPx(28.0f));
                 if (ImGui::Selectable(nodeLabel.c_str(), node.selected,
-                                    ImGuiSelectableFlags_AllowOverlap, ImVec2(-28.0f, 0.0f))) {
+                                      ImGuiSelectableFlags_AllowOverlap, ImVec2(nameWidth, 0.0f))) {
                     commands.Push(Core::SelectNodeCommand{node.id});
                 }
                 if (ImGui::BeginPopupContextItem("##node-menu")) {
@@ -947,18 +1297,6 @@ void DrawHierarchyBody(const AppViewState& state, Core::CommandQueue& commands,
             ImGui::TreePop();
         }
     }
-    if (shotAddClicked) {
-        ImGui::OpenPopup("##hierarchy-shots-add");
-    }
-    if (ImGui::BeginPopup("##hierarchy-shots-add")) {
-        if (ImGui::MenuItem("场次")) {
-            commands.Push(Core::InsertSceneCommand{});
-        }
-        if (ImGui::MenuItem("镜头")) {
-            commands.Push(Core::InsertShotCommand{});
-        }
-        ImGui::EndPopup();
-    }
     if (sceneAddClicked) {
         ImGui::OpenPopup("##hierarchy-scene-add");
     }
@@ -979,15 +1317,16 @@ void DrawViewportGuides(const ImVec2& frameMin, const ImVec2& frameMax, bool thi
         for (int i = 1; i <= 2; ++i) {
             const float x = frameMin.x + width * (static_cast<float>(i) / 3.0f);
             const float y = frameMin.y + height * (static_cast<float>(i) / 3.0f);
-            draw->AddLine(ImVec2(x, frameMin.y), ImVec2(x, frameMax.y), color);
-            draw->AddLine(ImVec2(frameMin.x, y), ImVec2(frameMax.x, y), color);
+            draw->AddLine(ImVec2(x, frameMin.y), ImVec2(x, frameMax.y), color, UiPx(1.0f));
+            draw->AddLine(ImVec2(frameMin.x, y), ImVec2(frameMax.x, y), color, UiPx(1.0f));
         }
     }
     if (safe && width > 2.0f && height > 2.0f) {
         const float insetX = width * 0.05f;
         const float insetY = height * 0.05f;
         draw->AddRect(ImVec2(frameMin.x + insetX, frameMin.y + insetY),
-                      ImVec2(frameMax.x - insetX, frameMax.y - insetY), color);
+                      ImVec2(frameMax.x - insetX, frameMax.y - insetY), color, 0.0f, 0,
+                      UiPx(1.0f));
     }
 }
 
@@ -1002,8 +1341,12 @@ void WorkspacePanel::ApplyPreferences(const UiPreferences& preferences) {
     m_showGroundAxes = preferences.showGroundAxes;
     m_showThirds = preferences.showThirds;
     m_showSafeFrame = preferences.showSafeFrame;
-    m_viewportBackground =
-        preferences.viewportBackground == "dark" ? "dark" : "neutral";
+    m_viewportBackground = preferences.viewportBackground == "dark" ? "dark" : "neutral";
+    m_uiScale = preferences.uiScale > 0.0f ? preferences.uiScale : 1.0f;
+    m_openLastProject = preferences.openLastProject;
+    std::snprintf(m_exportDirBuf, sizeof(m_exportDirBuf), "%s",
+                  preferences.defaultExportDirectory.c_str());
+    m_defaultSkillId = preferences.defaultSkillId;
     m_preferencesDirty = false;
 }
 
@@ -1017,6 +1360,10 @@ UiPreferences WorkspacePanel::Preferences() const {
     preferences.showThirds = m_showThirds;
     preferences.showSafeFrame = m_showSafeFrame;
     preferences.viewportBackground = m_viewportBackground;
+    preferences.uiScale = m_uiScale;
+    preferences.openLastProject = m_openLastProject;
+    preferences.defaultExportDirectory = m_exportDirBuf;
+    preferences.defaultSkillId = m_defaultSkillId;
     return preferences;
 }
 
@@ -1030,9 +1377,339 @@ void WorkspacePanel::MarkPreferencesDirty() {
     m_preferencesDirty = true;
 }
 
+void WorkspacePanel::SyncSettingsAi(const AppViewState& state) {
+    if (m_settingsAiSynced) {
+        return;
+    }
+    m_aiProvider = (state.aiProvider != nullptr && state.aiProvider[0] != '\0')
+                       ? state.aiProvider
+                       : "openai-compat";
+    std::snprintf(m_aiUrlBuf, sizeof(m_aiUrlBuf), "%s",
+                  state.aiBaseUrl != nullptr ? state.aiBaseUrl : "");
+    std::snprintf(m_aiImageBuf, sizeof(m_aiImageBuf), "%s",
+                  state.aiImageModel != nullptr ? state.aiImageModel : "");
+    std::snprintf(m_aiVideoBuf, sizeof(m_aiVideoBuf), "%s",
+                  state.aiVideoModel != nullptr ? state.aiVideoModel : "");
+    std::snprintf(m_aiChatBuf, sizeof(m_aiChatBuf), "%s",
+                  state.aiChatModel != nullptr ? state.aiChatModel : "");
+    m_aiKeyBuf[0] = '\0';
+    m_showApiKey = false;
+    m_settingsAiSynced = true;
+}
+
+void WorkspacePanel::FlushSettingsAi(const AppViewState&, Core::CommandQueue& commands) {
+    Core::SetAiSettingsCommand command;
+    command.provider = m_aiProvider;
+    command.baseUrl = m_aiUrlBuf;
+    command.apiKey = m_aiKeyBuf;
+    command.imageModel = m_aiImageBuf;
+    command.videoModel = m_aiVideoBuf;
+    command.chatModel = m_aiChatBuf;
+    commands.Push(std::move(command));
+}
+
+void WorkspacePanel::DrawSkillsSettings(const AppViewState& state, Core::CommandQueue& commands) {
+    ImGui::SeparatorText("Skills");
+    if (ImGui::Button("安装文件夹...")) {
+        commands.Push(Core::ImportModelCommand{});
+    }
+    ImGui::SameLine();
+    if (ImGui::BeginCombo("##skill-official", "从官方获取", ImGuiComboFlags_NoArrowButton)) {
+        int available = 0;
+        if (state.libraryAssets != nullptr) {
+            for (const LibraryAssetView& asset : *state.libraryAssets) {
+                if ((asset.kind == "skill" || asset.format == "skill") && asset.canDownload) {
+                    ++available;
+                    if (ImGui::Selectable(asset.name.c_str())) {
+                        commands.Push(Core::DownloadOfficialAssetCommand{asset.id});
+                    }
+                }
+            }
+        }
+        if (available == 0) {
+            ImGui::TextDisabled("没有可下载的官方 Skill");
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("刷新")) {
+        commands.Push(Core::RefreshOfficialCatalogCommand{});
+    }
+
+    std::vector<const LibraryAssetView*> installed;
+    if (state.libraryAssets != nullptr) {
+        for (const LibraryAssetView& asset : *state.libraryAssets) {
+            if ((asset.kind == "skill" || asset.format == "skill") && asset.canRunSkill) {
+                installed.push_back(&asset);
+            }
+        }
+    }
+    ImGui::TextDisabled("已安装 (%d)", static_cast<int>(installed.size()));
+    if (installed.empty()) {
+        ImGui::TextUnformatted("还没有 Skill。");
+        if (state.exampleSkillPath != nullptr && state.exampleSkillPath[0] != '\0') {
+            if (ImGui::Button("安装示例分镜 Skill")) {
+                commands.Push(Core::ImportModelFromPathCommand{state.exampleSkillPath});
+            }
+        }
+        return;
+    }
+    if (m_settingsSkillId.empty() ||
+        std::none_of(installed.begin(), installed.end(), [&](const LibraryAssetView* item) {
+            return item->id == m_settingsSkillId;
+        })) {
+        m_settingsSkillId = installed.front()->id;
+    }
+    const float listW = UiPx(220.0f);
+    ImGui::BeginChild("##skill-list", ImVec2(listW, 0.0f), ImGuiChildFlags_Borders);
+    for (const LibraryAssetView* item : installed) {
+        const bool isDefault = item->id == m_defaultSkillId;
+        char row[256];
+        std::snprintf(row, sizeof(row), "%s%s", isDefault ? "● " : "  ", item->name.c_str());
+        if (ImGui::Selectable(row, item->id == m_settingsSkillId)) {
+            m_settingsSkillId = item->id;
+            commands.Push(Core::SelectLibraryAssetCommand{item->id});
+        }
+    }
+    ImGui::EndChild();
+    ImGui::SameLine();
+    ImGui::BeginChild("##skill-detail", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders);
+    const LibraryAssetView* selected = nullptr;
+    for (const LibraryAssetView* item : installed) {
+        if (item->id == m_settingsSkillId) {
+            selected = item;
+            break;
+        }
+    }
+    if (selected != nullptr) {
+        ImGui::TextUnformatted(selected->name.c_str());
+        ImGui::TextDisabled("%s · %s", selected->origin.c_str(), selected->format.c_str());
+        if (!selected->description.empty()) {
+            ImGui::TextWrapped("%s", selected->description.c_str());
+        }
+        ImGui::TextDisabled(selected->skillUsesLlm ? "运行方式：文本模型（需 AI 页密钥）"
+                                                   : "运行方式：本地");
+        if (ImGui::Button("设为默认")) {
+            m_defaultSkillId = selected->id;
+            MarkPreferencesDirty();
+        }
+        ImGui::SameLine();
+        if (!selected->installPath.empty() && ImGui::Button("打开文件夹")) {
+            commands.Push(Core::RevealPathCommand{selected->installPath, true});
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("卸载")) {
+            m_skillPendingRemove = selected->id;
+        }
+        if (m_skillPendingRemove == selected->id) {
+            ImGui::TextColored(kWarning, "从资源库移除索引，不删磁盘文件。");
+            if (ImGui::Button("确认卸载")) {
+                commands.Push(Core::RemoveLibraryAssetCommand{selected->id});
+                if (m_defaultSkillId == selected->id) {
+                    m_defaultSkillId.clear();
+                    MarkPreferencesDirty();
+                }
+                m_skillPendingRemove.clear();
+                m_settingsSkillId.clear();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("取消")) {
+                m_skillPendingRemove.clear();
+            }
+        }
+        if (!selected->skillExcerpt.empty() && ImGui::TreeNode("README")) {
+            ImGui::TextWrapped("%s", selected->skillExcerpt.c_str());
+            ImGui::TreePop();
+        }
+    }
+    ImGui::EndChild();
+}
+
+void WorkspacePanel::DrawSettingsModal(const AppViewState& state, Core::CommandQueue& commands) {
+    if (m_settingsOpen) {
+        ImGui::OpenPopup("设置");
+        SyncSettingsAi(state);
+    }
+    const bool wasOpen = ImGui::IsPopupOpen("设置");
+    ImGui::SetNextWindowSize(ImVec2(UiPx(760.0f), UiPx(540.0f)), ImGuiCond_Appearing);
+    PushModalColors();
+    ImGui::SetNextWindowBgAlpha(1.0f);
+    if (ImGui::BeginPopupModal("设置", &m_settingsOpen,
+                               ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking)) {
+        const float footerH = ImGui::GetFrameHeightWithSpacing() + UiPx(8.0f);
+        const float navW = UiPx(160.0f);
+        ImGui::BeginChild("settings-nav", ImVec2(navW, -footerH), ImGuiChildFlags_Borders);
+        const char* pages[] = {"常规", "视口", "导出", "AI", "Skills"};
+        const float selectW = std::max(1.0f, ImGui::GetContentRegionAvail().x);
+        for (int i = 0; i < 5; ++i) {
+            const bool selected = m_settingsPage == i;
+            if (ImGui::Selectable(pages[i], selected, 0, ImVec2(selectW, 0.0f)) && !selected) {
+                if (m_settingsPage == 3) {
+                    FlushSettingsAi(state, commands);
+                }
+                m_settingsPage = i;
+            }
+        }
+        ImGui::EndChild();
+        ImGui::SameLine();
+        ImGui::BeginChild("settings-body", ImVec2(0.0f, -footerH), ImGuiChildFlags_None);
+        if (m_settingsPage == 0) {
+            ImGui::SeparatorText("常规");
+            ImGui::TextUnformatted("界面缩放");
+            const struct {
+                const char* label;
+                float scale;
+            } scales[] = {{"100%", 1.0f}, {"125%", 1.25f}, {"150%", 1.5f}, {"200%", 2.0f}};
+            for (const auto& item : scales) {
+                const bool selected = std::fabs(m_uiScale - item.scale) < 0.01f;
+                if (ImGui::RadioButton(item.label, selected) && !selected) {
+                    m_uiScale = item.scale;
+                    MarkPreferencesDirty();
+                }
+            }
+            if (ImGui::Checkbox("启动时打开上次工程", &m_openLastProject)) {
+                MarkPreferencesDirty();
+            }
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted("语言");
+            ImGui::BeginDisabled();
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::BeginCombo("##settings-language", "中文")) {
+                ImGui::EndCombo();
+            }
+            ImGui::EndDisabled();
+        } else if (m_settingsPage == 1) {
+            ImGui::SeparatorText("视口");
+            ImGui::TextUnformatted("默认背景");
+            ImGui::SetNextItemWidth(-1.0f);
+            const char* bgPreview = m_viewportBackground == "dark" ? "深灰" : "中性灰";
+            if (ImGui::BeginCombo("##settings-bg", bgPreview)) {
+                if (ImGui::Selectable("中性灰", m_viewportBackground != "dark")) {
+                    m_viewportBackground = "neutral";
+                    MarkPreferencesDirty();
+                }
+                if (ImGui::Selectable("深灰", m_viewportBackground == "dark")) {
+                    m_viewportBackground = "dark";
+                    MarkPreferencesDirty();
+                }
+                ImGui::EndCombo();
+            }
+            if (ImGui::Checkbox("地面网格", &m_showGroundGrid)) {
+                MarkPreferencesDirty();
+            }
+            if (ImGui::Checkbox("坐标轴", &m_showGroundAxes)) {
+                MarkPreferencesDirty();
+            }
+            if (ImGui::Checkbox("三分线", &m_showThirds)) {
+                MarkPreferencesDirty();
+            }
+            if (ImGui::Checkbox("安全框", &m_showSafeFrame)) {
+                MarkPreferencesDirty();
+            }
+            if (ImGui::Checkbox("锁定导出比例", &m_lockExportAspect)) {
+                MarkPreferencesDirty();
+            }
+        } else if (m_settingsPage == 2) {
+            ImGui::SeparatorText("导出");
+            bool exportTransparent = state.exportTransparent;
+            if (ImGui::Checkbox("透明背景", &exportTransparent)) {
+                commands.Push(Core::SetExportTransparentCommand{exportTransparent});
+            }
+            const bool res2k = state.exportResolutionId != nullptr &&
+                               std::strcmp(state.exportResolutionId, "2k") == 0;
+            ImGui::TextUnformatted("默认分辨率");
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::BeginCombo("##settings-export-res", res2k ? "2K" : "1080p")) {
+                if (ImGui::Selectable("1080p", !res2k)) {
+                    commands.Push(Core::SelectExportResolutionCommand{"1080p"});
+                }
+                if (ImGui::Selectable("2K", res2k)) {
+                    commands.Push(Core::SelectExportResolutionCommand{"2k"});
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::TextUnformatted("默认导出目录");
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::InputText("##settings-export-dir", m_exportDirBuf, sizeof(m_exportDirBuf))) {
+                MarkPreferencesDirty();
+            }
+            ImGui::TextDisabled("留空则每次导出时选择位置");
+        } else if (m_settingsPage == 3) {
+            ImGui::SeparatorText("AI");
+            ImGui::TextUnformatted("提供商");
+            ImGui::SetNextItemWidth(-1.0f);
+            const char* providerPreview =
+                m_aiProvider == "mock" ? "Mock（不发请求）" : "OpenAI 兼容";
+            if (ImGui::BeginCombo("##ai-provider", providerPreview)) {
+                if (ImGui::Selectable("OpenAI 兼容", m_aiProvider != "mock")) {
+                    m_aiProvider = "openai-compat";
+                    FlushSettingsAi(state, commands);
+                }
+                if (ImGui::Selectable("Mock（不发请求）", m_aiProvider == "mock")) {
+                    m_aiProvider = "mock";
+                    FlushSettingsAi(state, commands);
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::TextUnformatted("接口地址");
+            ImGui::SetNextItemWidth(-1.0f);
+            ImGui::InputText("##ai-url", m_aiUrlBuf, sizeof(m_aiUrlBuf));
+            if (ImGui::IsItemDeactivatedAfterEdit()) {
+                FlushSettingsAi(state, commands);
+            }
+            ImGui::TextUnformatted("API 密钥");
+            ImGui::SetNextItemWidth(std::max(1.0f, ImGui::GetContentRegionAvail().x - UiPx(88.0f)));
+            const ImGuiInputTextFlags keyFlags =
+                m_showApiKey ? ImGuiInputTextFlags_None : ImGuiInputTextFlags_Password;
+            ImGui::InputText("##ai-key", m_aiKeyBuf, sizeof(m_aiKeyBuf), keyFlags);
+            if (ImGui::IsItemDeactivatedAfterEdit()) {
+                FlushSettingsAi(state, commands);
+            }
+            ImGui::SameLine();
+            ImGui::Checkbox("显示", &m_showApiKey);
+            if (state.aiHasApiKey && m_aiKeyBuf[0] == '\0') {
+                ImGui::TextDisabled("已保存密钥，输入新值以替换");
+            }
+            ImGui::TextUnformatted("文本模型");
+            ImGui::SetNextItemWidth(-1.0f);
+            ImGui::InputText("##ai-chat", m_aiChatBuf, sizeof(m_aiChatBuf));
+            if (ImGui::IsItemDeactivatedAfterEdit()) {
+                FlushSettingsAi(state, commands);
+            }
+            ImGui::TextUnformatted("图像模型");
+            ImGui::SetNextItemWidth(-1.0f);
+            ImGui::InputText("##ai-image", m_aiImageBuf, sizeof(m_aiImageBuf));
+            if (ImGui::IsItemDeactivatedAfterEdit()) {
+                FlushSettingsAi(state, commands);
+            }
+            ImGui::TextUnformatted("视频模型");
+            ImGui::SetNextItemWidth(-1.0f);
+            ImGui::InputText("##ai-video", m_aiVideoBuf, sizeof(m_aiVideoBuf));
+            if (ImGui::IsItemDeactivatedAfterEdit()) {
+                FlushSettingsAi(state, commands);
+            }
+        } else {
+            DrawSkillsSettings(state, commands);
+        }
+        ImGui::EndChild();
+        if (ImGui::Button("关闭", ImVec2(UiPx(96.0f), 0.0f))) {
+            FlushSettingsAi(state, commands);
+            m_settingsOpen = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    PopModalColors();
+    if (wasOpen && !m_settingsOpen) {
+        FlushSettingsAi(state, commands);
+        m_settingsAiSynced = false;
+    }
+}
+
 void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& commands) {
+    ImGuizmo::BeginFrame();
     ImGuiViewport* viewport = ImGui::GetMainViewport();
-    const bool empty = ProjectIsEmpty(state);
+    const bool empty = state.projectIsEmpty;
     const char* modeId = ModeId(state);
     bool sceneHeaderClicked = false;
     LeftRailState& rail = CurrentLeftRail();
@@ -1048,7 +1725,7 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
 
     const ImGuiWindowFlags menuFlags =
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar;
-    if (ImGui::BeginViewportSideBar("##MenuBar", viewport, ImGuiDir_Up, 26.0f, menuFlags)) {
+    if (ImGui::BeginViewportSideBar("##MenuBar", viewport, ImGuiDir_Up, UiPx(26.0f), menuFlags)) {
         if (ImGui::BeginMenuBar()) {
             if (ImGui::BeginMenu("文件")) {
                 if (ImGui::MenuItem("新建工程", "Ctrl+N")) {
@@ -1073,22 +1750,63 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                 if (ImGui::MenuItem("导入模型...", "Ctrl+I")) {
                     commands.Push(Core::ImportModelCommand{});
                 }
-                ImGui::Separator();
-                if (ImGui::MenuItem("按当前选择导出", "Ctrl+E")) {
-                    commands.Push(Core::ExportCurrentShotCommand{});
-                }
-                if (ImGui::MenuItem("导出镜头 1080p")) {
-                    commands.Push(Core::ExportCurrentShotCommand{"1080p"});
-                }
-                if (ImGui::MenuItem("导出镜头 2K")) {
-                    commands.Push(Core::ExportCurrentShotCommand{"2k"});
-                }
-                if (ImGui::MenuItem("导出总览")) {
-                    commands.Push(Core::ExportStoryboardBoardCommand{});
+                if (ImGui::BeginMenu("导出")) {
+                    if (ImGui::MenuItem("按当前选择导出", "Ctrl+E")) {
+                        commands.Push(Core::ExportCurrentShotCommand{});
+                    }
+                    if (ImGui::MenuItem("导出镜头 1080p")) {
+                        commands.Push(Core::ExportCurrentShotCommand{"1080p"});
+                    }
+                    if (ImGui::MenuItem("导出镜头 2K")) {
+                        commands.Push(Core::ExportCurrentShotCommand{"2k"});
+                    }
+                    if (ImGui::MenuItem("导出镜头包")) {
+                        commands.Push(Core::ExportShotPackageCommand{});
+                    }
+                    if (ImGui::MenuItem("导出总览")) {
+                        commands.Push(Core::ExportStoryboardBoardCommand{});
+                    }
+                    if (ImGui::MenuItem("导出总览 PDF")) {
+                        commands.Push(Core::ExportStoryboardPdfCommand{});
+                    }
+                    ImGui::EndMenu();
                 }
                 ImGui::Separator();
                 if (ImGui::MenuItem("退出")) {
                     commands.Push(Core::QuitCommand{});
+                }
+                ImGui::EndMenu();
+            }
+            if (ImGui::BeginMenu("编辑")) {
+                if (ImGui::MenuItem("撤销", "Ctrl+Z", false, state.canUndo)) {
+                    commands.Push(Core::UndoCommand{});
+                }
+                if (ImGui::MenuItem("重做", "Ctrl+Y", false, state.canRedo)) {
+                    commands.Push(Core::RedoCommand{});
+                }
+                ImGui::Separator();
+                const NodeView* editNode = FindSelectedNode(state);
+                const ScriptShotView* editShot = FindSelectedShot(state, nullptr);
+                if (ImGui::MenuItem("复制", nullptr, false, editNode != nullptr)) {
+                    commands.Push(Core::DuplicateNodeCommand{editNode->id});
+                }
+                if (ImGui::MenuItem("删除", nullptr, false,
+                                    editNode != nullptr || editShot != nullptr)) {
+                    if (editNode != nullptr) {
+                        commands.Push(Core::DeleteNodeCommand{editNode->id});
+                    } else if (editShot != nullptr) {
+                        commands.Push(Core::DeleteShotCommand{editShot->id});
+                    }
+                }
+                if (ImGui::MenuItem(editNode != nullptr && !editNode->visible ? "显示" : "隐藏",
+                                    nullptr, false, editNode != nullptr)) {
+                    commands.Push(Core::SetNodeVisibleCommand{editNode->id, !editNode->visible});
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("设置...", "Ctrl+,")) {
+                    m_settingsOpen = true;
+                    m_settingsPage = 0;
+                    m_settingsAiSynced = false;
                 }
                 ImGui::EndMenu();
             }
@@ -1137,6 +1855,20 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                     }
                     ImGui::EndMenu();
                 }
+                if (ImGui::BeginMenu("界面缩放")) {
+                    const struct {
+                        const char* label;
+                        float scale;
+                    } scales[] = {{"100%", 1.0f}, {"125%", 1.25f}, {"150%", 1.5f}, {"200%", 2.0f}};
+                    for (const auto& item : scales) {
+                        const bool selected = std::fabs(m_uiScale - item.scale) < 0.01f;
+                        if (ImGui::MenuItem(item.label, nullptr, selected) && !selected) {
+                            m_uiScale = item.scale;
+                            MarkPreferencesDirty();
+                        }
+                    }
+                    ImGui::EndMenu();
+                }
                 const bool leftCollapsed =
                     ComputeLeftIconBar(state, empty, m_leftFoldExplicit, m_leftFolded);
                 if (ImGui::MenuItem("折叠左栏", nullptr, leftCollapsed)) {
@@ -1176,17 +1908,34 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu("帮助")) {
-                ImGui::TextUnformatted("Ctrl+N  新建工程");
-                ImGui::TextUnformatted("Ctrl+O  打开工程");
-                ImGui::TextUnformatted("Ctrl+S  保存工程");
-                ImGui::TextUnformatted("Ctrl+Shift+S  工程另存为");
-                ImGui::TextUnformatted("Ctrl+I  导入模型");
-                ImGui::TextUnformatted("Ctrl+E  按当前选择导出");
-                ImGui::TextUnformatted("[ ] / ↑↓  上一镜 / 下一镜");
-                ImGui::Separator();
-                ImGui::TextUnformatted("视口：左键旋转  右键平移  滚轮缩放");
-                ImGui::TextUnformatted("G  地面网格    Shift+G  三分线");
-                ImGui::TextUnformatted("分镜：右键平移  滚轮缩放");
+                if (ImGui::BeginMenu("示例")) {
+                    if (state.exampleProjectPath != nullptr && state.exampleProjectPath[0] != '\0') {
+                        if (ImGui::MenuItem("打开示例工程")) {
+                            commands.Push(Core::OpenProjectFromPathCommand{state.exampleProjectPath});
+                        }
+                    }
+                    if (state.exampleScriptPath != nullptr && state.exampleScriptPath[0] != '\0') {
+                        if (ImGui::MenuItem("打开示例剧本")) {
+                            commands.Push(Core::LoadScriptFromPathCommand{state.exampleScriptPath});
+                        }
+                    }
+                    if (state.exampleSkillPath != nullptr && state.exampleSkillPath[0] != '\0') {
+                        if (ImGui::MenuItem("安装示例分镜 Skill")) {
+                            commands.Push(Core::ImportModelFromPathCommand{state.exampleSkillPath});
+                        }
+                    }
+                    if (state.exampleStoryboardImportPath != nullptr &&
+                        state.exampleStoryboardImportPath[0] != '\0') {
+                        if (ImGui::MenuItem("导入示例分镜 JSON")) {
+                            commands.Push(Core::ImportStoryboardFromPathCommand{
+                                state.exampleStoryboardImportPath, "append"});
+                        }
+                    }
+                    ImGui::EndMenu();
+                }
+                if (ImGui::MenuItem("快捷键...")) {
+                    m_hotkeysOpen = true;
+                }
                 ImGui::EndMenu();
             }
             const char* projectName = state.projectName != nullptr && state.projectName[0] != '\0'
@@ -1212,7 +1961,7 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
     const ImGuiWindowFlags sideFlags =
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoDecoration;
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 4.0f));
-    if (ImGui::BeginViewportSideBar("##ToolStrip", viewport, ImGuiDir_Up, 40.0f, sideFlags)) {
+    if (ImGui::BeginViewportSideBar("##ToolStrip", viewport, ImGuiDir_Up, UiPx(40.0f), sideFlags)) {
         ImGui::AlignTextToFramePadding();
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 4.0f));
         char scriptMode[32];
@@ -1261,7 +2010,9 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
             commands.Push(Core::SelectAdjacentShotCommand{-1});
         }
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-            ImGui::SetTooltip("上一镜  [  ↑");
+            char prevTip[48];
+            std::snprintf(prevTip, sizeof(prevTip), "上一镜  [  %s", Icon::ChevronUp);
+            ImGui::SetTooltip("%s", prevTip);
         }
         ImGui::SameLine();
         ImGui::AlignTextToFramePadding();
@@ -1273,7 +2024,9 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
             commands.Push(Core::SelectAdjacentShotCommand{1});
         }
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-            ImGui::SetTooltip("下一镜  ]  ↓");
+            char nextTip[48];
+            std::snprintf(nextTip, sizeof(nextTip), "下一镜  ]  %s", Icon::ChevronDown);
+            ImGui::SetTooltip("%s", nextTip);
         }
         ImGui::EndDisabled();
 
@@ -1287,13 +2040,15 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
             }
         }
 
-        const char* primaryLabel = "导出镜头 ▾";
+        char primaryLabel[48];
         if (ModeIs(state, "script")) {
-            primaryLabel = "保存剧本";
+            std::snprintf(primaryLabel, sizeof(primaryLabel), "保存剧本");
         } else if (ModeIs(state, "set")) {
-            primaryLabel = "导入模型";
+            std::snprintf(primaryLabel, sizeof(primaryLabel), "导入模型");
         } else if (ModeIs(state, "review")) {
-            primaryLabel = "导出总览";
+            std::snprintf(primaryLabel, sizeof(primaryLabel), "导出总览");
+        } else {
+            std::snprintf(primaryLabel, sizeof(primaryLabel), "导出镜头 %s", Icon::ChevronDown);
         }
         const float primaryWidth = ImGui::CalcTextSize(primaryLabel).x + 28.0f;
         const float primaryX = ImGui::GetWindowWidth() - primaryWidth - 12.0f;
@@ -1325,6 +2080,14 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                 if (ImGui::MenuItem("2K")) {
                     commands.Push(Core::ExportCurrentShotCommand{"2k"});
                 }
+                if (ImGui::MenuItem("镜头包")) {
+                    commands.Push(Core::ExportShotPackageCommand{});
+                }
+                if (ImGui::MenuItem("设置...")) {
+                    m_settingsOpen = true;
+                    m_settingsPage = 2;
+                    m_settingsAiSynced = false;
+                }
                 ImGui::EndPopup();
             }
         }
@@ -1332,14 +2095,14 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
     }
     ImGui::PopStyleVar();
 
-    if (ImGui::BeginViewportSideBar("##StatusBar", viewport, ImGuiDir_Down, 28.0f, sideFlags)) {
+    if (ImGui::BeginViewportSideBar("##StatusBar", viewport, ImGuiDir_Down, UiPx(28.0f), sideFlags)) {
         ImGui::AlignTextToFramePadding();
         const bool hasStatus = state.statusText != nullptr && state.statusText[0] != '\0';
         const bool hasExportIssues = ModeIs(state, "review") && state.exportIssues != nullptr &&
                                      !state.exportIssues->empty();
         const bool loadingScene = state.sceneLoadPending > 0 && state.sceneLoadTotal > 0;
-        const bool warning =
-            state.importInProgress || hasExportIssues || loadingScene || state.projectSaveInProgress;
+        const bool warning = state.importInProgress || hasExportIssues || loadingScene ||
+                             state.projectSaveInProgress;
         const ImVec4& statusDot = warning ? kWarning : (hasStatus ? kMuted : kSuccess);
         ImGui::TextColored(statusDot, "%s", warning ? Icon::TriangleAlert : Icon::CircleCheck);
         ImGui::SameLine(0.0f, 6.0f);
@@ -1399,8 +2162,11 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
         ImGui::End();
     }
 
-    if (!empty && !ModeIs(state, "script")) {
-        if (ImGui::BeginViewportSideBar("镜头条###ShotStrip", viewport, ImGuiDir_Down, 132.0f,
+    if (!empty && !ModeIs(state, "script") &&
+        !(ModeIs(state, "review") &&
+          (state.exportLog == nullptr || state.exportLog->empty()))) {
+        if (ImGui::BeginViewportSideBar("镜头条###ShotStrip", viewport, ImGuiDir_Down,
+                                        ShotStripBarH(state.windowWidth),
                                         sideFlags)) {
             ImGui::End();
         }
@@ -1436,8 +2202,18 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
             commands.Push(Core::OpenProjectCommand{});
         } else if (ctrl && ImGui::IsKeyPressed(ImGuiKey_I, false)) {
             commands.Push(Core::ImportModelCommand{});
+        } else if (ctrl && io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
+            commands.Push(Core::RedoCommand{});
+        } else if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
+            commands.Push(Core::UndoCommand{});
+        } else if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) {
+            commands.Push(Core::RedoCommand{});
         } else if (ctrl && ImGui::IsKeyPressed(ImGuiKey_E, false)) {
             commands.Push(Core::ExportCurrentShotCommand{});
+        } else if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Comma, false)) {
+            m_settingsOpen = true;
+            m_settingsPage = 0;
+            m_settingsAiSynced = false;
         } else if (!ctrl && !io.KeyAlt && !io.KeySuper) {
             if (ImGui::IsKeyPressed(ImGuiKey_1, false) && !empty) {
                 commands.Push(Core::SetWorkspaceModeCommand{"script"});
@@ -1472,11 +2248,16 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
     const bool rebuildLeft = state.layoutRebuildRequested || m_leftFoldDirty || emptyChanged;
     ApplyDockLayout(dockspaceId, dockSize, modeId, rebuildLeft, leftCollapsed, empty, iconBar);
     m_leftFoldDirty = false;
+    if (rebuildLeft && !empty && !iconBar) {
+        if (std::strcmp(modeId, "set") == 0) {
+            m_leftTabFocus = "scene";
+        } else {
+            m_leftTabFocus = "shots";
+        }
+    }
     ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_AutoHideTabBar);
     ApplyAutoHideTabBar(ImGui::DockBuilderGetNode(dockspaceId));
-    if (rebuildLeft && !empty && !iconBar) {
-        ApplyLeftColumnWidth(dockspaceId, dockSize.x, leftCollapsed);
-    }
+    ApplyPanelPixelWidths(dockspaceId, dockSize.x, leftCollapsed, empty, iconBar);
     ImGui::End();
 
     if (ModeIs(state, "set") || ModeIs(state, "shoot")) {
@@ -1507,16 +2288,20 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
             if (ImGui::Button("打开工程...", ImVec2(width, 0.0f))) {
                 commands.Push(Core::OpenProjectCommand{});
             }
+            if (state.exampleSkillPath != nullptr && state.exampleSkillPath[0] != '\0') {
+                if (ImGui::Button("安装示例 Skill", ImVec2(width, 0.0f))) {
+                    commands.Push(Core::ImportModelFromPathCommand{state.exampleSkillPath});
+                }
+            }
             ImGui::PopItemWidth();
             ImGui::EndGroup();
         } else {
             const ImVec2 available = ImGui::GetContentRegionAvail();
-            const ImVec2 frame =
-                m_lockExportAspect ? FitExportFrame(available, state.exportResolutionId) : available;
-            const std::uint32_t width =
-                frame.x > 1.0f ? static_cast<std::uint32_t>(frame.x) : 1;
-            const std::uint32_t height =
-                frame.y > 1.0f ? static_cast<std::uint32_t>(frame.y) : 1;
+            const ImVec2 frame = m_lockExportAspect
+                                     ? FitExportFrame(available, state.exportResolutionId)
+                                     : available;
+            const std::uint32_t width = frame.x > 1.0f ? static_cast<std::uint32_t>(frame.x) : 1;
+            const std::uint32_t height = frame.y > 1.0f ? static_cast<std::uint32_t>(frame.y) : 1;
             const int dw = static_cast<int>(width) - static_cast<int>(m_lastViewportW);
             const int dh = static_cast<int>(height) - static_cast<int>(m_lastViewportH);
             if (m_lastViewportW == 0 || m_lastViewportH == 0 || dw * dw + dh * dh >= 4) {
@@ -1540,22 +2325,46 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                 draw->AddRect(frameMin, frameMax, ImGui::GetColorU32(ImGuiCol_Border));
                 DrawViewportGuides(frameMin, frameMax, m_showThirds, m_showSafeFrame);
             }
-            const ScriptShotView* hudShot = FindSelectedShot(state, nullptr);
             char hud[256];
-            if (hudShot != nullptr) {
-                std::snprintf(hud, sizeof(hud), "%s · %s", hudShot->title.c_str(),
-                              hudShot->linkedCameraName.empty() ? "无机位"
-                                                                : hudShot->linkedCameraName.c_str());
-            } else {
-                std::snprintf(hud, sizeof(hud), "%s", "未选镜头");
-            }
+            FormatShotHud(state, hud, sizeof(hud));
             PushUiFont(kUiCaption);
             const ImVec2 hudSize = ImGui::CalcTextSize(hud);
-            const ImVec2 hudPos(frameMin.x + 10.0f,
-                                frameMax.y - hudSize.y - 8.0f);
+            const ImVec2 hudPos(frameMin.x + 10.0f, frameMax.y - hudSize.y - 8.0f);
             draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(), hudPos,
                           ImGui::GetColorU32(ImGuiCol_Text), hud);
             PopUiFont();
+            bool gizmoBusy = false;
+            if (state.gizmoActive && state.selectionId != nullptr && state.selectionId[0] != '\0') {
+                float world[16];
+                std::memcpy(world, state.gizmoWorld, sizeof(world));
+                ImGuizmo::SetDrawlist(draw);
+                ImGuizmo::SetRect(frameMin.x, frameMin.y, frame.x, frame.y);
+                ImGuizmo::SetOrthographic(false);
+                ImGuizmo::OPERATION operation = ImGuizmo::TRANSLATE;
+                if (m_gizmoOp == 1) {
+                    operation = ImGuizmo::ROTATE;
+                } else if (m_gizmoOp == 2) {
+                    operation = ImGuizmo::SCALE;
+                }
+                if (ImGuizmo::Manipulate(state.gizmoView, state.gizmoProj, operation,
+                                         ImGuizmo::LOCAL, world)) {
+                    float position[3] = {0.0f, 0.0f, 0.0f};
+                    float euler[3] = {0.0f, 0.0f, 0.0f};
+                    float scale[3] = {1.0f, 1.0f, 1.0f};
+                    ImGuizmo::DecomposeMatrixToComponents(world, position, euler, scale);
+                    PushNodeTransform(commands, state.selectionId, position, euler, scale);
+                }
+                gizmoBusy = ImGuizmo::IsUsing() || ImGuizmo::IsOver();
+            }
+            if (viewportHovered && !ImGui::GetIO().WantTextInput) {
+                if (ImGui::IsKeyPressed(ImGuiKey_W, false)) {
+                    m_gizmoOp = 0;
+                } else if (ImGui::IsKeyPressed(ImGuiKey_E, false)) {
+                    m_gizmoOp = 1;
+                } else if (ImGui::IsKeyPressed(ImGuiKey_R, false)) {
+                    m_gizmoOp = 2;
+                }
+            }
             if (ImGui::BeginDragDropTarget()) {
                 if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DD_ASSET_ID")) {
                     const char* assetId = static_cast<const char*>(payload->Data);
@@ -1565,7 +2374,7 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
                 }
                 ImGui::EndDragDropTarget();
             }
-            if (viewportHovered) {
+            if (viewportHovered && !gizmoBusy) {
                 ImGuiIO& io = ImGui::GetIO();
                 Core::OrbitDeltaCommand orbit;
                 if (viewportActive || viewportHovered) {
@@ -1592,24 +2401,47 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
 
     if (!empty && !iconBar) {
         ImGui::Begin("层级###Hierarchy");
-        DrawPanelCaption("层级");
-        DrawHierarchyBody(state, commands, &sceneHeaderClicked);
+        DrawPanelCaption("镜头表");
+        DrawShotList(state, commands);
+        if (m_leftTabFocus == "shots") {
+            ImGui::SetWindowFocus();
+            m_leftTabFocus.clear();
+        }
         ImGui::End();
-    } else if (!empty && iconBar && (rail.overlay == LeftRailOverlay::Shots ||
-                                     rail.overlay == LeftRailOverlay::Scene)) {
+        ImGui::Begin("场景###SceneTree");
+        DrawPanelCaption("场景");
+        DrawSceneTree(state, commands, &sceneHeaderClicked);
+        if (m_leftTabFocus == "scene") {
+            ImGui::SetWindowFocus();
+            m_leftTabFocus.clear();
+        }
+        ImGui::End();
+    } else if (!empty && iconBar && rail.overlay == LeftRailOverlay::Shots) {
         ImGui::SetNextWindowPos(rail.overlayPos);
         ImGui::SetNextWindowSize(rail.overlaySize);
         ImGui::SetNextWindowViewport(viewport->ID);
         ImGui::Begin("层级###Hierarchy", nullptr,
                      ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse |
                          ImGuiWindowFlags_NoTitleBar);
-        DrawPanelCaption("层级");
-        DrawHierarchyBody(state, commands, &sceneHeaderClicked);
+        DrawPanelCaption("镜头表");
+        DrawShotList(state, commands);
+        ImGui::End();
+    } else if (!empty && iconBar && rail.overlay == LeftRailOverlay::Scene) {
+        ImGui::SetNextWindowPos(rail.overlayPos);
+        ImGui::SetNextWindowSize(rail.overlaySize);
+        ImGui::SetNextWindowViewport(viewport->ID);
+        ImGui::Begin("场景###SceneTree", nullptr,
+                     ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse |
+                         ImGuiWindowFlags_NoTitleBar);
+        DrawPanelCaption("场景");
+        DrawSceneTree(state, commands, &sceneHeaderClicked);
         ImGui::End();
     }
 
     ImGui::Begin("检查器###Inspector");
     DrawPanelCaption("检查器");
+    bool openSettings = false;
+    int settingsPage = 3;
     const char* selectionId = state.selectionId != nullptr ? state.selectionId : "";
     const std::string selectionKey = std::string(KindId(state)) + "\n" + selectionId;
     if (selectionKey != m_lastSelectionKey) {
@@ -1622,31 +2454,32 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
         m_sceneFacePinned = true;
     }
     if (ModeIs(state, "script")) {
-        DrawScriptInspector(state);
+        DrawScriptInspector(state, commands, &m_defaultSkillId, &m_preferencesDirty, &openSettings,
+                            &settingsPage);
     } else if (ModeIs(state, "review")) {
-        DrawDeliveryInspector(state, commands);
-    } else if (m_sceneFacePinned || (ModeIs(state, "set") && KindIs(state, "none"))) {
+        DrawDeliveryInspector(state, commands, &openSettings);
+    } else if (m_sceneFacePinned || (ModeIs(state, "set") && KindIs(state, SelectionKind::None))) {
         DrawSceneInspector(state, commands);
-    } else if (KindIs(state, "asset")) {
+    } else if (KindIs(state, SelectionKind::Asset)) {
         if (const LibraryAssetView* asset = FindSelectedAsset(state)) {
             DrawAssetInspector(*asset, commands);
         } else {
             DrawOnboarding(state, commands);
         }
-    } else if (KindIs(state, "shot")) {
+    } else if (KindIs(state, SelectionKind::Shot)) {
         const ScriptSceneView* scene = nullptr;
         if (const ScriptShotView* shot = FindSelectedShot(state, &scene)) {
-            DrawShotInspector(state, commands, *shot, scene);
+            DrawShotInspector(state, commands, *shot, scene, &openSettings);
         } else {
             DrawOnboarding(state, commands);
         }
-    } else if (KindIs(state, "node")) {
+    } else if (KindIs(state, SelectionKind::Node)) {
         if (const NodeView* node = FindSelectedNode(state)) {
             DrawNodeInspector(state, commands, *node);
         } else {
             DrawOnboarding(state, commands);
         }
-    } else if (KindIs(state, "camera")) {
+    } else if (KindIs(state, SelectionKind::Camera)) {
         if (const CameraItemView* camera = FindSelectedCamera(state)) {
             DrawCameraInspector(state, commands, *camera, m_cameraName, m_cameraNameId);
         } else {
@@ -1656,6 +2489,12 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
         DrawOnboarding(state, commands);
     }
     ImGui::End();
+
+    if (openSettings) {
+        m_settingsOpen = true;
+        m_settingsPage = settingsPage;
+        m_settingsAiSynced = false;
+    }
 
     if (state.exportOverwritePrompt) {
         ImGui::OpenPopup("覆盖导出文件");
@@ -1725,6 +2564,69 @@ void WorkspacePanel::Draw(const AppViewState& state, Core::CommandQueue& command
         ImGui::EndPopup();
     }
     PopModalColors();
+
+    if (m_hotkeysOpen) {
+        ImGui::OpenPopup("快捷键");
+    }
+    PushModalColors();
+    ImGui::SetNextWindowBgAlpha(1.0f);
+    if (ImGui::BeginPopupModal("快捷键", &m_hotkeysOpen, ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (ImGui::BeginTable("##hotkeys", 2, ImGuiTableFlags_SizingStretchProp)) {
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Ctrl+N");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("新建工程");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Ctrl+O");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("打开工程");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Ctrl+S");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("保存工程");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Ctrl+Shift+S");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("工程另存为");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Ctrl+,");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("设置");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Ctrl+I");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("导入模型");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Ctrl+E");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("按当前选择导出");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Ctrl+Z / Ctrl+Y");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("撤销 / 重做置景");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("[ ]");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("上一镜 / 下一镜");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("W / E / R");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("移动 / 旋转 / 缩放");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("G / Shift+G");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("地面网格 / 三分线");
+            ImGui::EndTable();
+        }
+        if (ModalButton("关闭")) {
+            m_hotkeysOpen = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    PopModalColors();
+
+    DrawSettingsModal(state, commands);
 }
 
 } // namespace DirectorDesk::UI

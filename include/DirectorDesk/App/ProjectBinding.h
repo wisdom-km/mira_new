@@ -35,7 +35,8 @@ ProjectSnapshot CaptureProject(const std::string& projectId, const std::string& 
                                const std::string& projectPath, const Scene::Document& scene,
                                const Camera::CameraManager& cameras, const Link::Table& links,
                                const Script::Document& script, Asset::Library& library,
-                               const std::vector<std::string>& collapsedScenes);
+                               const std::vector<std::string>& collapsedScenes,
+                               const std::string& storyboardLayout = "grid");
 
 std::vector<std::string> CollectUncachedSourcePaths(const Scene::Document& scene,
                                                      const Asset::Library& library);
@@ -43,6 +44,7 @@ std::vector<std::string> CollectUncachedSourcePaths(const Scene::Document& scene
 Core::Result<void> HydrateProject(const ProjectSnapshot& snapshot, const std::string& projectDir,
                                   Scene::Document& scene, Camera::CameraManager& cameras,
                                   Link::Table& links, Script::Document& script,
-                                  const Asset::Library& library, std::vector<std::string>& diagnostics);
+                                  const Asset::Library& library, std::vector<std::string>& diagnostics,
+                                  const std::string& officialCacheRoot = {});
 
 } // namespace DirectorDesk::App

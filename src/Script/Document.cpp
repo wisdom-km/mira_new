@@ -8,6 +8,7 @@
 #include "DirectorDesk/Script/Ids.h"
 #include "DirectorDesk/Script/Parser.h"
 
+#include <cctype>
 #include <vector>
 
 namespace DirectorDesk::Script {
@@ -71,6 +72,19 @@ std::string FirstShotIdInSnapshot(const Snapshot& snapshot) {
         }
     }
     return {};
+}
+
+std::string TrimCopy(const std::string& value) {
+    std::size_t begin = 0;
+    while (begin < value.size() &&
+           std::isspace(static_cast<unsigned char>(value[begin])) != 0) {
+        ++begin;
+    }
+    std::size_t end = value.size();
+    while (end > begin && std::isspace(static_cast<unsigned char>(value[end - 1])) != 0) {
+        --end;
+    }
+    return value.substr(begin, end - begin);
 }
 
 } // namespace
@@ -275,6 +289,74 @@ bool Document::RemoveShot(const std::string& shotId) {
     if (m_selectedShotId.empty()) {
         SelectShot(FirstShotIdInSnapshot(m_snapshot));
     }
+    return true;
+}
+
+bool Document::SetShotMeta(const std::string& shotId, const std::string& key, const std::string& value) {
+    const std::string trimmedKey = TrimCopy(key);
+    if (shotId.empty() || trimmedKey.empty()) {
+        return false;
+    }
+    const Shot* shot = FindShot(m_snapshot, shotId);
+    if (shot == nullptr) {
+        return false;
+    }
+    const int firstLine = shot->headingLine + 1;
+    const int lastLine = shot->lineEnd;
+    std::vector<int> metaLines;
+    std::vector<std::string> metaKeys;
+    bool seenContent = false;
+    for (int line = firstLine; line <= lastLine; ++line) {
+        const std::size_t begin = OffsetOfLine(m_text, line);
+        const std::size_t next = OffsetOfLine(m_text, line + 1);
+        std::string text = m_text.substr(begin, next > begin ? next - begin : 0);
+        while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) {
+            text.pop_back();
+        }
+        std::string parsedKey;
+        std::string parsedValue;
+        if (!seenContent && TrimCopy(text).empty()) {
+            continue;
+        }
+        if (TryParseMetaLine(text, parsedKey, parsedValue)) {
+            seenContent = true;
+            metaLines.push_back(line);
+            metaKeys.push_back(parsedKey);
+            continue;
+        }
+        break;
+    }
+    int targetLine = 0;
+    for (std::size_t i = 0; i < metaKeys.size(); ++i) {
+        if (metaKeys[i] == trimmedKey) {
+            targetLine = metaLines[i];
+        }
+    }
+    const std::string trimmedValue = TrimCopy(value);
+    if (targetLine > 0 && trimmedValue.empty()) {
+        const std::size_t begin = OffsetOfLine(m_text, targetLine);
+        const std::size_t end = OffsetOfLine(m_text, targetLine + 1);
+        m_text.erase(begin, end - begin);
+    } else if (targetLine > 0) {
+        const std::size_t begin = OffsetOfLine(m_text, targetLine);
+        const std::size_t end = OffsetOfLine(m_text, targetLine + 1);
+        std::string ending = "\n";
+        if (end > begin && m_text[end - 1] == '\n') {
+            ending = (end > begin + 1 && m_text[end - 2] == '\r') ? "\r\n" : "\n";
+        }
+        m_text.replace(begin, end - begin, "> " + trimmedKey + ": " + trimmedValue + ending);
+    } else if (trimmedValue.empty()) {
+        return false;
+    } else {
+        const int insertLine = metaLines.empty() ? firstLine : metaLines.back() + 1;
+        std::size_t insertAt = OffsetOfLine(m_text, insertLine);
+        if (metaLines.empty()) {
+            insertAt = OffsetOfLine(m_text, shot->headingLine + 1);
+        }
+        m_text.insert(insertAt, "> " + trimmedKey + ": " + trimmedValue + "\n");
+    }
+    m_dirty = true;
+    ApplyParse(Parser::Parse(m_text), true);
     return true;
 }
 

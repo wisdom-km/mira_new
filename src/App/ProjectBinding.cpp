@@ -35,6 +35,42 @@ std::string MakeAssetRefId(std::uint32_t& index) {
     return "assetref-" + std::to_string(index++);
 }
 
+bool HasPathTraversal(const std::string& relative) {
+    return relative.find("..") != std::string::npos;
+}
+
+std::string OfficialCachePath(const std::string& cacheRoot, const std::string& assetId,
+                              const std::string& version, const std::string& entrypoint) {
+    if (cacheRoot.empty() || assetId.empty() || version.empty() || entrypoint.empty() ||
+        HasPathTraversal(assetId) || HasPathTraversal(version) || HasPathTraversal(entrypoint)) {
+        return {};
+    }
+    return Platform::Paths::Join(
+        Platform::Paths::Join(Platform::Paths::Join(Platform::Paths::Join(cacheRoot, "official"),
+                                                    assetId),
+                              version),
+        entrypoint);
+}
+
+std::string DefaultOfficialCacheRoot() {
+    auto root = Platform::Paths::OfficialAssetsDirectory();
+    return root.IsOk() ? root.Value() : std::string();
+}
+
+bool IsOfficialLibraryAsset(const Asset::LibraryAsset* asset) {
+    return asset != nullptr && asset->origin == Asset::AssetOrigin::OnlineCache &&
+           !asset->version.empty() && !asset->entrypoint.empty();
+}
+
+const Asset::LibraryAsset* FindLibraryAsset(const Asset::Library& library, const Scene::Node& node) {
+    if (!node.libraryAssetId.empty()) {
+        if (const Asset::LibraryAsset* found = library.Find(node.libraryAssetId)) {
+            return found;
+        }
+    }
+    return library.FindBySourcePath(node.sourcePath);
+}
+
 const ProjectAssetRef* FindAsset(const ProjectSnapshot& snapshot, const std::string& refId) {
     for (const ProjectAssetRef& asset : snapshot.assets) {
         if (asset.refId == refId) {
@@ -68,6 +104,11 @@ std::vector<std::string> CollectUncachedSourcePaths(const Scene::Document& scene
         if (node.sourcePath.empty()) {
             continue;
         }
+        const Asset::LibraryAsset* indexed = FindLibraryAsset(library, node);
+        if (IsOfficialLibraryAsset(indexed) ||
+            (!node.officialVersion.empty() && !node.officialEntrypoint.empty())) {
+            continue;
+        }
         const std::string key = Platform::Paths::StableKey(node.sourcePath);
         if (!seen.insert(key).second) {
             continue;
@@ -84,11 +125,14 @@ ProjectSnapshot CaptureProject(const std::string& projectId, const std::string& 
                                const std::string& projectPath, const Scene::Document& scene,
                                const Camera::CameraManager& cameras, const Link::Table& links,
                                const Script::Document& script, Asset::Library& library,
-                               const std::vector<std::string>& collapsedScenes) {
+                               const std::vector<std::string>& collapsedScenes,
+                               const std::string& storyboardLayout) {
     ProjectSnapshot snapshot;
     snapshot.projectId = projectId.empty() ? ProjectFile::MakeProjectId() : projectId;
     snapshot.name = name.empty() ? "未命名工程" : name;
     snapshot.collapsedScenes = collapsedScenes;
+    snapshot.storyboardLayout =
+        storyboardLayout.empty() ? std::string("grid") : storyboardLayout;
     snapshot.lightingPreset = Camera::LightPresetId(cameras.LightPreset());
     snapshot.activeCamera = cameras.SelectedId();
     const std::string projectDir =
@@ -117,6 +161,20 @@ ProjectSnapshot CaptureProject(const std::string& projectId, const std::string& 
         }
         ProjectAssetRef asset;
         asset.refId = node.assetRef.empty() ? MakeAssetRefId(assetIndex) : node.assetRef;
+        const Asset::LibraryAsset* indexed = FindLibraryAsset(library, node);
+        if (IsOfficialLibraryAsset(indexed) ||
+            (!node.officialVersion.empty() && !node.officialEntrypoint.empty())) {
+            asset.source = ProjectAssetSource::Official;
+            asset.assetId = indexed != nullptr ? indexed->id : node.libraryAssetId;
+            asset.version =
+                indexed != nullptr && !indexed->version.empty() ? indexed->version : node.officialVersion;
+            asset.entrypoint = indexed != nullptr && !indexed->entrypoint.empty()
+                                   ? indexed->entrypoint
+                                   : node.officialEntrypoint;
+            sourceToRef[key] = asset.refId;
+            snapshot.assets.push_back(std::move(asset));
+            continue;
+        }
         if (!projectDir.empty() && !node.sourcePath.empty() &&
             Platform::Paths::IsWithin(projectDir, node.sourcePath)) {
             auto relative = Platform::Paths::RelativeTo(projectDir, node.sourcePath);
@@ -136,11 +194,6 @@ ProjectSnapshot CaptureProject(const std::string& projectId, const std::string& 
         if (!node.sourcePath.empty()) {
             asset.sha256 = ResolveSourceHash(library, node.sourcePath, node.libraryAssetId);
             asset.path = Platform::Paths::NormalizeSlashes(node.sourcePath);
-        }
-        if (library.Find(asset.assetId) == nullptr && node.sourcePath.empty()) {
-            asset.source = ProjectAssetSource::Official;
-            asset.version = "0.0.0";
-            asset.entrypoint = "model/missing.glb";
         }
         sourceToRef[key] = asset.refId;
         snapshot.assets.push_back(std::move(asset));
@@ -196,7 +249,8 @@ ProjectSnapshot CaptureProject(const std::string& projectId, const std::string& 
 Core::Result<void> HydrateProject(const ProjectSnapshot& snapshot, const std::string& projectDir,
                                   Scene::Document& scene, Camera::CameraManager& cameras,
                                   Link::Table& links, Script::Document& script,
-                                  const Asset::Library& library, std::vector<std::string>& diagnostics) {
+                                  const Asset::Library& library, std::vector<std::string>& diagnostics,
+                                  const std::string& officialCacheRoot) {
     diagnostics = snapshot.diagnostics;
     script.Reset();
     if (!snapshot.script.value.empty()) {
@@ -260,8 +314,28 @@ Core::Result<void> HydrateProject(const ProjectSnapshot& snapshot, const std::st
                     diagnostics.emplace_back("资源库资产缺失：" + asset->assetId);
                 }
             } else {
-                node.assetMissing = true;
-                diagnostics.emplace_back("官方资产尚未下载：" + asset->assetId);
+                node.libraryAssetId = asset->assetId;
+                node.officialVersion = asset->version;
+                node.officialEntrypoint = asset->entrypoint;
+                std::string resolved;
+                if (const Asset::LibraryAsset* found = library.Find(asset->assetId)) {
+                    if (IsOfficialLibraryAsset(found) && found->version == asset->version &&
+                        found->sourceExists && Platform::Paths::Exists(found->sourcePath)) {
+                        resolved = found->sourcePath;
+                    }
+                }
+                if (resolved.empty()) {
+                    const std::string cacheRoot =
+                        officialCacheRoot.empty() ? DefaultOfficialCacheRoot() : officialCacheRoot;
+                    resolved = OfficialCachePath(cacheRoot, asset->assetId, asset->version,
+                                                 asset->entrypoint);
+                }
+                if (!resolved.empty() && Platform::Paths::Exists(resolved)) {
+                    node.sourcePath = resolved;
+                } else {
+                    node.assetMissing = true;
+                    diagnostics.emplace_back("官方资产尚未下载，可在资源库下载：" + asset->assetId);
+                }
             }
         } else if (!item.assetRef.empty()) {
             node.assetMissing = true;

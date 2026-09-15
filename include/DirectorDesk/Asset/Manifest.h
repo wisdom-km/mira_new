@@ -53,6 +53,10 @@ struct ManifestAsset {
     std::vector<ManifestFile> files;
     ManifestLicense license;
     ManifestAuthor author;
+    std::string kind = "model";
+    std::string rigType;
+    std::string rigSource;
+    int rigBoneCount = 0;
     std::vector<std::string> diagnostics;
 };
 

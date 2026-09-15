@@ -26,6 +26,8 @@
 #include "CurlHttpClient.h"
 #include "ImGuiGlfwBackend.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -87,6 +89,11 @@ int Application::Run(int argc, char** argv) {
     state.exampleGlb = Platform::Paths::Join(models, "cube.glb");
     state.exampleScript = Platform::Paths::Join(Platform::Paths::Join(examples, "scripts"), "cafe.md");
     state.exampleProject = Platform::Paths::Join(examples, "cafe.ddproj");
+    state.exampleStoryboardImport = Platform::Paths::Join(examples, "storyboard-import.example.json");
+    state.exampleSkill =
+        Platform::Paths::Join(Platform::Paths::Join(Platform::Paths::Join(examples, "skills"),
+                                                    "storyboard"),
+                              "SKILL.md");
 
     auto libraryDir = Platform::Paths::LibraryDirectory();
     if (libraryDir.IsOk()) {
@@ -132,6 +139,7 @@ int Application::Run(int argc, char** argv) {
     Core::ResultQueue<OfficialDownloadJobResult> officialDownloadResults;
     Core::ResultQueue<OfficialProgressUpdate> officialProgressResults;
     Core::ResultQueue<SaveHashJobResult> hashResults;
+    Core::ResultQueue<AiJobResult> aiResults;
     UI::WorkspacePanel workspace;
     UI::ScriptPanel scriptPanel;
     UI::LibraryPanel libraryPanel;
@@ -153,14 +161,47 @@ int Application::Run(int argc, char** argv) {
     }
     SelectFirstShotIfNone(state);
     std::string userSettingsPath;
+    bool canPersistSettings = false;
     if (auto settingsPath = Platform::Paths::UserSettingsFile(); settingsPath.IsOk()) {
         userSettingsPath = settingsPath.Value();
-        auto loaded = LoadUserSettings(userSettingsPath);
-        if (loaded.IsOk()) {
-            workspace.ApplyPreferences(ToUiPreferences(loaded.Value()));
+        state.userSettingsPath = userSettingsPath;
+        if (Platform::Paths::Exists(userSettingsPath)) {
+            auto loaded = LoadUserSettings(userSettingsPath);
+            if (loaded.IsOk()) {
+                state.userSettings = loaded.Value();
+                canPersistSettings = true;
+            } else {
+                DD_LOG_WARN("{}", loaded.GetError().technicalMessage);
+            }
         } else {
-            DD_LOG_WARN("{}", loaded.GetError().technicalMessage);
+            canPersistSettings = true;
         }
+    }
+    const auto resolveSize = window.GetFramebufferSize();
+    const unsigned resolveWidth =
+        std::max(static_cast<unsigned>(resolveSize.width), imgui.PrimaryMonitorWidth());
+    const float resolvedScale =
+        ResolveUiScale(state.userSettings.uiScale, resolveWidth, imgui.ContentScale());
+    const bool persistResolvedDefault = state.userSettings.uiScale <= 0.0f;
+    state.userSettings.uiScale = resolvedScale;
+    workspace.ApplyPreferences(ToUiPreferences(state.userSettings));
+    imgui.ApplyUiScale(resolvedScale);
+    float appliedUiScale = resolvedScale;
+    if (persistResolvedDefault && canPersistSettings && !userSettingsPath.empty()) {
+        auto saved = SaveUserSettings(userSettingsPath, state.userSettings);
+        if (!saved.IsOk()) {
+            DD_LOG_WARN("{}", saved.GetError().technicalMessage);
+        }
+    }
+    state.exportResolutionId =
+        state.userSettings.exportResolutionId == "2k" ? "2k" : "1080p";
+    state.exportTransparent = state.userSettings.exportTransparent;
+    if (options.projectPath.empty() && state.userSettings.openLastProject &&
+        !state.userSettings.lastProjectPath.empty() &&
+        Platform::Paths::Exists(state.userSettings.lastProjectPath)) {
+        OpenProjectAt(state.userSettings.lastProjectPath, state, renderer.get(), &worker,
+                      &loadResults);
+        SelectFirstShotIfNone(state);
     }
     if (IsWorkspaceModeId(options.workspaceMode)) {
         state.workspaceModeId = options.workspaceMode;
@@ -196,6 +237,7 @@ int Application::Run(int argc, char** argv) {
     };
     services.openModelFile = []() { return Platform::FileDialog::OpenModelFile(); };
     services.openMarkdownFile = []() { return Platform::FileDialog::OpenMarkdownFile(); };
+    services.openJsonFile = []() { return Platform::FileDialog::OpenJsonFile(); };
     services.openProjectFile = []() { return Platform::FileDialog::OpenProjectFile(); };
     services.saveProjectFile = []() { return Platform::FileDialog::SaveProjectFile(); };
     services.savePngFile = [](const std::string& name) {
@@ -204,9 +246,21 @@ int Application::Run(int argc, char** argv) {
     services.exportShotTo = [&](const std::string& path, Export::ShotResolution resolution) {
         const auto windowSize = window.GetFramebufferSize();
         return ExportShotPng(state, *renderer, windowSize.width, windowSize.height, path,
-                              resolution);
+                             resolution);
+    };
+    services.exportShotPackageTo = [&](const std::string& path, Export::ShotResolution resolution,
+                                       const std::string& shotId) {
+        const auto windowSize = window.GetFramebufferSize();
+        return ExportShotPackage(state, *renderer, windowSize.width, windowSize.height, path,
+                                 resolution, shotId);
     };
     services.exportBoardTo = [&](const std::string& path) { return ExportBoardPng(state, path); };
+    services.exportBoardPdfTo = [&](const std::string& path) { return ExportBoardPdf(state, path); };
+    services.savePdfFile = [](const std::string& name) {
+        return Platform::FileDialog::SavePdfFile(name);
+    };
+    services.http = http.get();
+    services.aiResults = &aiResults;
 
     while (true) {
         window.PollEvents();
@@ -220,7 +274,7 @@ int Application::Run(int argc, char** argv) {
         }
 
         DrainAppQueues(state, *renderer, loadResults, officialRefreshResults, officialDownloadResults,
-                        officialProgressResults, hashResults);
+                        officialProgressResults, hashResults, &aiResults);
         if (!state.projectSaveInProgress && state.projectSaveQueued) {
             state.projectSaveQueued = false;
             RequestSaveProject(state, state.projectSavePendingPath, &worker, &hashResults);
@@ -256,16 +310,33 @@ int Application::Run(int argc, char** argv) {
         Renderer::RenderTargetDesc viewportTarget;
         viewportTarget.opaqueClearRgba = ViewportClearRgba(prefs.viewportBackground);
         renderer->RenderScene(BuildSceneView(state.scene, state.cameras.CurrentLight(),
-                                               prefs.showGroundGrid, prefs.showGroundAxes),
+                                               prefs.showGroundGrid, prefs.showGroundAxes,
+                                               prefs.uiScale),
                               state.cameras.Selected()->orbit.BuildView(aspect), viewportTarget);
         MaybeRequestStoryboardThumbnail(state, *renderer);
         imgui.BeginFrame();
         workspace.Draw(viewState, commands);
-        if (workspace.ConsumePreferencesDirty() && !userSettingsPath.empty()) {
-            auto saved =
-                SaveUserSettings(userSettingsPath, FromUiPreferences(workspace.Preferences()));
-            if (!saved.IsOk()) {
-                DD_LOG_WARN("{}", saved.GetError().technicalMessage);
+        if (workspace.ConsumePreferencesDirty()) {
+            UserSettings next = FromUiPreferences(workspace.Preferences());
+            next.aiProvider = state.userSettings.aiProvider;
+            next.aiBaseUrl = state.userSettings.aiBaseUrl;
+            next.aiApiKey = state.userSettings.aiApiKey;
+            next.aiImageModel = state.userSettings.aiImageModel;
+            next.aiVideoModel = state.userSettings.aiVideoModel;
+            next.aiChatModel = state.userSettings.aiChatModel;
+            next.lastProjectPath = state.userSettings.lastProjectPath;
+            next.exportResolutionId = state.userSettings.exportResolutionId;
+            next.exportTransparent = state.userSettings.exportTransparent;
+            state.userSettings = next;
+            if (std::fabs(next.uiScale - appliedUiScale) > 0.01f) {
+                imgui.ApplyUiScale(next.uiScale);
+                appliedUiScale = next.uiScale;
+            }
+            if (!userSettingsPath.empty()) {
+                auto saved = SaveUserSettings(userSettingsPath, state.userSettings);
+                if (!saved.IsOk()) {
+                    DD_LOG_WARN("{}", saved.GetError().technicalMessage);
+                }
             }
         }
         scriptPanel.Draw(viewState, commands);

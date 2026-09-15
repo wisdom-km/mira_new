@@ -24,6 +24,7 @@ public:
     void InsertScene();
     void InsertShot(const std::string& afterShotId = {});
     bool RemoveShot(const std::string& shotId);
+    bool SetShotMeta(const std::string& shotId, const std::string& key, const std::string& value);
     void SelectShot(const std::string& shotId);
     void Reset();
 

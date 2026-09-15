@@ -254,6 +254,98 @@ TEST_CASE("Project node visible false round-trips", "[project]") {
     REQUIRE_FALSE(captured.nodes.front().visible);
 }
 
+TEST_CASE("Official assets round-trip as official triple", "[project]") {
+    const std::string root = MakeRoot("official-rt");
+    const std::string libraryDir = DirectorDesk::Platform::Paths::Join(root, "library");
+    const std::string cacheRoot = DirectorDesk::Platform::Paths::Join(root, "assets");
+    const std::string modelDir = DirectorDesk::Platform::Paths::Join(
+        DirectorDesk::Platform::Paths::Join(
+            DirectorDesk::Platform::Paths::Join(
+                DirectorDesk::Platform::Paths::Join(cacheRoot, "official"), "basic-chair"),
+            "1.0.0"),
+        "model");
+    REQUIRE(DirectorDesk::Platform::Paths::CreateDirectories(modelDir).IsOk());
+    const std::string model = WriteObj(modelDir, "chair.obj");
+
+    DirectorDesk::Asset::Library library;
+    REQUIRE(library.Open(libraryDir).IsOk());
+    DirectorDesk::Asset::LibraryAsset item;
+    item.id = "basic-chair";
+    item.name = "椅子";
+    item.sourcePath = model;
+    item.format = "obj";
+    item.origin = DirectorDesk::Asset::AssetOrigin::OnlineCache;
+    item.version = "1.0.0";
+    item.entrypoint = "model/chair.obj";
+    REQUIRE(library.Upsert(item).IsOk());
+
+    DirectorDesk::Scene::Document scene;
+    DirectorDesk::Scene::Node node;
+    node.id = "node-chair-01";
+    node.name = "椅子";
+    node.sourcePath = model;
+    node.libraryAssetId = "basic-chair";
+    scene.Add(std::move(node));
+    DirectorDesk::Camera::CameraManager cameras;
+    DirectorDesk::Link::Table links;
+    DirectorDesk::Script::Document script;
+    const std::string projectPath = DirectorDesk::Platform::Paths::Join(root, "工程.ddproj");
+    auto captured = DirectorDesk::App::CaptureProject("proj-official", "官方椅子", projectPath, scene,
+                                                      cameras, links, script, library, {});
+    REQUIRE(captured.assets.size() == 1);
+    REQUIRE(captured.assets.front().source == DirectorDesk::App::ProjectAssetSource::Official);
+    REQUIRE(captured.assets.front().assetId == "basic-chair");
+    REQUIRE(captured.assets.front().version == "1.0.0");
+    REQUIRE(captured.assets.front().entrypoint == "model/chair.obj");
+    REQUIRE(captured.assets.front().path.empty());
+    REQUIRE(DirectorDesk::App::CollectUncachedSourcePaths(scene, library).empty());
+
+    auto text = DirectorDesk::App::ProjectFile::Serialize(captured);
+    REQUIRE(text.IsOk());
+    REQUIRE(text.Value().find("\"source\": \"official\"") != std::string::npos);
+    REQUIRE(text.Value().find("basic-chair") != std::string::npos);
+    REQUIRE(text.Value().find(DirectorDesk::Platform::Paths::NormalizeSlashes(model)) ==
+            std::string::npos);
+
+    REQUIRE(DirectorDesk::App::ProjectFile::Save(projectPath, captured).IsOk());
+    auto loaded = DirectorDesk::App::ProjectFile::Load(projectPath);
+    REQUIRE(loaded.IsOk());
+    REQUIRE(loaded.Value().assets.front().source == DirectorDesk::App::ProjectAssetSource::Official);
+
+    DirectorDesk::Scene::Document hydrated;
+    DirectorDesk::Camera::CameraManager hydratedCameras;
+    DirectorDesk::Link::Table hydratedLinks;
+    DirectorDesk::Script::Document hydratedScript;
+    DirectorDesk::Asset::Library emptyLibrary;
+    std::vector<std::string> diagnostics;
+    REQUIRE(DirectorDesk::App::HydrateProject(loaded.Value(), root, hydrated, hydratedCameras,
+                                              hydratedLinks, hydratedScript, emptyLibrary,
+                                              diagnostics, cacheRoot)
+                .IsOk());
+    REQUIRE(hydrated.Find("node-chair-01") != nullptr);
+    REQUIRE_FALSE(hydrated.Find("node-chair-01")->assetMissing);
+    REQUIRE(hydrated.Find("node-chair-01")->libraryAssetId == "basic-chair");
+    REQUIRE(DirectorDesk::Platform::Paths::Exists(hydrated.Find("node-chair-01")->sourcePath));
+
+    DirectorDesk::Scene::Document missingScene;
+    std::vector<std::string> missingDiagnostics;
+    REQUIRE(DirectorDesk::App::HydrateProject(loaded.Value(), root, missingScene, hydratedCameras,
+                                              hydratedLinks, hydratedScript, emptyLibrary,
+                                              missingDiagnostics, DirectorDesk::Platform::Paths::Join(
+                                                  root, "empty-cache"))
+                .IsOk());
+    REQUIRE(missingScene.Find("node-chair-01")->assetMissing);
+    REQUIRE_FALSE(missingDiagnostics.empty());
+    REQUIRE(missingDiagnostics.front().find("可在资源库下载") != std::string::npos);
+
+    auto recaptured = DirectorDesk::App::CaptureProject(
+        loaded.Value().projectId, loaded.Value().name, projectPath, missingScene, hydratedCameras,
+        hydratedLinks, hydratedScript, emptyLibrary, {});
+    REQUIRE(recaptured.assets.front().source == DirectorDesk::App::ProjectAssetSource::Official);
+    REQUIRE(recaptured.assets.front().assetId == "basic-chair");
+    REQUIRE(recaptured.assets.front().version == "1.0.0");
+}
+
 #ifdef DD_EXAMPLE_CAFE_PROJECT
 TEST_CASE("Shipped cafe example project opens with Chinese paths nearby", "[project][example]") {
     auto loaded = DirectorDesk::App::ProjectFile::Load(DD_EXAMPLE_CAFE_PROJECT);

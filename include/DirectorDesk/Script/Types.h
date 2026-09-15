@@ -21,10 +21,16 @@ struct Diagnostic {
     std::string message;
 };
 
+struct ShotMeta {
+    std::string key;
+    std::string value;
+};
+
 struct Shot {
     std::string id;
     std::string title;
     std::string body;
+    std::vector<ShotMeta> meta;
     int headingLine = 1;
     int lineStart = 1;
     int lineEnd = 1;

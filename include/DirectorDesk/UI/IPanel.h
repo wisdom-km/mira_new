@@ -11,6 +11,12 @@
 
 namespace DirectorDesk::UI {
 
+enum class SelectionKind : std::uint8_t { None, Shot, Node, Camera, Asset };
+enum class CardKind : std::uint8_t { Root, Scene, Shot };
+enum class LinkStatus : std::uint8_t { Unlinked, Linked };
+enum class PreviewStatus : std::uint8_t { Missing, Stale, Rendering, Ready, Failed };
+enum class ExportStatus : std::uint8_t { NotExported, Exported };
+
 struct NodeView {
     std::string id;
     std::string name;
@@ -19,6 +25,7 @@ struct NodeView {
     float scale[3] = {1.0f, 1.0f, 1.0f};
     bool selected = false;
     bool visible = true;
+    bool hasSkin = false;
 };
 
 struct ScriptShotView {
@@ -28,6 +35,11 @@ struct ScriptShotView {
     std::string linkedCameraName;
     bool linkedMissing = false;
     bool selected = false;
+};
+
+struct ShotMetaView {
+    std::string key;
+    std::string value;
 };
 
 struct ScriptSceneView {
@@ -64,14 +76,27 @@ struct LibraryAssetView {
     bool selected = false;
     bool canDownload = false;
     bool canCancel = false;
+    std::string kind;
+    std::string installPath;
+    std::string skillExcerpt;
     bool canAddToScene = false;
+    bool hasSkin = false;
+    bool canRunSkill = false;
+    bool skillUsesLlm = false;
     std::uint16_t previewTexture = 0xFFFFu;
+};
+
+struct ShotHudView {
+    const char* shotTitle = "";
+    const char* cameraName = "";
+    float focalLength35mm = 0.0f;
 };
 
 struct StoryboardCardView {
     std::string id;
     std::string title;
     std::string kind;
+    CardKind kindEnum = CardKind::Shot;
     std::string shotId;
     std::string sceneId;
     float x = 0.0f;
@@ -80,9 +105,14 @@ struct StoryboardCardView {
     float h = 0.0f;
     bool selected = false;
     bool collapsed = false;
+    bool linked = false;
+    LinkStatus linkEnum = LinkStatus::Unlinked;
     const char* link = "";
     const char* preview = "";
+    PreviewStatus previewEnum = PreviewStatus::Missing;
     const char* exported = "";
+    ExportStatus exportEnum = ExportStatus::NotExported;
+    std::string metaLine;
     std::uint16_t thumbTexture = 0xFFFFu;
 };
 
@@ -94,6 +124,7 @@ struct ExportIssueView {
 
 struct ExportLogView {
     std::string label;
+    std::string shotId;
     std::string shotTitle;
     std::string path;
     bool ok = false;
@@ -117,6 +148,7 @@ struct AppViewState {
     const char* exampleObjPath = "";
     const char* exampleGlbPath = "";
     const char* exampleScriptPath = "";
+    const char* exampleStoryboardImportPath = "";
     const char* exampleProjectPath = "";
     const char* scriptText = "";
     const char* scriptPath = "";
@@ -130,7 +162,7 @@ struct AppViewState {
     const std::vector<LibraryAssetView>* libraryAssets = nullptr;
     const char* librarySearch = "";
     const char* libraryOriginFilter = "all";
-    const char* libraryViewMode = "list";
+    const char* libraryViewMode = "grid";
     const char* officialCategory = "";
     const char* officialCatalogStatus = "";
     bool officialConfigured = false;
@@ -154,6 +186,7 @@ struct AppViewState {
     const char* exportPendingPath = "";
     const char* workspaceModeId = "shoot";
     bool layoutRebuildRequested = false;
+    SelectionKind selectionKindEnum = SelectionKind::None;
     const char* selectionKind = "none";
     const char* selectionId = "";
     const char* selectionLabel = "";
@@ -161,7 +194,46 @@ struct AppViewState {
     const std::vector<ExportLogView>* exportLog = nullptr;
     const char* exportResolutionId = "1080p";
     float selectedCameraPosition[3] = {0.0f, 0.0f, 0.0f};
+    const std::vector<ShotMetaView>* selectedShotMeta = nullptr;
+    const std::vector<std::string>* importDiagnostics = nullptr;
+    const ShotHudView* shotHud = nullptr;
+    const char* exampleSkillPath = "";
+    bool canUndo = false;
+    bool canRedo = false;
+    bool gizmoActive = false;
+    float gizmoView[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    float gizmoProj[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    float gizmoWorld[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    bool canGenerateAi = false;
+    bool canRunSelectedSkill = false;
+    const char* aiProvider = "openai-compat";
+    const char* aiBaseUrl = "";
+    const char* aiImageModel = "";
+    const char* aiVideoModel = "";
+    const char* aiChatModel = "";
+    bool aiHasApiKey = false;
+    bool aiBusy = false;
+    const char* aiJobStatus = "";
+    const char* aiJobMessage = "";
+    float aiJobRatio = 0.0f;
+    const char* lastAiOutputPath = "";
+    bool projectIsEmpty = false;
+    int scriptSelectedLineStart = 0;
+    int scriptSelectedLineEnd = 0;
 };
+
+inline const StoryboardCardView* FindShotCardById(const std::vector<StoryboardCardView>* cards,
+                                                  const std::string& shotId) {
+    if (cards == nullptr || shotId.empty()) {
+        return nullptr;
+    }
+    for (const StoryboardCardView& card : *cards) {
+        if (card.kindEnum == CardKind::Shot && card.shotId == shotId) {
+            return &card;
+        }
+    }
+    return nullptr;
+}
 
 class IPanel {
 public:

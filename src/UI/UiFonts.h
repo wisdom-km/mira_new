@@ -16,6 +16,26 @@ inline float UiDpiScale() {
     return base > 0.05f ? base / kUiBody : 1.0f;
 }
 
+inline float UiScale() {
+    return UiDpiScale();
+}
+
+inline float UiPx(float designPx) {
+    return designPx * UiScale();
+}
+
+inline float ShotStripThumbW(unsigned windowWidth) {
+    return UiPx(windowWidth >= 1920 ? 208.0f : 176.0f);
+}
+
+inline float ShotStripThumbH(unsigned windowWidth) {
+    return UiPx(windowWidth >= 1920 ? 117.0f : 99.0f);
+}
+
+inline float ShotStripBarH(unsigned windowWidth) {
+    return UiPx(windowWidth >= 1920 ? 150.0f : 132.0f);
+}
+
 inline void PushUiFont(float designPx) {
     ImGui::PushFont(nullptr, designPx * UiDpiScale());
 }

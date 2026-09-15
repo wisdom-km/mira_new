@@ -1,0 +1,21 @@
+{
+  "format": "DirectorDeskStoryboardImport",
+  "formatVersion": 1,
+  "source": { "tool": "directordesk/example-storyboard-skill", "version": "0.6.0" },
+  "title": "示例分镜",
+  "scenes": [
+    {
+      "id": "scene-skill-demo",
+      "title": "Skill 演示场",
+      "body": "由示例分镜 Skill 运行导入。",
+      "shots": [
+        {
+          "id": "shot-skill-001",
+          "title": "开场",
+          "body": "角色站在咖啡馆门口。",
+          "meta": { "景别": "全景", "运镜": "固定", "时长": "3s", "提示词": "午后暖光，电影感" }
+        }
+      ]
+    }
+  ]
+}

@@ -23,7 +23,7 @@ target_link_libraries(dd_platform
 
 target_compile_definitions(dd_platform PRIVATE GLFW_INCLUDE_NONE)
 
-target_sources(dd_platform PRIVATE RevealPath.cpp)
+target_sources(dd_platform PRIVATE RevealPath.cpp Process.cpp)
 if(WIN32)
     target_sources(dd_platform PRIVATE FileDialogWin32.cpp RevealPathWin32.cpp)
     target_link_libraries(dd_platform PRIVATE ole32 shell32 uuid)

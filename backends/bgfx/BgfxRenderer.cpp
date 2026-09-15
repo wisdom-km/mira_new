@@ -8,6 +8,7 @@
 
 #include <bgfx/bgfx.h>
 #include <bgfx/platform.h>
+#include <cmath>
 #include <cstring>
 #include <glm/gtc/type_ptr.hpp>
 #include <memory>
@@ -243,9 +244,10 @@ public:
                 bgfx::setVertexBuffer(0, m_gridVertexBuffer);
                 bgfx::setIndexBuffer(m_gridIndexBuffer, firstIndex, indexCount);
                 bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z |
-                               BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_PT_LINES | BGFX_STATE_MSAA);
+                               BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA);
                 bgfx::submit(viewId, m_program);
             };
+            EnsureGroundGrid(scene.groundGridLineWidth, scene.groundAxisLineWidth);
             if (scene.showGroundGrid) {
                 submitLines(0, m_gridLineIndexCount);
             }
@@ -503,7 +505,7 @@ private:
             .end();
 
         CreateCube();
-        CreateGroundGrid();
+        CreateGroundGrid(1.0f, 2.0f);
 
         const bgfx::ShaderHandle vs = LoadShader(m_shaderDirectory, "vs_mesh");
         const bgfx::ShaderHandle fs = LoadShader(m_shaderDirectory, "fs_mesh");
@@ -558,42 +560,73 @@ private:
         m_indexBuffer = bgfx::createIndexBuffer(bgfx::copy(indices, sizeof(indices)));
     }
 
-    void CreateGroundGrid() {
+    void EnsureGroundGrid(float gridPx, float axisPx) {
+        const float grid = gridPx > 0.05f ? gridPx : 1.0f;
+        const float axis = axisPx > 0.05f ? axisPx : 2.0f;
+        if (bgfx::isValid(m_gridVertexBuffer) && std::fabs(grid - m_gridPx) < 0.01f &&
+            std::fabs(axis - m_axisPx) < 0.01f) {
+            return;
+        }
+        DestroyHandle(m_gridVertexBuffer);
+        DestroyHandle(m_gridIndexBuffer);
+        CreateGroundGrid(grid, axis);
+    }
+
+    void CreateGroundGrid(float gridPx, float axisPx) {
         constexpr float kExtent = 10.0f;
         constexpr float kStep = 1.0f;
         constexpr int kMajorEvery = 5;
-        constexpr std::uint32_t kGridMajor = 0xff605a5a; // 0x5a5a60
+        constexpr float kWorldPerPx = 0.010f;
+        constexpr std::uint32_t kGridMajor = 0xff726a6a; // 0x6a6a72
         constexpr std::uint32_t kGridMinor = 0xff423c3c; // 0x3c3c42
         constexpr std::uint32_t kAxisX = 0xff4a4ab0;     // 0xb04a4a
         constexpr std::uint32_t kAxisZ = 0xffb06a4a;     // 0x4a6ab0
 
         std::vector<MeshVertex> vertices;
         std::vector<std::uint16_t> indices;
-        auto addLine = [&](float x0, float y0, float z0, float x1, float y1, float z1,
+        auto addQuad = [&](float x0, float z0, float x1, float z1, float y, float halfW,
                            std::uint32_t color) {
+            const float dx = x1 - x0;
+            const float dz = z1 - z0;
+            const float len = std::sqrt(dx * dx + dz * dz);
+            if (len < 1.0e-5f || halfW <= 0.0f) {
+                return;
+            }
+            const float px = -dz / len * halfW;
+            const float pz = dx / len * halfW;
             const std::uint16_t start = static_cast<std::uint16_t>(vertices.size());
-            vertices.push_back({x0, y0, z0, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, color});
-            vertices.push_back({x1, y1, z1, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, color});
+            vertices.push_back({x0 + px, y, z0 + pz, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, color});
+            vertices.push_back({x0 - px, y, z0 - pz, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, color});
+            vertices.push_back({x1 - px, y, z1 - pz, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, color});
+            vertices.push_back({x1 + px, y, z1 + pz, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, color});
             indices.push_back(start);
             indices.push_back(static_cast<std::uint16_t>(start + 1));
+            indices.push_back(static_cast<std::uint16_t>(start + 2));
+            indices.push_back(start);
+            indices.push_back(static_cast<std::uint16_t>(start + 2));
+            indices.push_back(static_cast<std::uint16_t>(start + 3));
         };
 
+        const float gridHalf = kWorldPerPx * gridPx * 0.5f;
         const int lineCount = static_cast<int>(kExtent / kStep);
         for (int i = -lineCount; i <= lineCount; ++i) {
             const float x = static_cast<float>(i) * kStep;
             const std::uint32_t color = (i % kMajorEvery == 0) ? kGridMajor : kGridMinor;
-            addLine(x, 0.0f, -kExtent, x, 0.0f, kExtent, color);
+            addQuad(x, -kExtent, x, kExtent, 0.0f, gridHalf, color);
         }
         for (int i = -lineCount; i <= lineCount; ++i) {
             const float z = static_cast<float>(i) * kStep;
             const std::uint32_t color = (i % kMajorEvery == 0) ? kGridMajor : kGridMinor;
-            addLine(-kExtent, 0.0f, z, kExtent, 0.0f, z, color);
+            addQuad(-kExtent, z, kExtent, z, 0.0f, gridHalf, color);
         }
         m_gridLineIndexCount = static_cast<std::uint32_t>(indices.size());
         m_axisIndexStart = m_gridLineIndexCount;
-        addLine(-kExtent, 0.002f, 0.0f, kExtent, 0.002f, 0.0f, kAxisX);
-        addLine(0.0f, 0.002f, -kExtent, 0.0f, 0.002f, kExtent, kAxisZ);
+        const float axisHalf = kWorldPerPx * axisPx * 0.5f;
+        addQuad(-kExtent, 0.0f, kExtent, 0.0f, 0.002f, axisHalf, kAxisX);
+        addQuad(0.0f, -kExtent, 0.0f, kExtent, 0.002f, axisHalf, kAxisZ);
         m_axisIndexCount = static_cast<std::uint32_t>(indices.size()) - m_axisIndexStart;
+        m_gridPx = gridPx;
+        m_axisPx = axisPx;
 
         m_gridVertexBuffer =
             bgfx::createVertexBuffer(bgfx::copy(vertices.data(), static_cast<std::uint32_t>(
@@ -720,6 +753,8 @@ private:
     std::uint32_t m_gridLineIndexCount = 0;
     std::uint32_t m_axisIndexStart = 0;
     std::uint32_t m_axisIndexCount = 0;
+    float m_gridPx = 1.0f;
+    float m_axisPx = 2.0f;
     bgfx::ProgramHandle m_program = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle m_lightDir = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle m_lightColor = BGFX_INVALID_HANDLE;

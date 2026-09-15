@@ -1,6 +1,6 @@
 # 官方资产清单契约
 
-格式版本：1（P0）
+格式版本：1 与 2（FOUNDATION 版改写，见 foundation-upgrade/35 第四节；P0 清单为 1，2 增加 `skill` / `kind` / `rig`）
 
 ## 一、信任边界
 
@@ -76,7 +76,7 @@
 
 | 字段 | 类型 | 规则 |
 |------|------|------|
-| `schemaVersion` | integer | P0 只接受 `1`；更高版本拒绝并使用旧缓存 |
+| `schemaVersion` | integer | 接受 `1` 与 `2`；更高版本拒绝并使用旧缓存。`1` 按旧规则解析 |
 | `revision` | string | 清单修订号，用于更新检测，不作为排序时间 |
 | `generatedAt` | RFC 3339 string | 展示和诊断用途 |
 | `categories` | array | Category ID 唯一 |
@@ -92,11 +92,13 @@
 | `description` | 可本地化纯文本，UI 不按 HTML 渲染 |
 | `category` | 必须引用已声明 Category ID |
 | `tags` | 小写搜索关键字，去重 |
-| `format` | P0 仅 `glb` 或 `obj` |
-| `entrypoint` | 必须引用 `files[].path`，扩展名与 `format` 一致 |
-| `preview` | 必须引用 PNG/JPEG/WebP 文件；预览失败不阻止模型使用 |
+| `format` | `1`：仅 `glb` 或 `obj`。`2`：增加 `skill`；`skill` 的 `entrypoint` 必须是 `SKILL.md` |
+| `kind` | `2` 起可选：`model`（默认）\| `skill` \| `character`。`character` 的 `format` 仍必须是 `glb`。省略时：`format == skill` → `skill`，否则 `model` |
+| `rig` | `2` 起可选，仅 `kind == character`：`{ "type": "humanoid" \| "custom" \| "none", "source": string, "boneCount": int }`；只校验类型 |
+| `entrypoint` | 必须引用 `files[].path`；`glb`/`obj` 扩展名与 `format` 一致；`skill` 文件名为 `SKILL.md` |
+| `preview` | `glb`/`obj` 引用 PNG/JPEG/WebP；`skill` 可省略，缺省显示通用 Skill 图标；预览失败不阻止使用 |
 | `files` | 至少一个；OBJ 的 MTL/纹理作为独立文件列出并保持相对目录 |
-| `license` | 必填；P0 官方准入为 `CC0-1.0` 或经过审核的 `CC-BY-4.0` |
+| `license` | 必填；`glb`/`obj` 准入 `CC0-1.0` 或经过审核的 `CC-BY-4.0`；`skill` 另允许 `MIT` / `Apache-2.0` |
 | `author` | 必填；CC-BY 时 `attribution` 不得为空 |
 
 ### File
@@ -139,6 +141,8 @@
 
 失败至少区分：网络不可达、超时、HTTP 错误、磁盘空间不足、写入失败、大小不符、哈希不符、清单非法、用户取消。
 
+下载、校验、原子缓存、状态机不因 `format: skill` 出现第二条路。`kind == skill` 的资产不能被 `AddLibraryAssetToSceneCommand` 拖进场景。
+
 ## 六、最小测试集
 
 - 合法 GLB 与多文件 OBJ 资产
@@ -148,3 +152,6 @@
 - 下载中断、大小不符、哈希不符
 - 旧缓存可用、清单更新失败
 - 中文本地化与无中文回退到英文
+- `schemaVersion` 1 与 2 均可接受；3 拒绝
+- `format: skill` + `entrypoint: SKILL.md` + MIT/Apache-2.0 许可
+- `kind: character` 且 `format` 非 glb 拒绝；`rig.type` 非法拒绝

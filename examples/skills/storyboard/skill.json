@@ -1,0 +1,7 @@
+{
+  "format": "DirectorDeskSkillRun",
+  "formatVersion": 1,
+  "output": "storyboard-import.json",
+  "builtin": "openai-compat-json",
+  "promptFile": "prompt.md"
+}

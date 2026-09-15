@@ -41,6 +41,7 @@ struct ModelData {
     std::vector<Material> materials;
     std::vector<Primitive> primitives;
     std::vector<std::string> warnings;
+    bool hasSkin = false;
 };
 
 } // namespace DirectorDesk::Asset

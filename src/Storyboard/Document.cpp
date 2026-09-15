@@ -20,7 +20,7 @@ void Document::RebuildLayout() {
         scene.collapsed = ContainsId(m_collapsed, scene.id);
     }
     m_source.selectedShotId = m_selectedShotId;
-    m_layout = BuildLayout(m_source, DefaultLayoutMetrics(), false);
+    m_layout = BuildLayout(m_source, DefaultLayoutMetrics(), false, m_layoutMode, m_canvasWidth);
     for (LayoutCard& card : m_layout.cards) {
         if (card.kind != CardKind::Shot) {
             continue;
@@ -72,6 +72,23 @@ void Document::ApplySource(const StoryboardSourceSnapshot& snapshot) {
         }
     }
     RebuildLayout();
+}
+
+void Document::SetLayoutMode(LayoutMode mode) {
+    if (m_layoutMode == mode) {
+        return;
+    }
+    m_layoutMode = mode;
+    RebuildLayout();
+}
+
+void Document::SetCanvasWidth(float width) {
+    const int before = GridColumnCount(m_canvasWidth);
+    const int after = GridColumnCount(width);
+    m_canvasWidth = width;
+    if (m_layoutMode == LayoutMode::Grid && before != after) {
+        RebuildLayout();
+    }
 }
 
 void Document::Clear() {
@@ -201,7 +218,8 @@ void Document::EvictThumbnails(const std::vector<std::string>& keepIds, std::siz
 }
 
 LayoutResult Document::ExportLayout() const {
-    LayoutResult layout = BuildLayout(m_source, DefaultLayoutMetrics(), true);
+    LayoutResult layout =
+        BuildLayout(m_source, DefaultLayoutMetrics(), true, m_layoutMode, m_canvasWidth);
     for (LayoutCard& card : layout.cards) {
         if (card.kind != CardKind::Shot) {
             continue;

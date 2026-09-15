@@ -114,6 +114,7 @@ public:
         model.sourcePath = utf8Path;
         model.name = Platform::Paths::Stem(utf8Path);
         if (data->skins_count > 0) {
+            model.hasSkin = true;
             model.warnings.emplace_back("已忽略骨骼动画");
         }
         if (data->animations_count > 0) {

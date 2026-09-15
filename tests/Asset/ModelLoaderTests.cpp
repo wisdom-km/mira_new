@@ -2,7 +2,6 @@
 // This file owns project behavior only; keep platform and dependency boundaries explicit.
 // Contract coverage: model decoding produces valid CPU geometry and rejects malformed input.
 
-
 #include "DirectorDesk/Asset/LoaderRegistry.h"
 #include "DirectorDesk/Platform/Paths.h"
 
@@ -103,4 +102,26 @@ TEST_CASE("Corrupt GLB returns a parse error", "[asset][glb]") {
     auto loaded = registry.Load(path);
     REQUIRE_FALSE(loaded.IsOk());
     REQUIRE(loaded.GetError().code == DirectorDesk::Core::ErrorCode::ParseFailure);
+}
+
+TEST_CASE("Skinned GLB loads bind-pose mesh and sets hasSkin", "[asset][glb][fnd40]") {
+    const std::string dir = MakeCaseDir("glb-skin");
+    const std::string path = DirectorDesk::Tests::WriteSkinnedTriangleGlb(dir);
+    const auto registry = DirectorDesk::Asset::CreateDefaultRegistry();
+    auto loaded = registry.Load(path);
+    REQUIRE(loaded.IsOk());
+    REQUIRE(loaded.Value().hasSkin);
+    REQUIRE_FALSE(loaded.Value().primitives.empty());
+    REQUIRE(loaded.Value().primitives.front().vertices.size() == 3);
+    REQUIRE_FALSE(loaded.Value().warnings.empty());
+}
+
+TEST_CASE("Static GLB does not set hasSkin", "[asset][glb][fnd40]") {
+    const std::string dir = MakeCaseDir("glb-static");
+    const std::string path = DirectorDesk::Tests::WriteStaticTriangleGlb(dir);
+    const auto registry = DirectorDesk::Asset::CreateDefaultRegistry();
+    auto loaded = registry.Load(path);
+    REQUIRE(loaded.IsOk());
+    REQUIRE_FALSE(loaded.Value().hasSkin);
+    REQUIRE_FALSE(loaded.Value().primitives.empty());
 }

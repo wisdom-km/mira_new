@@ -5,6 +5,7 @@ add_library(dd_script
     Ids.cpp
     Parser.cpp
     Document.cpp
+    ImportStoryboard.cpp
 )
 add_library(DirectorDesk::script ALIAS dd_script)
 
@@ -13,10 +14,14 @@ target_include_directories(dd_script
         "${PROJECT_SOURCE_DIR}/include"
 )
 
+find_package(nlohmann_json CONFIG REQUIRED)
+
 target_link_libraries(dd_script
     PUBLIC
         dd_core
         dd_platform
+    PRIVATE
+        nlohmann_json::nlohmann_json
 )
 
 target_compile_features(dd_script PUBLIC cxx_std_17)

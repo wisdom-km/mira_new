@@ -1,0 +1,79 @@
+{
+  "format": "DirectorDeskProject",
+  "formatVersion": 1,
+  "createdBy": "DirectorDesk 0.1.3",
+  "projectId": "proj-example-import-001",
+  "name": "分镜导入示例",
+  "script": {
+    "path": {
+      "kind": "project-relative",
+      "value": "scripts/imported-storyboard.md"
+    }
+  },
+  "assets": [
+    {
+      "refId": "assetref-cube",
+      "source": "project",
+      "path": "models/cube.glb",
+      "sha256": "7045ec99acb06495fc5829f6984db85041b61cc2e2def7f007ce02feb9e4fabb"
+    }
+  ],
+  "scene": {
+    "nodes": [
+      {
+        "id": "node-cube-01",
+        "name": "立方体",
+        "assetRef": "assetref-cube",
+        "parent": null,
+        "transform": {
+          "position": [0.0, 0.0, 0.0],
+          "rotation": [0.0, 0.0, 0.0, 1.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "visible": true
+      }
+    ]
+  },
+  "cameras": [
+    {
+      "id": "cam-main",
+      "name": "主镜头",
+      "projection": "perspective",
+      "position": [0.0, 1.6, 5.0],
+      "rotation": [0.0, 0.0, 0.0, 1.0],
+      "verticalFovDegrees": 50.0,
+      "nearPlane": 0.1,
+      "farPlane": 200.0,
+      "orbitTarget": [0.0, 0.5, 0.0],
+      "orbitDistance": 6.0,
+      "orbitYaw": 40.0,
+      "orbitPitch": 25.0,
+      "preset": "front"
+    },
+    {
+      "id": "cam-over-shoulder",
+      "name": "过肩机位",
+      "projection": "perspective",
+      "position": [0.0, 1.6, 5.0],
+      "rotation": [0.0, 0.0, 0.0, 1.0],
+      "verticalFovDegrees": 40.0,
+      "nearPlane": 0.1,
+      "farPlane": 200.0,
+      "orbitTarget": [0.0, 0.8, 0.0],
+      "orbitDistance": 3.2,
+      "orbitYaw": 145.0,
+      "orbitPitch": 8.0,
+      "preset": "over-shoulder"
+    }
+  ],
+  "activeCamera": "cam-main",
+  "shotLinks": [
+    { "shotId": "shot-cafe-001", "cameraId": "cam-over-shoulder" },
+    { "shotId": "shot-cafe-002", "cameraId": "cam-main" }
+  ],
+  "lighting": { "preset": "warm" },
+  "storyboard": {
+    "layout": "grid",
+    "collapsedScenes": []
+  }
+}

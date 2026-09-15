@@ -204,6 +204,11 @@ Core::Result<BoardComposeResult> ComposeBoard(const BoardComposeRequest& request
         FillRect(result.pixels, sx(card.x), sx(card.y), sx(card.w), sx(card.h), r, g, b);
         DrawText(result.pixels, font, sx(card.x) + 8, sx(card.y) + 8, card.title, 18.0f * scale);
         if (card.kind == CardKind::Shot) {
+            int textY = sx(card.y) + 28;
+            if (!card.metaLine.empty()) {
+                DrawText(result.pixels, font, sx(card.x) + 8, textY, card.metaLine, 14.0f * scale);
+                textY += static_cast<int>(16.0f * scale);
+            }
             const char* link = card.link == LinkStatus::Linked ? "已关联" : "未关联";
             const char* preview = "缺失";
             switch (card.preview) {
@@ -223,15 +228,103 @@ Core::Result<BoardComposeResult> ComposeBoard(const BoardComposeRequest& request
             default:
                 break;
             }
-            DrawText(result.pixels, font, sx(card.x) + 8, sx(card.y) + 28,
+            DrawText(result.pixels, font, sx(card.x) + 8, textY,
                      std::string(link) + " · " + preview, 14.0f * scale);
             const auto thumb = request.thumbnails.find(card.shotId);
             if (thumb != request.thumbnails.end()) {
-                Blit(result.pixels, sx(card.x) + 10, sx(card.y) + 48, thumb->second);
+                Blit(result.pixels, sx(card.x) + 10, textY + static_cast<int>(20.0f * scale),
+                     thumb->second);
             }
         }
     }
     return Core::Result<BoardComposeResult>::Ok(std::move(result));
+}
+
+void BlitFit(ImageBuffer& dest, int x, int y, int w, int h, const ImageBuffer& src) {
+    if (src.width == 0 || src.height == 0 || w <= 0 || h <= 0) {
+        return;
+    }
+    const float scale = std::min(static_cast<float>(w) / static_cast<float>(src.width),
+                                 static_cast<float>(h) / static_cast<float>(src.height));
+    const int dw = std::max(1, static_cast<int>(static_cast<float>(src.width) * scale));
+    const int dh = std::max(1, static_cast<int>(static_cast<float>(src.height) * scale));
+    const int ox = x + (w - dw) / 2;
+    const int oy = y + (h - dh) / 2;
+    for (int yy = 0; yy < dh; ++yy) {
+        const int srcY = yy * static_cast<int>(src.height) / dh;
+        for (int xx = 0; xx < dw; ++xx) {
+            const int srcX = xx * static_cast<int>(src.width) / dw;
+            const std::size_t i =
+                (static_cast<std::size_t>(srcY) * src.width + static_cast<std::size_t>(srcX)) * 4u;
+            if (i + 3 >= src.rgba.size()) {
+                continue;
+            }
+            PutPixel(dest, ox + xx, oy + yy, src.rgba[i], src.rgba[i + 1], src.rgba[i + 2],
+                     src.rgba[i + 3]);
+        }
+    }
+}
+
+Core::Result<BoardPdfResult> ComposePdfPages(const BoardComposeRequest& request, int cellsPerPage) {
+    std::vector<const LayoutCard*> shots;
+    for (const LayoutCard& card : request.layout.cards) {
+        if (card.kind == CardKind::Shot) {
+            shots.push_back(&card);
+        }
+    }
+    if (shots.empty()) {
+        return Core::Result<BoardPdfResult>::Fail(Core::Error::Make(
+            Core::ErrorCode::InvalidArgument, "No shots to export", "没有可导出的镜头"));
+    }
+    if (cellsPerPage < 1) {
+        cellsPerPage = 6;
+    }
+    constexpr int kPageW = 1684;
+    constexpr int kPageH = 1190;
+    constexpr int kCols = 3;
+    const int rows = (cellsPerPage + kCols - 1) / kCols;
+    const int margin = 36;
+    const int gap = 16;
+    const int caption = 48;
+    const int cellW = (kPageW - margin * 2 - gap * (kCols - 1)) / kCols;
+    const int cellH = (kPageH - margin * 2 - gap * (rows - 1)) / rows;
+    FontBlit font = LoadFont(request.fontPath);
+
+    BoardPdfResult result;
+    const int pageCount = (static_cast<int>(shots.size()) + cellsPerPage - 1) / cellsPerPage;
+    for (int page = 0; page < pageCount; ++page) {
+        ImageBuffer image;
+        image.width = kPageW;
+        image.height = kPageH;
+        image.rgba.assign(static_cast<std::size_t>(kPageW) * kPageH * 4u, 255);
+        for (std::size_t i = 0; i < image.rgba.size(); i += 4) {
+            image.rgba[i] = 245;
+            image.rgba[i + 1] = 245;
+            image.rgba[i + 2] = 247;
+        }
+        for (int slot = 0; slot < cellsPerPage; ++slot) {
+            const int index = page * cellsPerPage + slot;
+            if (index >= static_cast<int>(shots.size())) {
+                break;
+            }
+            const int col = slot % kCols;
+            const int row = slot / kCols;
+            const int x = margin + col * (cellW + gap);
+            const int y = margin + row * (cellH + gap);
+            FillRect(image, x, y, cellW, cellH, 32, 34, 40);
+            const LayoutCard* card = shots[static_cast<std::size_t>(index)];
+            DrawText(image, font, x + 10, y + 8, card->title, 22.0f);
+            if (!card->metaLine.empty()) {
+                DrawText(image, font, x + 10, y + 28, card->metaLine, 16.0f);
+            }
+            const auto thumb = request.thumbnails.find(card->shotId);
+            if (thumb != request.thumbnails.end()) {
+                BlitFit(image, x + 10, y + caption, cellW - 20, cellH - caption - 12, thumb->second);
+            }
+        }
+        result.pages.push_back(std::move(image));
+    }
+    return Core::Result<BoardPdfResult>::Ok(std::move(result));
 }
 
 } // namespace DirectorDesk::Storyboard

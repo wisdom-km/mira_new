@@ -2,7 +2,6 @@
 // This file owns project behavior only; keep platform and dependency boundaries explicit.
 // Contract coverage: manifest schema, URL safety, hashes, and localized metadata validation.
 
-
 #include "DirectorDesk/Asset/Manifest.h"
 #include "DirectorDesk/Core/Sha256.h"
 
@@ -21,7 +20,8 @@ TEST_CASE("Official URL join rejects traversal and host jumps", "[asset][manifes
     REQUIRE_FALSE(DirectorDesk::Asset::JoinOfficialUrl(base, "../escape").IsOk());
     REQUIRE_FALSE(DirectorDesk::Asset::JoinOfficialUrl(base, "/abs").IsOk());
     REQUIRE_FALSE(DirectorDesk::Asset::JoinOfficialUrl(base, "https://evil.example/x").IsOk());
-    REQUIRE_FALSE(DirectorDesk::Asset::JoinOfficialUrl("http://official.example/dd/", "a.glb").IsOk());
+    REQUIRE_FALSE(
+        DirectorDesk::Asset::JoinOfficialUrl("http://official.example/dd/", "a.glb").IsOk());
     auto ok = DirectorDesk::Asset::JoinOfficialUrl(base, "assets/chair.glb");
     REQUIRE(ok.IsOk());
     REQUIRE(ok.Value() == "https://official.example/dd/assets/chair.glb");
@@ -120,11 +120,75 @@ TEST_CASE("OBJ assets and invalid entries are filtered", "[asset][manifest]") {
     REQUIRE(parsed.assets[0].id == "table-obj");
 }
 
-TEST_CASE("High schema version and missing root fields reject the manifest", "[asset][manifest]") {
+TEST_CASE("Schema version 1 and 2 are accepted; 3 is rejected", "[asset][manifest]") {
+    REQUIRE(DirectorDesk::Asset::ParseManifest(
+                R"({"schemaVersion":2,"revision":"r","categories":[],"assets":[]})")
+                .accepted);
+    REQUIRE(DirectorDesk::Asset::ParseManifest(
+                R"({"schemaVersion":1,"revision":"r","categories":[],"assets":[]})")
+                .accepted);
     REQUIRE_FALSE(DirectorDesk::Asset::ParseManifest(
-                      R"({"schemaVersion":2,"revision":"r","categories":[],"assets":[]})")
+                      R"({"schemaVersion":3,"revision":"r","categories":[],"assets":[]})")
                       .accepted);
-    REQUIRE_FALSE(DirectorDesk::Asset::ParseManifest(R"({"schemaVersion":1,"assets":[]})").accepted);
+    REQUIRE_FALSE(
+        DirectorDesk::Asset::ParseManifest(R"({"schemaVersion":1,"assets":[]})").accepted);
+}
+
+TEST_CASE("Schema 2 accepts skill assets with SKILL.md", "[asset][manifest]") {
+    const char* json =
+        R"({
+          "schemaVersion": 2,
+          "revision": "r2",
+          "categories": [{"id": "skill", "name": {"zh-CN": "Skills"}}],
+          "assets": [{
+            "id": "storyboard-skill",
+            "version": "1.0.0",
+            "name": {"zh-CN": "分镜 Skill"},
+            "category": "skill",
+            "format": "skill",
+            "kind": "skill",
+            "entrypoint": "SKILL.md",
+            "files": [{"path": "SKILL.md", "url": "skills/storyboard/SKILL.md",
+                       "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "size": 12}],
+            "license": {"spdx": "MIT", "name": "MIT"},
+            "author": {"name": "Author"}
+          }]
+        })";
+    const auto parsed = DirectorDesk::Asset::ParseManifest(json);
+    REQUIRE(parsed.accepted);
+    REQUIRE(parsed.assets.size() == 1);
+    REQUIRE(parsed.assets[0].kind == "skill");
+    REQUIRE(parsed.assets[0].format == "skill");
+}
+
+TEST_CASE("Schema 2 accepts character assets with rig", "[asset][manifest][fnd40]") {
+    const char* json =
+        R"({
+          "schemaVersion": 2,
+          "revision": "r2",
+          "categories": [{"id": "character", "name": {"zh-CN": "角色"}}],
+          "assets": [{
+            "id": "hero-a",
+            "version": "1.0.0",
+            "name": {"zh-CN": "主角"},
+            "category": "character",
+            "format": "glb",
+            "kind": "character",
+            "rig": {"type": "humanoid", "source": "mixamo", "boneCount": 65},
+            "entrypoint": "model/hero.glb",
+            "files": [{"path": "model/hero.glb", "url": "assets/hero-a/1.0.0/hero.glb",
+                       "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "size": 12}],
+            "license": {"spdx": "CC0-1.0", "name": "CC0"},
+            "author": {"name": "Author"}
+          }]
+        })";
+    const auto parsed = DirectorDesk::Asset::ParseManifest(json);
+    REQUIRE(parsed.accepted);
+    REQUIRE(parsed.assets.size() == 1);
+    REQUIRE(parsed.assets[0].kind == "character");
+    REQUIRE(parsed.assets[0].rigType == "humanoid");
+    REQUIRE(parsed.assets[0].rigSource == "mixamo");
+    REQUIRE(parsed.assets[0].rigBoneCount == 65);
 }
 
 TEST_CASE("Duplicate asset versions are rejected", "[asset][manifest]") {
@@ -159,8 +223,8 @@ TEST_CASE("Published official manifest URLs stay on the designated host", "[asse
     const std::string base = "https://raw.githubusercontent.com/wisdom-km/obj-3d-models/main/";
     auto url = DirectorDesk::Asset::JoinOfficialUrl(base, "models/basic-cube/1.0.0/cube.obj");
     REQUIRE(url.IsOk());
-    REQUIRE(url.Value() ==
-            "https://raw.githubusercontent.com/wisdom-km/obj-3d-models/main/models/basic-cube/1.0.0/cube.obj");
+    REQUIRE(url.Value() == "https://raw.githubusercontent.com/wisdom-km/obj-3d-models/main/models/"
+                           "basic-cube/1.0.0/cube.obj");
 }
 
 TEST_CASE("Sha256 helper matches a known empty digest", "[core][sha256]") {

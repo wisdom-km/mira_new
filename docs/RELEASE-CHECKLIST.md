@@ -26,13 +26,13 @@ P0 基线检查仍适用。FOUNDATION 起：**打 `v*` tag 即触发** `.github/
 - [ ] 快捷键 Ctrl+S / Ctrl+E 可用（焦点不在文本框时）
 - [ ] 导出 PNG 不含菜单、选框和地面格网
 
-## macOS
+## macOS（暂缓，不挡发布）
 
-- [ ] GitHub Actions `macOS` job 构建与测试通过
+- [ ] GitHub Actions `macOS` job 构建与测试通过（暂停；Wisdom 2026-09-15）
 - [ ] 有条件时再做一次实机：启动、打开示例工程、导入、保存、导出
 
 ## 仓库卫生
 
 - [ ] 未提交 `build/`、`vcpkg_installed/`、密钥或生成 shader
 - [ ] 无无归属 TODO / 临时代码开关
-- [ ] CI Windows + macOS 全绿
+- [ ] CI Windows 绿；macOS 不纳入本清单门禁

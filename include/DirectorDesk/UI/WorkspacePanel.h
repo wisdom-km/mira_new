@@ -19,6 +19,10 @@ struct UiPreferences {
     bool showThirds = false;
     bool showSafeFrame = false;
     std::string viewportBackground = "neutral";
+    float uiScale = 1.0f;
+    bool openLastProject = false;
+    std::string defaultExportDirectory;
+    std::string defaultSkillId;
 };
 
 class WorkspacePanel final : public IPanel {
@@ -30,6 +34,10 @@ public:
 
 private:
     void MarkPreferencesDirty();
+    void DrawSettingsModal(const AppViewState& state, Core::CommandQueue& commands);
+    void SyncSettingsAi(const AppViewState& state);
+    void FlushSettingsAi(const AppViewState& state, Core::CommandQueue& commands);
+    void DrawSkillsSettings(const AppViewState& state, Core::CommandQueue& commands);
     std::string m_cameraName;
     std::string m_cameraNameId;
     std::uint32_t m_lastViewportW = 0;
@@ -48,6 +56,26 @@ private:
     bool m_preferencesDirty = false;
     bool m_sceneFacePinned = false;
     std::string m_lastSelectionKey;
+    int m_gizmoOp = 0;
+    float m_uiScale = 1.0f;
+    bool m_settingsOpen = false;
+    int m_settingsPage = 0;
+    bool m_settingsAiSynced = false;
+    bool m_showApiKey = false;
+    bool m_openLastProject = false;
+    char m_exportDirBuf[512] = {};
+    char m_aiUrlBuf[256] = {};
+    char m_aiKeyBuf[256] = {};
+    char m_aiImageBuf[64] = {};
+    char m_aiVideoBuf[64] = {};
+    char m_aiChatBuf[64] = {};
+    std::string m_aiProvider = "openai-compat";
+    std::string m_defaultSkillId;
+    std::string m_settingsSkillId;
+    std::string m_skillPendingRemove;
+    std::string m_scrollShotId;
+    bool m_hotkeysOpen = false;
+    std::string m_leftTabFocus;
 };
 
 } // namespace DirectorDesk::UI

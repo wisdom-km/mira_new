@@ -1,0 +1,27 @@
+{
+  "format": "DirectorDeskStoryboardImport",
+  "formatVersion": 1,
+  "source": { "tool": "shuohao-skills/storyboard", "version": "0.3.0" },
+  "title": "咖啡馆短片",
+  "scenes": [
+    {
+      "id": "scene-cafe-day",
+      "title": "咖啡馆 - 日 - 内",
+      "body": "白天。窗边座位。A 等一个人。",
+      "shots": [
+        {
+          "id": "shot-cafe-001",
+          "title": "过肩",
+          "body": "A 坐在窗边，背对镜头，看向街道。杯子在手边。",
+          "meta": { "景别": "中景", "运镜": "推", "时长": "3s", "提示词": "暖色午后光，浅景深，胶片质感" }
+        },
+        {
+          "id": "shot-cafe-002",
+          "title": "特写",
+          "body": "手指轻敲杯沿。窗外有人影闪过。",
+          "meta": { "景别": "特写", "运镜": "固定", "时长": "3s" }
+        }
+      ]
+    }
+  ]
+}

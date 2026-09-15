@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string>
 
 namespace DirectorDesk::Storyboard {
 namespace {
@@ -18,15 +19,25 @@ bool Overlap(const LayoutCard& a, const LayoutCard& b) {
     return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-} // namespace
-
-const LayoutMetrics& DefaultLayoutMetrics() {
-    static const LayoutMetrics metrics;
-    return metrics;
+void FillShotCard(LayoutCard& shotCard, const ShotSource& shot, int order,
+                  const std::string& selectedShotId) {
+    shotCard.kind = CardKind::Shot;
+    shotCard.id = shot.id;
+    shotCard.sceneId = shotCard.sceneId;
+    shotCard.shotId = shot.id;
+    shotCard.cameraId = shot.cameraId;
+    shotCard.title = shot.title;
+    shotCard.order = order;
+    shotCard.selected = shot.id == selectedShotId;
+    shotCard.link = shot.cameraId.empty() ? LinkStatus::Unlinked : LinkStatus::Linked;
+    shotCard.metaLine = shot.metaLine;
+    if (!shot.cameraId.empty() && !shot.cameraExists) {
+        shotCard.preview = PreviewStatus::Failed;
+    }
 }
 
-LayoutResult BuildLayout(const StoryboardSourceSnapshot& snapshot, const LayoutMetrics& metrics,
-                         bool expandAll) {
+LayoutResult BuildLeftToRight(const StoryboardSourceSnapshot& snapshot, const LayoutMetrics& metrics,
+                              bool expandAll) {
     LayoutResult result;
     LayoutCard root;
     root.kind = CardKind::Root;
@@ -64,22 +75,12 @@ LayoutResult BuildLayout(const StoryboardSourceSnapshot& snapshot, const LayoutM
             int shotOrder = 1;
             for (const ShotSource& shot : scene.shots) {
                 LayoutCard shotCard;
-                shotCard.kind = CardKind::Shot;
-                shotCard.id = shot.id;
                 shotCard.sceneId = scene.id;
-                shotCard.shotId = shot.id;
-                shotCard.cameraId = shot.cameraId;
-                shotCard.title = shot.title;
-                shotCard.order = shotOrder++;
+                FillShotCard(shotCard, shot, shotOrder++, snapshot.selectedShotId);
                 shotCard.x = shotX;
                 shotCard.y = shotY;
                 shotCard.w = metrics.shotW;
                 shotCard.h = metrics.shotH;
-                shotCard.selected = shot.id == snapshot.selectedShotId;
-                shotCard.link = shot.cameraId.empty() ? LinkStatus::Unlinked : LinkStatus::Linked;
-                if (!shot.cameraId.empty() && !shot.cameraExists) {
-                    shotCard.preview = PreviewStatus::Failed;
-                }
                 result.edges.push_back(LayoutEdge{scene.id, shot.id});
                 result.cards.push_back(shotCard);
                 shotY += metrics.shotH + metrics.rowGap;
@@ -101,6 +102,95 @@ LayoutResult BuildLayout(const StoryboardSourceSnapshot& snapshot, const LayoutM
         result.contentHeight = std::max(result.contentHeight, card.y + card.h + metrics.pad);
     }
     return result;
+}
+
+LayoutResult BuildGrid(const StoryboardSourceSnapshot& snapshot, const LayoutMetrics& metrics,
+                       bool expandAll, float canvasWidth) {
+    LayoutResult result;
+    const int cols = GridColumnCount(canvasWidth, metrics);
+    const float inner = static_cast<float>(cols) * metrics.shotW +
+                        static_cast<float>(cols - 1) * metrics.columnGap;
+    float y = metrics.pad;
+    int sceneOrder = 1;
+    for (const SceneSource& scene : snapshot.scenes) {
+        const bool collapsed = expandAll ? false : scene.collapsed;
+        LayoutCard sceneCard;
+        sceneCard.kind = CardKind::Scene;
+        sceneCard.id = scene.id;
+        sceneCard.sceneId = scene.id;
+        sceneCard.title = scene.title;
+        sceneCard.order = sceneOrder++;
+        sceneCard.shotCount = static_cast<int>(scene.shots.size());
+        sceneCard.diagnosticCount = scene.diagnosticCount;
+        sceneCard.collapsed = collapsed;
+        sceneCard.x = metrics.pad;
+        sceneCard.y = y;
+        sceneCard.w = inner;
+        sceneCard.h = metrics.bannerH;
+        y += metrics.bannerH + metrics.rowGap;
+
+        if (!collapsed) {
+            int shotOrder = 1;
+            int index = 0;
+            for (const ShotSource& shot : scene.shots) {
+                const int col = index % cols;
+                const int row = index / cols;
+                LayoutCard shotCard;
+                shotCard.sceneId = scene.id;
+                FillShotCard(shotCard, shot, shotOrder++, snapshot.selectedShotId);
+                shotCard.x = metrics.pad + static_cast<float>(col) * (metrics.shotW + metrics.columnGap);
+                shotCard.y = y + static_cast<float>(row) * (metrics.shotH + metrics.rowGap);
+                shotCard.w = metrics.shotW;
+                shotCard.h = metrics.shotH;
+                result.cards.push_back(shotCard);
+                ++index;
+            }
+            if (index > 0) {
+                const int rows = (index + cols - 1) / cols;
+                y += static_cast<float>(rows) * (metrics.shotH + metrics.rowGap);
+            }
+        }
+        result.cards.push_back(std::move(sceneCard));
+    }
+
+    for (const LayoutCard& card : result.cards) {
+        result.contentWidth = std::max(result.contentWidth, card.x + card.w + metrics.pad);
+        result.contentHeight = std::max(result.contentHeight, card.y + card.h + metrics.pad);
+    }
+    return result;
+}
+
+} // namespace
+
+const LayoutMetrics& DefaultLayoutMetrics() {
+    static const LayoutMetrics metrics;
+    return metrics;
+}
+
+LayoutMode ParseLayoutMode(const std::string& id) {
+    return id == "left-to-right" ? LayoutMode::LeftToRight : LayoutMode::Grid;
+}
+
+const char* LayoutModeId(LayoutMode mode) {
+    return mode == LayoutMode::LeftToRight ? "left-to-right" : "grid";
+}
+
+int GridColumnCount(float canvasWidth, const LayoutMetrics& metrics) {
+    if (canvasWidth <= 1.0f) {
+        return 4;
+    }
+    const float inner = std::max(canvasWidth - 2.0f * metrics.pad, metrics.shotW);
+    const int cols =
+        static_cast<int>((inner + metrics.columnGap) / (metrics.shotW + metrics.columnGap));
+    return std::clamp(cols, 1, 8);
+}
+
+LayoutResult BuildLayout(const StoryboardSourceSnapshot& snapshot, const LayoutMetrics& metrics,
+                         bool expandAll, LayoutMode mode, float canvasWidth) {
+    if (mode == LayoutMode::Grid) {
+        return BuildGrid(snapshot, metrics, expandAll, canvasWidth);
+    }
+    return BuildLeftToRight(snapshot, metrics, expandAll);
 }
 
 bool CardsOverlap(const LayoutResult& layout) {

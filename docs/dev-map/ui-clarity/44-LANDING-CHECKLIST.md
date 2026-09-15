@@ -62,6 +62,34 @@ U0 **不依赖** `v0.1.3` / F1，可与 FOUNDATION 门禁并行。F1 本身仍�
 | UIC-33 | 全局 | Lucide 子集 TTF + MergeMode；审片 48px 图标条与窄窗浮层 | 资源文件 + `03` ISC 记录（Q3）；接 UIC-04 | — | 约 40 字形；无新 CMake 目标 |
 | UIC-34 | 偏好 | 背景 / 辅助线 / 左栏折叠写入用户目录 | 用户设置文件，**不进** `.ddproj`（Q10） | UIC-01/02/04 | 重启后开关还在 |
 
+## U3 · 专业化与适配（2026-09-15 实机审查，定义在 [`47`](47-FULL-FLOW-AUDIT.md) 第七节）
+
+| ID | 类型 | 改动 | 落点 | 依赖 | 完成标准 |
+|----|------|------|------|------|----------|
+| UIC-40 | Bug | 场景行名字（`Selectable` 负宽） | `WorkspacePanel.cpp` 场景段 | — | 对象名可见，眼睛在右 |
+| UIC-41 | Bug | 字面 `▾` → `Icon::ChevronDown` | 主按钮与其他字面 `▾` | — | `rg "▾" src/UI` 空 |
+| UIC-42 | Bug | 元数据两列表格标签 | 元数据段 | — | 五个标签完整可见 |
+| UIC-43 | Bug | `projectIsEmpty` 由 App 给；上手三步勾选正确 | `ViewStateBuilder.cpp` + 删 UI 侧 `ProjectIsEmpty` | 新字段 `bool projectIsEmpty` | 无工程启动出开始板 |
+| UIC-44 | Bug | 剧本只显示文件名；镜头条格加编号 / 名称 / 状态；无记录不画导出记录；示例按钮只在空状态 | `ScriptPanel` / `StoryboardPanel` / `LibraryPanel` | — | 四条各自可见 |
+| UIC-45 | Bug | 资源库默认网格 | 默认 `libraryViewMode` | — | 首启即网格 |
+| UIC-46 | 适配 | 面板像素宽 + 上下限（左 300–420，右 340–480，× 缩放） | `ApplyDockLayout` | — | 2560 宽右栏 ≤ 480px；1280 宽 ≥ 280px |
+| UIC-47 | 适配 | 界面缩放设置 100/125/150/200；首启 ≥2400 宽且 contentScale 1.0 默认 125% | `UiFonts.h` / `settings.json` `uiScale` | UIC-34 | 切换不重启生效 |
+| UIC-48 | 适配 | 格尺寸 / 网格线宽 / 栏高随缩放 | 各面板常量 × `UiScale()` | UIC-47 | 1440p 125% 镜头条格 ≥ 208×117 |
+| UIC-49 | 位置 | 设置对话框前四页（常规 / 视口 / 导出 / AI）；AI 块移出检查器 | `DrawSettingsModal`；编辑菜单 `Ctrl+,` | UIC-47；FND-53 | 检查器只留两个生成按钮 + 状态 + 「打开设置」 |
+| UIC-50 | 位置 | AI 字段标签；无密钥就地报错 | 设置 AI 页；检查器 AI 段 | UIC-49 | 按钮下橙字 + 「打开设置」 |
+| UIC-51 | 位置 | 菜单重组（导出子菜单 / 示例进帮助 / 编辑补齐 / 视图补齐 / 快捷键对话框） | 菜单段 | — | 文件菜单 ≤ 9 项；帮助无纯文本行 |
+| ~~UIC-52~~ | 位置 | 已放弃，并入 UIC-59 | — | — | — |
+| UIC-59 | 位置 | 设置 → **Skills 页**（装 / 卸 / 从官方获取 / 设默认 / 详情 / 空状态）；资源库过滤掉 `kind == "skill"`；删检查器 Skill 面孔 | `DrawSettingsModal` 第五页；`LibraryPanel` 过滤；`UiPreferences.defaultSkillId` | UIC-49 | 资源库无 Skill 卡；无新 Command（见 `47` 5.1 / 6.5） |
+| UIC-60 | 位置 | 运行入口迁到编剧模式：剧本面孔「分镜」段 `[生成分镜 ▾]` + 「从分镜 JSON 导入…」+ 就地状态 / 「打开设置」；菜单「导入模型或 Skill…」→「导入模型…」 | `WorkspacePanel` 剧本面孔 | UIC-59；UIC-56 | 不选资产也能一键生成分镜（见 `47` 6.3） |
+| UIC-53 | 位置 | 主按钮下拉补「镜头包」「设置…」 | 顶栏 | FND-21 | 与 `41` 四项一致 |
+| UIC-54 | 布局 | 左栏 tab 化：`镜头表` / `场景###SceneTree` / `资源库` | `ApplyDockLayout`、层级拆两窗口 | UIC-46 | 置景不裁场景段；`41` 补节 |
+| UIC-55 | 布局 | 编剧编辑器居中最大行宽 900 × 缩放 | `ScriptPanel.cpp` | UIC-47 | 1440p 一行 ≤ 65 汉字 |
+| UIC-56 | 反馈 | 新导入 / 新建镜头自动选中并滚到可视区 | Dispatch 末尾 + 面板 `SetScrollHere*` | — | 运行 Skill 后新镜头高亮 |
+| UIC-57 | 空状态 | 资源库在线 / 编剧无剧本 空状态一句原因 + 一个动作 | `LibraryPanel` / `ScriptPanel` | — | — |
+| UIC-58 | 待批准 | AI「测试连接」 | 需第 3 个 Command | Wisdom | — |
+
+功能按钮 / 设置项 / 示例的归位规则见 [`47`](47-FULL-FLOW-AUDIT.md) 5.1：作用于当前选中对象的是功能（检查器 / 顶栏 / 右键），跨启动且与工程无关的是设置（`编辑 → 设置…`），一次性示例进帮助 / 空状态。UIC-32（审片 grid）门禁已开（F2 完成），排在 UIC-55 之后。顺序建议见 [`47`](47-FULL-FLOW-AUDIT.md) 第七节末。
+
 ## 每个任务的 Definition of Done
 
 除 `../05` 第十一节：
@@ -69,5 +97,5 @@ U0 **不依赖** `v0.1.3` / F1，可与 FOUNDATION 门禁并行。F1 本身仍�
 1. 完成标准列可复现，写入 [`46`](46-UI-CLARITY-STATUS.md)。
 2. 未触碰 [`45`](45-DO-NOT.md) 与 `../ui-pro-upgrade/25` 第三节、`../foundation-upgrade/35` 第三节。
 3. 现有 Catch2 全绿。U2 新 Command 在 FND-10 之后必须有 Dispatch 测试。
-4. **U0 起**每次收工：本机 1280×800 与 1920×1080 各看四模式，无文字截断（Wisdom 或执行模型截图）。
+4. **U0 起**每次收工：本机 1280×800 与 1920×1080 各看四模式，无文字截断（Wisdom 或执行模型截图）。**U3 起**加 2560×1440 · 界面缩放 125% 一档：右栏空白 ≤ 40%、取景框暗幕单边 ≤ 80px。
 5. 收工同步 [`46`](46-UI-CLARITY-STATUS.md) 与 `../03`。

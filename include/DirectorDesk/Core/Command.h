@@ -226,6 +226,55 @@ struct SelectExportResolutionCommand {
     std::string resolutionId = "1080p";
 };
 
+struct SetShotMetaCommand {
+    std::string shotId;
+    std::string key;
+    std::string value;
+};
+
+struct ExportShotPackageCommand {
+    std::string shotId;
+    std::string resolutionId;
+};
+
+struct ImportStoryboardCommand {
+    std::string mode = "append";
+};
+
+struct ImportStoryboardFromPathCommand {
+    std::string utf8Path;
+    std::string mode = "append";
+};
+
+struct UndoCommand {};
+
+struct RedoCommand {};
+
+struct ExportStoryboardPdfCommand {};
+
+struct GenerateShotImageCommand {
+    std::string shotId;
+};
+
+struct GenerateShotVideoCommand {
+    std::string shotId;
+};
+
+struct CancelAiJobCommand {};
+
+struct SetAiSettingsCommand {
+    std::string provider;
+    std::string baseUrl;
+    std::string apiKey;
+    std::string imageModel;
+    std::string videoModel;
+    std::string chatModel;
+};
+
+struct RunSkillCommand {
+    std::string assetId;
+};
+
 struct DeleteShotCommand {
     std::string shotId;
 };
@@ -254,6 +303,9 @@ using Command = std::variant<
     CancelStoryboardStaleExportCommand, SetWorkspaceModeCommand, ResetLayoutCommand,
     BindShotToNewCameraCommand, SelectExportResolutionCommand, DeleteShotCommand,
     RemoveLibraryAssetCommand, RevealPathCommand, DeleteNodeCommand, DuplicateNodeCommand,
-    SetNodeVisibleCommand>;
+    SetNodeVisibleCommand, SetShotMetaCommand, ExportShotPackageCommand, ImportStoryboardCommand,
+    ImportStoryboardFromPathCommand, UndoCommand, RedoCommand, ExportStoryboardPdfCommand,
+    GenerateShotImageCommand, GenerateShotVideoCommand, CancelAiJobCommand, SetAiSettingsCommand,
+    RunSkillCommand>;
 
 } // namespace DirectorDesk::Core
